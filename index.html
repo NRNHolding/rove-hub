@@ -987,7 +987,7 @@ const KEY='rovehub_orders_v18';
 /* ================= VERSI YANG SEDANG BERJALAN =================
    Diisi otomatis oleh terbitkan.js waktu salinan ini diterbitkan; '-' berarti
    dibuka langsung dari berkas, bukan dari alamat terbitannya. */
-const VERSI='20261109-140624';
+const VERSI='20261109-143349';
 /* Berkas versi.txt di sebelah halaman ini berisi penanda yang sama. Ia
    ditanyakan tanpa cache, jadi ia jujur walau halamannya sendiri masih
    tersimpan di cache browser. */
@@ -1401,7 +1401,7 @@ const EN={
 '＋ Catat follow-up':'＋ Log follow-up',
 'Jenis order — cara menentukan harga':'Order type — how the price is set','Jenis order:':'Order type:','Perkiraan pun boleh.':'An estimate is fine.',
 'produk yang sudah ada — harga dari master':'existing product — price from master data','dibuat dari nol — harga ditanya ke vendor':'made from scratch — price asked from the vendor',
-'katalog + custom':'catalogue + custom','greeting card saja':'greeting card only',
+'katalog + custom':'catalogue + custom','collateral saja — tanpa produk kulit':'collateral only — no leather product',
 'A. PRODUK, KEMASAN & PERSONALISASI':'A. PRODUCTS, PACKAGING & PERSONALISATION','B. REFERENSI GAMBAR DARI CLIENT':'B. REFERENCE IMAGES FROM THE CLIENT',
 'Centang yang diminta client, lalu tulis kata client apa adanya — PM yang menerjemahkannya jadi bahan & ukuran.':'Tick what the client asked for, then write the client\'s own words — the PM turns them into materials & sizes.',
 'Password baru':'New password','Ulangi password baru':'Repeat the new password','Simpan & masuk':'Save & sign in',
@@ -1430,7 +1430,7 @@ const EN={
 'Diatur oleh item non-produk':'Set by the non-product item','ubah di blok "Spesifikasi item non-produk" di atas':'change it in the "Non-product item spec" block above',
 'ITEM NON-PRODUK — tanpa produk kulit':'NON-PRODUCT ITEMS — no leather product','belum ada item':'no items yet',
 'Harga dari Kombinasi harga (mis. Thank You Card) — spesifikasi & jumlah bisa diubah PM di Brief Inquiry.':'Price from the Price combinations (e.g. Thank You Card) — the PM can change the spec & quantity in the Inquiry brief.',
-'Pilih jenisnya dulu — isian berikutnya menyesuaikan. Katalog menampilkan produk yang sudah ada, custom cukup ditulis apa adanya, Non-produk untuk greeting card saja (tanpa produk kulit).':'Pick the type first — the next fields adapt. Catalogue shows existing products, custom is written as is, Non-product is for greeting cards only (no leather product).',
+'Pilih jenisnya dulu — isian berikutnya menyesuaikan. Katalog menampilkan produk yang sudah ada, custom cukup ditulis apa adanya, Non-produk untuk collateral saja (box, pouch, kartu — tanpa produk kulit).':'Pick the type first — the next fields adapt. Catalogue shows existing products, custom is written as is, Non-product is for collateral only (box, pouch, card — no leather product).',
 'Tambahkan dulu item non-produknya (mis. Greeting Card) di "Brief singkat untuk PM".':'First add the non-product item (e.g. Greeting Card) in "Short brief for the PM".',
 'Nama warna':'Colour name','Alat deboss':'Deboss kits','＋ Tambah alat deboss':'＋ Add deboss kit','📍 Pindahkan lokasi':'📍 Move location',
 'Lokasi terakhir':'Last location','Alat deboss yang dibawa':'Deboss kits taken','disarankan':'suggested','lengkap':'complete','di luar kota asal':'away from home city',
@@ -2920,8 +2920,8 @@ function leadSpecRingkas(l){
 
 
 /* ---- item katalog di prospek ---- */
-const LEAD_JENIS_KET={Katalog:'produk yang sudah ada — harga dari master',Custom:'dibuat dari nol — harga ditanya ke vendor',Mix:'katalog + custom','Non-produk':'greeting card saja'};
-const LEAD_JENIS=['Katalog','Custom','Mix','Non-produk'];   // Non-produk = greeting card saja, tanpa produk kulit (6 Okt)
+const LEAD_JENIS_KET={Katalog:'produk yang sudah ada — harga dari master',Custom:'dibuat dari nol — harga ditanya ke vendor',Mix:'katalog + custom','Non-produk':'collateral saja — tanpa produk kulit'};
+const LEAD_JENIS=['Katalog','Custom','Mix','Non-produk'];   // Non-produk = collateral saja (box, pouch, kartu), tanpa produk kulit (6 Okt; label 9 Nov)
 function leadItems(l){if(!Array.isArray(l.items))l.items=[];return l.items;}
 /* Ringkasan prospek — dipakai kartu di papan DAN kirimKeInquiry, supaya
    kartunya tak pernah menjanjikan sesuatu yang lain dari yang lahir. */
@@ -3088,7 +3088,7 @@ function leadPilihJenis(l){
         (on?'var(--brand)':'var(--line)')+';background:'+(on?'var(--brand)':'var(--panel)')+
         ';color:'+(on?'#fff':'var(--muted)')+';border-radius:9px;padding:8px 10px;font-size:11px;font-weight:800;cursor:pointer">'+
         esc(j)+'</button>';}).join('')+'</div>'+
-    (l.jenis?'':'<div style="font-size:10px;color:var(--muted);margin-top:7px;line-height:1.55">Pilih jenisnya dulu — isian berikutnya menyesuaikan. Katalog menampilkan produk yang sudah ada, custom cukup ditulis apa adanya, Non-produk untuk greeting card saja (tanpa produk kulit).</div>');}
+    (l.jenis?'':'<div style="font-size:10px;color:var(--muted);margin-top:7px;line-height:1.55">Pilih jenisnya dulu — isian berikutnya menyesuaikan. Katalog menampilkan produk yang sudah ada, custom cukup ditulis apa adanya, Non-produk untuk collateral saja (box, pouch, kartu — tanpa produk kulit).</div>');}
 
 function leadKatalogBlok(l){
   var I=leadItems(l),K=catalog()||[];
@@ -24380,7 +24380,6 @@ function briefPanel(o){
 
     bsek(o,'produk','Spesifikasi produk',sub('SPESIFIKASI PRODUK','menempel di tiap produknya — satu baris per kombinasi warna / spesifikasi, seperti Excel')+
     salesPita(o,'produk')+
-    fileKlienBlok(o)+   // satu kotak file client (9 Nov)
     katalogPilihBlok(o)+
     briefProduk(o)+
     (function(){
@@ -24441,7 +24440,7 @@ function briefPanel(o){
     /* Personalisasi menempel pada spesifikasi produk — ia memang bagian dari
        produknya, bukan pekerjaan yang berdiri sendiri. Dulu ia terlempar ke
        bawah PACKAGING dan LIVE SERVICE, jauh dari kolom yang menerangkannya. */
-    '')+
+    fileKlienBlok(o))+   // satu kotak file client, di bawah catatan produk (9 Nov)
     /* lampiran quotation (preview kemasan / desain) dipindah ke panel Quotation (13 Okt) — di Inquiry belum dipakai */
 
     bsek(o,'perso','Personalisasi','<a id="sekPerso"></a>'+
