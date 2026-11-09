@@ -988,7 +988,7 @@ const KEY='rovehub_orders_v18';
 /* ================= VERSI YANG SEDANG BERJALAN =================
    Diisi otomatis oleh terbitkan.js waktu salinan ini diterbitkan; '-' berarti
    dibuka langsung dari berkas, bukan dari alamat terbitannya. */
-const VERSI='20261109-151427';
+const VERSI='20261109-154942';
 /* Berkas versi.txt di sebelah halaman ini berisi penanda yang sama. Ia
    ditanyakan tanpa cache, jadi ia jujur walau halamannya sendiri masih
    tersimpan di cache browser. */
@@ -1366,6 +1366,7 @@ const EN_RULES=[
 
 /* Kamus persis. Kunci = teks Indonesia apa adanya yang muncul di layar. */
 const EN={
+'Qty jasa ini mengikuti tabel produk di Brief — ubah qty produk atau baris di tabelnya.':'This service quantity follows the product table in the Brief — change the product quantity or its table rows.',
 'Jasa · teknik':'Service · technique','＋ Logo kedua':'＋ Second logo','− Logo kedua':'− Second logo','🔒 spesifikasi standar katalog':'🔒 standard catalogue spec',
 'Daftar nama — personalisasi per pcs':'Name list — per-piece personalisation',
 'File dari client':'Files from the client','— untuk apa? —':'— what is it for? —','Double logo':'Second logo','Referensi desain':'Design reference',
@@ -9794,9 +9795,10 @@ function namaJasaBaris(l){
   return String((l&&l.produk)||'').replace(/^(Live service|Add-on) — /,'');}
 /* nama baris untuk dibaca orang (15 Okt): 'Add-on — Add-on Logo Rove' → 'Add-on Logo Rove' — jasanya sudah berawalan sama */
 function namaBarisTampil(l){var p=String((l&&l.produk)||''),m=p.match(/^(Live service|Add-on) — (.+)$/);
-  return (m&&m[2].toLowerCase().indexOf(m[1].toLowerCase())===0)?m[2]:p;}
+  return ((m&&m[2].toLowerCase().indexOf(m[1].toLowerCase())===0)?m[2]:p)+((l&&l.jasa&&l.jasaUntuk)?(' — '+l.jasaUntuk):'');}
 /* barang yang dikerjakan add-on — vendor jasa perlu tahu logonya dipasang di apa (15 Okt) */
-function addonUntuk(o){var P=[];try{P=lineProduk(o);}catch(e){}
+function addonUntuk(o,l){var u=l&&o&&o.svcUntuk&&o.svcUntuk[namaJasaBaris(l)];if(u)return u+((+l.qty>0)?(' · '+l.qty+' pcs'):'');   /* jasa per produk (patch200) */
+  var P=[];try{P=lineProduk(o);}catch(e){}
   return P.map(function(x){return (x.l.produk||'produk')+((+x.l.qty>0)?(' · '+x.l.qty+' pcs'):'');}).join(', ');}
 /* 'Add-on Logo (2)' → 'Add-on Logo'. Satu order boleh memakai jasa yang sama
    dua kali (mis. dua logo di tempat berbeda) — barisnya diberi nomor supaya
@@ -19426,7 +19428,7 @@ function rfqPesanGabung(o,l){
     var tkA=teknikBaris(l);
     var ltA=l.letak||svcLetak(o,namaJasaBaris(l));
     P.push('','**Yang dikerjakan**',
-      '• Untuk barang: '+(addonUntuk(o)||'produk di order ini'),
+      '• Untuk barang: '+(addonUntuk(o,l)||'produk di order ini'),
       '• Teknik: '+((tkA&&tkA!=='-')?tkA:'**belum ditentukan**'),
       '• Peletakan: '+(ltA||'**belum ditentukan**'),
       '• Jumlah: '+(l.qty||0)+' pcs',
@@ -20076,10 +20078,13 @@ function profitSet(id,i,f,v){
   else if(f==='hpp'){                                 // HPP vendor, tak pernah menyentuh harga jual
     l.hpp=Math.max(0,moneyVal(v));l._hppManual=true;   // HPP selalu bisa ditimpa (mis. vendor naik harga)
     try{negoTutup(o,l,l.hpp);}catch(e){}}
-  else if(f==='qty'){l.qty=Math.max(0,+v||0);
+  else if(f==='qty'){
+    if(o.jasaTabel&&l.jasa==='Add-on'&&l.jasaKunci){alert('Qty jasa ini mengikuti tabel produk di Brief — ubah qty produk atau baris di tabelnya.');render();return;}
+    l.qty=Math.max(0,+v||0);
     /* qty vendor tak boleh di bawah qty client: kalau qty client naik melewatinya, qty vendor mengikuti dan spare ditentukan ulang */
     if((+l.qtyPO||0)>0&&l.qty>(+l.qtyPO||0)){l.qtyPO=0;if(o.pricing.spareTgl){delete o.pricing.spareTgl;delete o.pricing.spareTglBy;}
-      logHist(o,'Qty '+(l.produk||'item')+' naik melewati qty vendor — qty vendor mengikuti qty client, spare ditentukan ulang');}}
+      logHist(o,'Qty '+(l.produk||'item')+' naik melewati qty vendor — qty vendor mengikuti qty client, spare ditentukan ulang');}
+    if(o.jasaTabel&&lineJenis(l)==='produk'){try{tplJasaSinkron(o);}catch(e){}}}   /* qty jasa ikut qty produk (patch200) */
   o._m=Date.now();save();render();}
 /* Margin baris = selisih harga jual terhadap HPP vendor. */
 function lineMarginEfektif(l,m,o){
@@ -21948,7 +21953,8 @@ function updateTotals(id){
 }
 function toggleFixed(id,i){var o=ST.orders.find(function(x){return x.id===id;});if(!o||!o.pricing)return;var l=o.pricing.lines[i];if(!l)return;l.fixed=!l.fixed;save();render();}
 function addLine(id){const o=ST.orders.find(x=>x.id===id);if(!o.pricing)o.pricing={lines:[],margin:30};o.pricing.lines.push({produk:'',bahan:'',sumber:(vendorNames()[0]||''),qty:0,hpp:0});save();render();}
-function delLine(id,i){const o=ST.orders.find(x=>x.id===id);o.pricing.lines.splice(i,1);save();render();}
+function delLine(id,i){const o=ST.orders.find(x=>x.id===id);var dl=o.pricing.lines[i];o.pricing.lines.splice(i,1);
+  if(o.jasaTabel&&dl&&lineJenis(dl)==='produk'){try{tplJasaSinkron(o);}catch(e){}}save();render();}
 function noteInput(el){const o=ST.orders.find(x=>x.id===el.dataset.id);if(!o.notes)o.notes={};o.notes[el.dataset.note]=el.value;save();}
 let showHPP=true;
 function toggleHPP(){showHPP=!showHPP;render();}
@@ -25056,7 +25062,7 @@ function rfqDocSpek(o,l){
     t('Peletakan',l.letak||svcLetak(o,namaJasaBaris(l)));
     t('Jumlah dikerjakan di lokasi',(l.qty||0)+' pcs');
   } else if(jenis==='addon'){
-    t('Untuk barang',addonUntuk(o));
+    t('Untuk barang',addonUntuk(o,l));
     t('Teknik',teknikBaris(l)||'belum ditentukan');
     t('Peletakan',l.letak||svcLetak(o,namaJasaBaris(l))||'belum ditentukan');
     if((+l.hppFix||0)>0)t('Biaya tetap teknik',fmt0(l.hppFix)+' (sekali per order)');
@@ -25435,15 +25441,26 @@ function tplJasaAktifkan(o){if(!o||o.jasaTabel)return;
     lineVarian(l).forEach(function(v){['pTek','lTek','l2Tek'].forEach(function(k){if(v[k]!=null&&String(v[k]).trim()&&!tplJasaPecah(v[k])&&tplNyata(v[k]))delete v[k];});});});
   o.jasaTabel=true;}
 function tplJasaPakai(o){var M={},urut=[];
-  lineProduk(o).forEach(function(x){var D=tplData(o,x.l);D.rows.forEach(function(r){TPL_JASA_GRUP.forEach(function(g){
-    var m=tplJasaPecah(r.vals[g[1]]);if(!m)return;var key=m.jasa+'|'+m.teknik;
-    if(!M[key]){M[key]={jasa:m.jasa,teknik:m.teknik,q:0,letak:'',perPcs:false,kode:[]};urut.push(key);}
-    var p=M[key];p.q+=(+r.q||0);p.kode.push(r.kode);if(!p.letak&&tplNyata(r.vals[g[2]]))p.letak=String(r.vals[g[2]]).trim();
-    if(g[3]&&/per pcs/i.test(String(r.vals[g[3]]||'')))p.perPcs=true;});});});
-  var hit={};urut.forEach(function(k){var p=M[k];hit[p.jasa]=(hit[p.jasa]||0)+1;p.nama=(hit[p.jasa]>1)?(p.jasa+' ('+hit[p.jasa]+')'):p.jasa;});
+  lineProduk(o).forEach(function(x){var D=tplData(o,x.l),pr=String(x.l.produk||'').trim(),A={};
+    D.rows.forEach(function(r){TPL_JASA_GRUP.forEach(function(g){
+      var m=tplJasaPecah(r.vals[g[1]]);if(!m)return;var key=pr+'|'+m.jasa+'|'+m.teknik;   /* per produk (patch200): harga vendor bisa beda per barang */
+      if(!M[key]){M[key]={kunci:key,produk:pr,jasa:m.jasa,teknik:m.teknik,q:0,letak:'',perPcs:false,kode:[]};urut.push(key);}
+      var p=M[key],ag=key+'#'+g[1];if(!A[ag])A[ag]={p:p,q:0,n:0};A[ag].q+=(+r.q||0);A[ag].n++;
+      p.kode.push(r.kode);if(!p.letak&&tplNyata(r.vals[g[2]]))p.letak=String(r.vals[g[2]]).trim();
+      if(g[3]&&/per pcs/i.test(String(r.vals[g[3]]||'')))p.perPcs=true;});});
+    /* dipakai SEMUA baris produk ini → qty jasa = qty produk (ikut ubahan qty di Pricing); sebagian baris → jumlah pcs baris itu */
+    Object.keys(A).forEach(function(ag){var t=A[ag],qp=+x.l.qty||0;t.p.q+=(t.n>=D.rows.length&&qp>0)?qp:t.q;});});
+  /* nama baris: baris yang sudah memegang kunci ini memakai namanya lagi — harga & tanya vendor tak pindah ke kunci lain */
+  var L=((o.pricing||{}).lines)||[],pakai={},J=function(l){return !!(l&&l.jasa==='Add-on');};
+  urut.forEach(function(k){var l=L.filter(function(x){return J(x)&&x.jasaKunci===k;})[0],n=l?namaJasaBaris(l):'';
+    if(n&&!pakai[n]){M[k].nama=n;pakai[n]=1;}});
+  urut.forEach(function(k){var p=M[k];if(p.nama)return;var n=p.jasa,i=1;
+    while(pakai[n]||L.some(function(x){return J(x)&&x.jasaKunci&&x.jasaKunci!==k&&namaJasaBaris(x)===n;})){i++;n=p.jasa+' ('+i+')';}
+    p.nama=n;pakai[n]=1;});
   return urut.map(function(k){return M[k];});}
 function tplJasaSinkron(o){if(!o||!o.jasaTabel)return;var P=tplJasaPakai(o),nama=P.map(function(p){return p.nama;}),lama=liveList(o.svc);
   if(!o.svcTeknik)o.svcTeknik={};if(!o.svcLetak)o.svcLetak={};
+  var banyak=lineProduk(o).length>1;o.svcUntuk={};P.forEach(function(p){o.svcUntuk[p.nama]=p.produk;});   /* jasa ini untuk barang apa (patch200) */
   P.forEach(function(p){o.svcTeknik[p.nama]=p.teknik;if(p.letak)o.svcLetak[p.nama]=p.letak;if(p.perPcs)persoGet(o,p.nama).perPcs=true;});
   o.svc=nama;
   /* jasa yang tak dipakai lagi: barisnya dibuang (yang sudah ditanyakan / berharga ditandai lepas, seperti ordSvcDel) */
@@ -25452,9 +25469,10 @@ function tplJasaSinkron(o){if(!o||!o.jasaTabel)return;var P=tplJasaPakai(o),nama
     if((l.rfq&&l.rfq.minta)||(+l.hpp||0)>0)l._jasaLepas=true;else L.splice(i,1);}
   try{barisVendorLengkapi(o);}catch(e){}
   P.forEach(function(p){(((o.pricing||{}).lines)||[]).forEach(function(l){if(!l||l.jasa!=='Add-on'||namaJasaBaris(l)!==p.nama)return;
-    if((+l.qty||0)!==p.q)l.qty=p.q;delete l._jasaLepas;if(p.letak)l.letak=p.letak;});});
+    if((+l.qty||0)!==p.q)l.qty=p.q;delete l._jasaLepas;if(p.letak)l.letak=p.letak;
+    l.jasaKunci=p.kunci;if(banyak)l.jasaUntuk=p.produk;else delete l.jasaUntuk;});});
   try{jasaTerapkanTeknik(o);persoSinkron(o);}catch(e){}
-  if(JSON.stringify(lama)!==JSON.stringify(nama))logHist(o,'Jasa dari tabel produk: '+(P.length?P.map(function(p){return p.nama+(p.teknik?(' · '+p.teknik):'')+' '+p.q+' pcs';}).join(', '):'tidak ada'));}
+  if(JSON.stringify(lama)!==JSON.stringify(nama))logHist(o,'Jasa dari tabel produk: '+(P.length?P.map(function(p){return p.nama+(banyak?(' — '+p.produk):'')+(p.teknik?(' · '+p.teknik):'')+' '+p.q+' pcs';}).join(', '):'tidak ada'));}
 /* grup Logo 2: muncul bila ada file berlabel Double logo, isian logo kedua, ＋ Logo kedua, atau order lama dengan dua jasa logo */
 function tplLogo2File(o){try{return fileKlien(o).some(function(x){return x.untuk==='Double logo';});}catch(e){return false;}}
 function tplLogo2Isi(o){return lineProduk(o).some(function(x){var l=x.l,sp=l.spek||{};
@@ -25472,7 +25490,7 @@ function tplStdWarna(o,l){if(!spekStd(l))return;var K=[];try{K=warnaProduk(prodK
 function tplNamaBlok(o){if(!lineProduk(o).length||spekKunci(o))return '';var J=liveList(o.svc).filter(function(n){return !/logo/i.test(n);});if(!J.length)return '';
   return '<div data-f="tplNama" style="border:1px solid var(--line);border-radius:10px;padding:9px 12px;margin-bottom:10px;background:var(--bg)">'+
     '<div class="nlbl" style="margin-bottom:5px">Daftar nama — personalisasi per pcs</div>'+
-    J.map(function(n){return '<div style="margin:6px 0"><b style="font-size:11px">'+esc(n)+'</b>'+persoBlok(o,n)+'</div>';}).join('')+'</div>';}
+    J.map(function(n){var u=(lineProduk(o).length>1)&&(o.svcUntuk||{})[n];return '<div style="margin:6px 0"><b style="font-size:11px">'+esc(n)+(u?(' — '+esc(u)):'')+'</b>'+persoBlok(o,n)+'</div>';}).join('')+'</div>';}
 /* nilai tingkat produk (sama untuk semua baris) */
 function tplP(o,l,c){
   if(c.k==='q')return String(+l.qty||0);
