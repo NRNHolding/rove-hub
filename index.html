@@ -987,7 +987,7 @@ const KEY='rovehub_orders_v18';
 /* ================= VERSI YANG SEDANG BERJALAN =================
    Diisi otomatis oleh terbitkan.js waktu salinan ini diterbitkan; '-' berarti
    dibuka langsung dari berkas, bukan dari alamat terbitannya. */
-const VERSI='20261029-110601';
+const VERSI='20261109-100823';
 /* Berkas versi.txt di sebelah halaman ini berisi penanda yang sama. Ia
    ditanyakan tanpa cache, jadi ia jujur walau halamannya sendiri masih
    tersimpan di cache browser. */
@@ -1370,7 +1370,7 @@ const EN={
 '⏰ Ingatkan Sales':'⏰ Remind Sales','belum pernah diingatkan':'never reminded yet',
 '📋 Salin pesan kekurangan untuk Radja':'📋 Copy shortage message for Radja','🏷 Cetak label packing per kode':'🏷 Print packing labels per code','Lolos QC':'Passed QC',
 '＋ Baris (salin baris terakhir)':'＋ Row (copy last row)','⇵ Bagi qty rata':'⇵ Split qty evenly','⬇ Unduh template (Excel)':'⬇ Download template (Excel)',
-'Warna kulit':'Leather colour','Warna finishing':'Finishing colour','File logo':'Logo file','Jahitan':'Stitching','Rincian kombinasi':'Combination details',
+'Warna material':'Material colour','Warna finishing':'Finishing colour','File logo':'Logo file','Jahitan':'Stitching','Rincian kombinasi':'Combination details',
 'Kebutuhan accessories':'Accessories needed','warna → kolom di tabel':'colour → column in the table',
 'WO / EO — PIC':'WO / EO — PIC','pakai data ini':'use this data','✓ dari Brief':'✓ from the Brief','✓ dari operator':'✓ from operators',
 'Warna kemasan':'Packaging colour','Ukuran bawaan':'Default size','Font personalisasi':'Personalisation font',
@@ -25270,11 +25270,11 @@ function tplKolom(o,l){
   return [
     {k:'q',l:'Qty',g:'Umum'},
     /* material: daftar Master + artikel dari jawaban Radja / yang sudah tertulis di order ini (bertanda) */
-    {k:'mat',l:'Material',g:'Kulit',v:'mat',df:'mainMat',dl:function(){var u=listArr('mainmat'),L=u.slice(),tanda={};
+    {k:'mat',l:'Material',g:'Material',v:'mat',df:'mainMat',dl:function(){var u=listArr('mainmat'),L=u.slice(),tanda={};
       var tambah=function(x){x=String(x||'').trim();if(x&&x!=='-'&&L.indexOf(x)<0){L.push(x);tanda[x]=1;}};
       (rfqKulitBaca(l).jawab||[]).forEach(function(j){tambah(j&&j.nama);});tambah(spekVal(o,l,'mainMat'));lineVarian(l).forEach(function(v){tambah(v.mat);});
       return L.map(function(x){return tanda[x]?{v:x,ket:'Dari jawaban Radja / tertulis di order ini'}:x;});}},
-    {k:'warna',l:'Warna kulit',g:'Kulit',v:'w',sp:'mainMatWarna',df:'mainMatWarna',dl:function(){var a=[];try{a=prodWarnaDaftar(prodKatalog(l.produk));}catch(e){}
+    {k:'warna',l:'Warna material',g:'Material',v:'w',sp:'mainMatWarna',df:'mainMatWarna',dl:function(){var a=[];try{a=prodWarnaDaftar(prodKatalog(l.produk));}catch(e){}
       return a.concat(listArr('warna').filter(function(x){return a.indexOf(x)<0;}));}},
     {k:'lining',l:'Lining',g:'Lining',v:'lining',sp:'lining',df:'lining',dl:function(){return listArr('lining');}},
     {k:'liningW',l:'Warna lining',g:'Lining',v:'liningWarna',sp:'liningWarna',df:'liningWarna',dl:function(){return opsiList('liningwarna');}},
