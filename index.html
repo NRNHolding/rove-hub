@@ -987,7 +987,7 @@ const KEY='rovehub_orders_v18';
 /* ================= VERSI YANG SEDANG BERJALAN =================
    Diisi otomatis oleh terbitkan.js waktu salinan ini diterbitkan; '-' berarti
    dibuka langsung dari berkas, bukan dari alamat terbitannya. */
-const VERSI='20261109-102716';
+const VERSI='20261109-113825';
 /* Berkas versi.txt di sebelah halaman ini berisi penanda yang sama. Ia
    ditanyakan tanpa cache, jadi ia jujur walau halamannya sendiri masih
    tersimpan di cache browser. */
@@ -1372,7 +1372,8 @@ const EN={
 '📋 Salin pesan kekurangan untuk Radja':'📋 Copy shortage message for Radja','🏷 Cetak label packing per kode':'🏷 Print packing labels per code','Lolos QC':'Passed QC',
 '＋ Baris (salin baris terakhir)':'＋ Row (copy last row)','⇵ Bagi qty rata':'⇵ Split qty evenly','⬇ Unduh template (Excel)':'⬇ Download template (Excel)',
 'Warna material':'Material colour','Warna finishing':'Finishing colour','File logo':'Logo file','Jahitan':'Stitching','Rincian kombinasi':'Combination details',
-'Kebutuhan accessories':'Accessories needed','warna → kolom di tabel':'colour → column in the table',
+'Kebutuhan accessories':'Accessories needed','— pilih warna —':'— pick a colour —','beda per kombinasi':'differs per combination',
+'nama · ukuran · warna — warna yang beda per kombinasi diatur di tabel':'name · size · colour — colours that differ per combination are set in the table',
 'WO / EO — PIC':'WO / EO — PIC','pakai data ini':'use this data','✓ dari Brief':'✓ from the Brief','✓ dari operator':'✓ from operators',
 'Warna kemasan':'Packaging colour','Ukuran bawaan':'Default size','Font personalisasi':'Personalisation font',
 'Peletakan logo':'Logo placement','Wardrobe live service':'Live service wardrobe','↳ Pakai saran packing':'↳ Use packing suggestion',
@@ -25599,17 +25600,28 @@ function aksBlok(o,l,li){
   return '<div data-f="aks_'+li+'" style="border-top:1px dashed var(--line);margin-top:8px;padding-top:8px">'+
     '<div style="display:flex;gap:9px;align-items:baseline;margin-bottom:5px">'+
       '<span style="font-size:9.5px;font-weight:800;color:var(--muted);letter-spacing:.03em">ACCESSORIES / HARDWARE ('+A.length+')</span>'+
-      '<span style="font-size:9px;color:var(--muted)">nama · ukuran — tiap accessory jadi satu kolom di tabel (warnanya diisi per kombinasi)</span></div>'+
+      '<span style="font-size:9px;color:var(--muted)">nama · ukuran · warna — warna yang beda per kombinasi diatur di tabel</span></div>'+
     A.map(function(a,k){
       var set=function(f){return ' onchange="aksSet('+jsArg(o.id)+','+li+','+k+','+jsArg(f)+',this.value)"';};
-      return '<div style="display:grid;grid-template-columns:1fr 110px 130px auto;gap:6px;margin-bottom:5px;align-items:center">'+
+      return '<div style="display:grid;grid-template-columns:1fr 110px 150px auto;gap:6px;margin-bottom:5px;align-items:center">'+
         '<input class="pin" value="'+esc(a.nama||'')+'" placeholder="mis. Snap button, D-ring, resleting"'+set('nama')+'>'+
         '<input class="pin" value="'+esc(a.ukuran||'')+'" placeholder="ukuran"'+set('ukuran')+'>'+
-        '<span style="font-size:9px;color:var(--muted)">warna → kolom di tabel</span>'+
+        aksWarnaSel(o,l,li,k)+
         '<button type="button" class="xrow" onclick="aksHapus('+jsArg(o.id)+','+li+','+k+')">✕</button></div>';}).join('')+
     chipPilih(opsiList('aksesoris').map(function(r){return r.v;}),'',function(v){var r=opsiList('aksesoris').filter(function(x){return x.v===v;})[0]||{};
       return 'aksPakai('+jsArg(o.id)+','+li+','+jsArg(v)+','+jsArg(r.uk||'')+')';},'aksChip_'+li,'margin-bottom:6px')+
     '<button type="button" class="btn ghost sm" onclick="aksTambah('+jsArg(o.id)+','+li+')">＋ Tambah accessory (ketik)</button></div>';}
+/* warna accessory di Brief (9 Nov): pilihan = warna milik accessory itu di Master → Opsi form; berlaku untuk semua kombinasi */
+function aksWarnaSel(o,l,li,k){var a=aksDaftar(l)[k]||{},c=tplKolom(o,l).filter(function(x){return x.aks===k;})[0];if(!c)return '';
+  var D=tplData(o,l),beda=D.beda.some(function(x){return x.k===c.k;}),kini=beda?'':String(D.rows[0].vals[c.k]||'').trim(),L=aksWarnaPilihan(a.nama);
+  if(kini&&L.indexOf(kini)<0)L=L.concat([kini]);
+  return '<select class="pin" data-f="aksWarna_'+li+'_'+k+'" onchange="aksWarnaSet('+jsArg(o.id)+','+li+','+k+',this.value)">'+
+    '<option value="">'+(beda?'beda per kombinasi':'— pilih warna —')+'</option>'+
+    L.map(function(w){return '<option'+(w===kini?' selected':'')+'>'+esc(w)+'</option>';}).join('')+'</select>';}
+function aksWarnaSet(id,li,k,v){var T=tplCariO(id,li);if(!T)return;var o=T.o,l=T.l,c=tplKolom(o,l).filter(function(x){return x.aks===k;})[0];if(!c)return;
+  var V=lineVarian(l),beda=tplData(o,l).beda.some(function(x){return x.k===c.k;});v=String(v||'').trim();   // kolom dibandingkan lewat kuncinya (tplKolom membuat objek baru tiap panggilan)
+  if(beda){if(!v)return;if(!confirm('Warna '+((aksDaftar(l)[k]||{}).nama||'accessory')+' sekarang beda per kombinasi. Samakan jadi '+v+' untuk semua kombinasi?')){render();return;}}
+  tplSetP(o,l,c,v);V.forEach(function(x,i){tplHapusV(l,i,c);});tplSimpan(o,l);}
 /* chip accessories (15 Okt): satu klik = baris berisi nama + ukuran bawaan dari Opsi form, tinggal pilih warna */
 function aksPakai(id,li,nama,uk){
   var o=ST.orders.find(function(x){return x.id===id;});if(!o)return;
