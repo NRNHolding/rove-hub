@@ -987,7 +987,7 @@ const KEY='rovehub_orders_v18';
 /* ================= VERSI YANG SEDANG BERJALAN =================
    Diisi otomatis oleh terbitkan.js waktu salinan ini diterbitkan; '-' berarti
    dibuka langsung dari berkas, bukan dari alamat terbitannya. */
-const VERSI='20261109-100823';
+const VERSI='20261109-102716';
 /* Berkas versi.txt di sebelah halaman ini berisi penanda yang sama. Ia
    ditanyakan tanpa cache, jadi ia jujur walau halamannya sendiri masih
    tersimpan di cache browser. */
@@ -1365,6 +1365,7 @@ const EN_RULES=[
 
 /* Kamus persis. Kunci = teks Indonesia apa adanya yang muncul di layar. */
 const EN={
+'Warna (pisah koma)':'Colours (comma separated)','chip di kartu produk Brief; warnanya jadi pilihan di template kombinasi':'chips on the Brief product card; its colours become the choices in the combination template',
 'dibuat saat Inquiry selesai':'created when Inquiry is completed',
 'Inquiry — ingatkan Sales':'Inquiry — remind Sales','BRIEF DIISI SALES · PM WAJIB MENGINGATKAN TIAP HARI KERJA SAMPAI LENGKAP':'SALES FILLS THE BRIEF · THE PM MUST REMIND THEM EVERY WORKING DAY UNTIL IT IS COMPLETE',
 '⏰ Ingatkan Sales':'⏰ Remind Sales','belum pernah diingatkan':'never reminded yet',
@@ -8920,7 +8921,7 @@ const OPS_GRUP=[
     {s:'benang',  n:'Warna benang',   c:[['v','Warna benang']],       b:'Warna benang'},
     {s:'liningwarna',n:'Warna lining',c:[['v','Warna lining']],       b:'Warna lining'},
     {s:'warnakemasan',n:'Warna kemasan',c:[['v','Warna kemasan']],    b:'Warna kemasan', ket:'box / soft pouch / kartu'},
-    {s:'aksesoris',n:'Accessories',   c:[['v','Nama'],['uk','Ukuran bawaan']], b:'Accessory', ket:'chip di kartu produk Brief'}],
+    {s:'aksesoris',n:'Accessories',   c:[['v','Nama'],['uk','Ukuran bawaan'],['w','Warna (pisah koma)']], b:'Accessory', ket:'chip di kartu produk Brief; warnanya jadi pilihan di template kombinasi'}],
    'Isian bahan di panel Brief tiap order. Artikel kulit persisnya bukan master — ditanyakan ke Radja di Project Costing (Pastikan kulit).'],
   ['kerja','Pengerjaan',[
     {s:'finreq',  n:'Finishing request',c:[['v','Finishing']],        b:'Finishing'},
@@ -9837,7 +9838,17 @@ function opsiSemai(k){if(!ST.master||Array.isArray(ST.master[k])||!OPSI_BARU_BAW
   opsiDariOrder(k).slice(0,12).forEach(function(x){tambah(x[0],x[1]);});
   ST.master[k]=out.map(function(r){return stampRow(r);});
   try{saveMaster();}catch(e){}return true;}
-function opsiList(k){opsiSemai(k);
+/* warna accessories (9 Nov): bawaan Rove 6 warna; tiap accessory boleh menyempitkannya di Master → Opsi form → Accessories */
+const AKS_WARNA_BAWAAN=['Gold','Antique Gold','Light Gold','Rose Gold','Silver','Black Nickel'];
+/* baris accessories yang belum punya kolom warna diisi 6 warna bawaan sekali; yang sengaja dikosongkan ('') dibiarkan */
+function aksWarnaSemai(){var L=(ST.master&&ST.master.aksesoris)||[],ubah=false;
+  L.forEach(function(r){if(r&&r.w===undefined){r.w=AKS_WARNA_BAWAAN.join(', ');stampRow(r);ubah=true;}});
+  if(ubah){try{saveMaster();}catch(e){}}return ubah;}
+function aksWarnaPilihan(nama){var n=String(nama||'').trim().toLowerCase();
+  var r=((ST.master&&ST.master.aksesoris)||[]).filter(function(x){return x&&!x._del&&String(x.v||'').trim().toLowerCase()===n;})[0];
+  var W=r?String(r.w||'').split(',').map(function(x){return x.trim();}).filter(Boolean):[];
+  return W.length?W:AKS_WARNA_BAWAAN.slice();}
+function opsiList(k){opsiSemai(k);if(k==='aksesoris')aksWarnaSemai();
   if(k==='aksesoris')return ((ST.master&&ST.master.aksesoris)||[]).filter(function(r){return r&&String(r.v||'').trim();});
   return listArr(k);}
 /* chip pilihan satu klik — fnKlik(v) mengembalikan teks onclick */
@@ -10170,7 +10181,7 @@ function renderMaster(){
    opts:(function(){
      /* 17 daftar opsi terlalu panjang kalau ditumpuk — dikelompokkan per tab
         menurut di mana pilihannya dipakai. */
-     try{OPSI_BARU.forEach(opsiSemai);}catch(e){}   // daftar baru (15 Okt) terisi bawaan sekali
+     try{OPSI_BARU.forEach(opsiSemai);aksWarnaSemai();}catch(e){}   // daftar baru (15 Okt) terisi bawaan sekali; warna accessories (9 Nov)
      var g=ST._optsTab||'order';
      if(!OPS_GRUP.some(function(x){return x[0]===g;}))g='order';
      var grup=OPS_GRUP.find(function(x){return x[0]===g;});
@@ -25260,7 +25271,6 @@ function poCardName(o){var n=o.id.toUpperCase()+' - PO Rove'+(orderAU(o)?' AU':'
    BERBEDA di l.varian[k] (kosong = ikut produk). Satu baris = tanpa varian. Tiap kombinasi berkode tetap (v.kode, mis.
    BC-01) — dipakai PO, QC, dan pengiriman. Output PO menulis yang sama sekali ("Spesifikasi umum") dan yang beda di tabel
    "Rincian kombinasi", plus "Kebutuhan accessories". Personalisasi dan logo dua hal berbeda — kolomnya terpisah. */
-const TPL_HW=['Gold','Silver','Gunmetal','Hitam','—'];
 const TPL_TEKNIK=['Deboss','Emboss','Foil','Hot stamp','Engrave','—'];
 const TPL_WARNA_P=['Tanpa warna','Gold','Silver','Rose gold','Hitam','Putih','—'];
 function tplKolom(o,l){
@@ -25283,7 +25293,7 @@ function tplKolom(o,l){
     {k:'benang',l:'Warna benang',g:'Jahitan',v:'benang',sp:'benangWarna',df:'benangWarna',dl:function(){return opsiList('benang');}},
     {k:'fin',l:'Finishing',g:'Finishing',v:'finishing',sp:'finishing',df:'finishing',dl:function(){return listArr('finreq');}},
     {k:'finW',l:'Warna finishing',g:'Finishing',v:'finishWarna',sp:'finishWarna',df:'finishWarna',dl:function(){return ['Senada kulit'].concat(listArr('warna'));}}]
-  .concat(A.map(function(a,i){return {k:'aks'+i,l:[a.nama,a.ukuran].filter(function(x){return x&&String(x).trim();}).join(' ')||('Accessory '+(i+1)),g:'Accessories',aks:i,dl:function(){return TPL_HW;}};}))
+  .concat(A.map(function(a,i){return {k:'aks'+i,l:[a.nama,a.ukuran].filter(function(x){return x&&String(x).trim();}).join(' ')||('Accessory '+(i+1)),g:'Accessories',aks:i,dl:function(){return aksWarnaPilihan(a.nama).concat(['—']);}};}))
   .concat([
     {k:'pTek',l:'Teknik',g:'Personalisasi',v:'pTek',dl:function(){return TPL_TEKNIK;}},
     {k:'pWarna',l:'Warna',g:'Personalisasi',v:'pWarna',dl:function(){return TPL_WARNA_P;}},
