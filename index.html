@@ -799,6 +799,7 @@ table.tpl-x{border-collapse:separate;border-spacing:0;font-size:11.5px;min-width
 .tpl-x td.tpl-q input{text-align:right;font-weight:800}
 .tpl-x td.tpl-kosong{background:var(--warn-bg)}
 .tpl-x td.tpl-beda{background:rgba(208,173,99,.09)}
+.tpl-x td.tpl-std input{color:var(--muted);background:rgba(120,110,95,.06);cursor:not-allowed}
 .tpl-isi{cursor:pointer;color:var(--brand);font-weight:800;margin-left:4px}
 .tpl-aksi{padding:0 4px!important}
 .tpl-ft{font-size:10px;color:var(--muted);margin:6px 0 8px}
@@ -987,7 +988,7 @@ const KEY='rovehub_orders_v18';
 /* ================= VERSI YANG SEDANG BERJALAN =================
    Diisi otomatis oleh terbitkan.js waktu salinan ini diterbitkan; '-' berarti
    dibuka langsung dari berkas, bukan dari alamat terbitannya. */
-const VERSI='20261109-143349';
+const VERSI='20261109-151427';
 /* Berkas versi.txt di sebelah halaman ini berisi penanda yang sama. Ia
    ditanyakan tanpa cache, jadi ia jujur walau halamannya sendiri masih
    tersimpan di cache browser. */
@@ -1365,6 +1366,8 @@ const EN_RULES=[
 
 /* Kamus persis. Kunci = teks Indonesia apa adanya yang muncul di layar. */
 const EN={
+'Jasa · teknik':'Service · technique','＋ Logo kedua':'＋ Second logo','− Logo kedua':'− Second logo','🔒 spesifikasi standar katalog':'🔒 standard catalogue spec',
+'Daftar nama — personalisasi per pcs':'Name list — per-piece personalisation',
 'File dari client':'Files from the client','— untuk apa? —':'— what is it for? —','Double logo':'Second logo','Referensi desain':'Design reference',
 '— pilih jasanya —':'— pick the service —','✓ semua file sudah diberi keterangan':'✓ every file is labelled','belum ada file':'no files yet','B. FILE DARI CLIENT':'B. FILES FROM THE CLIENT',
 'Warna (pisah koma)':'Colours (comma separated)','chip di kartu produk Brief; warnanya jadi pilihan di template kombinasi':'chips on the Brief product card; its colours become the choices in the combination template',
@@ -15367,7 +15370,7 @@ const CHK_FIELD={
   ref:'fileKlien', fileKet:'fileKlien', terjemah:'mainMat_*,mainMat',
   /* logo & letaknya kini menempel di jasanya (slot svcF_..., kolom letak
      per baris) — slot logoFiles/persoFiles lama hanya tampil untuk warisan */
-  logoCl:'fileKlien', logoLetak:'svcLetak_*,sekPerso',
+  logoCl:'fileKlien', logoLetak:'lLetak_*,pLetak_*,svcLetak_*,sekPerso',
   bahanWarna:'mainMat_*,mainMat', ukuranProduk:'bUkuran_*',
   logoPch:'logoPouchFiles', logoBox:'logoBoxFiles', logoCard:'logoCardFiles',
   preview:'previewFiles', qc:'qcFiles', pack:'packFiles',
@@ -15492,7 +15495,7 @@ function chkLompat(id,fase,k){
       '\n\nPakai tombol ⏰ Ingatkan supaya '+it.pic+' yang mengerjakannya.');
     return;}
   var pk=chkPanelDari(fase,k);
-  if(BSEK_DARI[k]){ST._bsek=ST._bsek||{};ST._bsek[o.id+':'+BSEK_DARI[k]]=true;}   // bagian Brief-nya dibuka (kartu ringkas)
+  if(BSEK_DARI[k]){ST._bsek=ST._bsek||{};ST._bsek[o.id+':'+bsekDari(o,k)]=true;}   // bagian Brief-nya dibuka (kartu ringkas)
   /* item yang tempatnya di Master data punya jalannya sendiri */
   if((pk==='_master'||pk==='_live')&&CHK_MASTER[k]){CHK_MASTER[k](o);return;}
   /* panel yang bukan bawaan fase ini dibuka lebih awal, bukan ditolak —
@@ -18720,6 +18723,7 @@ function varianPisah(o,i,k){
   ov.forEach(function(p){tplSetP(o,c,p[0],p[1]);});   // template kombinasi (27 Okt)
   delete c.kode;if(v.kode)c.kode=v.kode;   // kodenya tetap (BC-02 tetap BC-02 sesudah dipisah)
   if(v.w){lineSpek(c).mainMatWarna=v.w;if(c.fixed){try{katalogHppSegarkan(o,c);}catch(e){}}}
+  if(o.jasaTabel){try{tplJasaSinkron(o);}catch(e){}}   // jasa dari tabel: qty jasa ikut barisnya (9 Nov)
   logHist(o,'⇄ '+c.qty+' pcs '+(v.w||'?')+' dipisah jadi baris sendiri (harga sendiri)');
   o._m=Date.now();save();render();return c;}
 /* ---- varian diedit INLINE di kartu spec produknya (briefPanel) ---- */
@@ -24430,10 +24434,11 @@ function briefPanel(o){
         var l=x.l,li=x.i;
         /* sejak Purchase Order Issuing: dibaca saja — perubahan lewat "Ajukan perubahan spec" */
         if(spekKunci(o))return spekKartuBaca(o,l,li);
-        if(spekStd(l))return stdKartu(o,l,li);   // produk katalog berspesifikasi standar: tinggal pilih warna (14 Okt)
+        /* produk katalog standar juga memakai tabel template (9 Nov) — kolom standar terkunci di tabelnya */
         return tplKartu(o,l,li);   // template kombinasi produksi (27 Okt)
       }).join('')+dlH+
         '<div style="font-size:9px;color:var(--muted);margin:-4px 0 10px">Satu baris per kombinasi — warna / kombinasi lain? ＋ Baris di tabel produknya.</div>';})()+
+    tplNamaBlok(o)+   // daftar nama per pcs (9 Nov — dulu di bagian Personalisasi)
     ((lineProduk(o).length||orderNonProduk(o))?'':(dye?'':'<div style="font-size:9.5px;color:var(--muted);margin:-6px 0 10px">Kolom warna dye muncul otomatis kalau Finishing request dipilih <b>Dye</b>.</div>'))+
     grid(txt('fiturLain','Fungsi / fitur yang diminta client','mis. muat 6 kartu + slot koin','grid-column:1/-1'),300)+
 
@@ -24483,8 +24488,9 @@ const BSEK_DARI={kontak:'klien',acara:'klien',kota:'klien',hpWo:'klien',alamat:'
   brief:'produk',bahanWarna:'produk',ukuranProduk:'produk',terjemah:'produk',ref:'produk',fileKet:'produk',
   logoCl:'produk',logoLetak:'perso',daftarNama:'perso',perso:'perso',svc:'perso',
   logoPch:'pack',logoBox:'pack',logoCard:'pack',live:'live',operator:'live'};
+function bsekDari(o,key){var s=BSEK_DARI[key];return (s==='perso'&&lineProduk(o).length&&!spekKunci(o))?'produk':s;}   // order berproduk: tanpa bagian Personalisasi
 function bsekKurang(o,k){var f=o.phase||0,n=0;
-  try{chkItems(f,o).forEach(function(it){if(it.w&&BSEK_DARI[it.k]===k&&!chkAuto(o,f,it.k))n++;});}catch(e){}
+  try{chkItems(f,o).forEach(function(it){if(it.w&&bsekDari(o,it.k)===k&&!chkAuto(o,f,it.k))n++;});}catch(e){}
   return n;}
 function bsekRingkas(o,k){
   var b=briefGet(o),j=function(a){return a.filter(function(x){return x&&String(x).trim()&&x!=='-';}).join(' · ');};
@@ -24503,6 +24509,7 @@ function bsekRingkas(o,k){
 function bsekTerbuka(o,k){var S=ST._bsek||{},kunci=o.id+':'+k;return (kunci in S)?!!S[kunci]:(bsekKurang(o,k)>0);}
 function bsek(o,k,judul,isi){
   if(!isi)return '';
+  if(k==='perso'&&lineProduk(o).length&&!spekKunci(o))return '';   // order berproduk: jasa, teknik, letak, daftar nama ada di tabel produk (9 Nov)
   var n=bsekKurang(o,k),buka=bsekTerbuka(o,k),rk=bsekRingkas(o,k);
   return '<div class="bsek'+(n?' kurang':'')+'" data-bsek="'+k+'">'+
     '<div class="bsek-h" data-f="bsek_'+k+'" onclick="bsekToggle('+jsArg(o.id)+',\''+k+'\')"><span class="bsek-ik">'+(n?'!':'✓')+'</span><b class="bsek-jd">'+esc(judul)+'</b>'+
@@ -25344,8 +25351,9 @@ const TPL_TEKNIK=['Deboss','Emboss','Foil','Hot stamp','Engrave','—'];
 const TPL_WARNA_P=['Tanpa warna','Gold','Silver','Rose gold','Hitam','Putih','—'];
 function tplKolom(o,l){
   var A=aksDaftar(l);
-  var logoNama=function(){var b=briefGet(o),N=['Logo client'];
-    [].concat(b.logoFiles||[]).forEach(function(f){var n=String((f&&f.nama)||'').trim();if(n&&N.indexOf(n)<0)N.push(n);});return N.concat(['—']);};
+  var logoNama=function(){var N=['Logo client'];
+    try{fileKlien(o).forEach(function(x){if(x.untuk!=='Logo'&&x.untuk!=='Double logo')return;var n=String((x.f&&x.f.nama)||'').trim();if(n&&N.indexOf(n)<0)N.push(n);});}catch(e){}
+    return N.concat(['—']);};
   return [
     {k:'q',l:'Qty',g:'Umum'},
     /* material: daftar Master + artikel dari jawaban Radja / yang sudah tertulis di order ini (bertanda) */
@@ -25364,28 +25372,107 @@ function tplKolom(o,l){
     {k:'finW',l:'Warna finishing',g:'Finishing',v:'finishWarna',sp:'finishWarna',df:'finishWarna',dl:function(){return ['Senada kulit'].concat(listArr('warna'));}}]
   .concat(A.map(function(a,i){return {k:'aks'+i,l:[a.nama,a.ukuran].filter(function(x){return x&&String(x).trim();}).join(' ')||('Accessory '+(i+1)),g:'Accessories',aks:i,dl:function(){return aksWarnaPilihan(a.nama).concat(['—']);}};}))
   .concat([
-    {k:'pTek',l:'Teknik',g:'Personalisasi',v:'pTek',dl:function(){return TPL_TEKNIK;}},
+    /* jasa add-on dipilih di sini (9 Nov): "Add-on Full Name · Engrave" — jasa & qty-nya di pricing terbentuk dari tabel */
+    {k:'pTek',l:'Jasa · teknik',g:'Personalisasi',v:'pTek',df:'pTek',dl:function(){return tplJasaOpsi(false);}},
     {k:'pWarna',l:'Warna',g:'Personalisasi',v:'pWarna',dl:function(){return TPL_WARNA_P;}},
     {k:'pIsi',l:'Isi',g:'Personalisasi',v:'pIsi',dl:function(){return ['Nama per pcs (daftar nama)','Inisial per pcs','Teks sama untuk semua','—'];}},
+    {k:'pLetak',l:'Letak',g:'Personalisasi',v:'pLetak',df:'pLetak',dl:function(){return opsiList('letak');}},
     {k:'lFile',l:'File logo',g:'Logo',v:'lFile',dl:logoNama},
-    {k:'lTek',l:'Teknik',g:'Logo',v:'lTek',dl:function(){return TPL_TEKNIK;}},
+    {k:'lTek',l:'Jasa · teknik',g:'Logo',v:'lTek',df:'lTek',dl:function(){return tplJasaOpsi(true);}},
     {k:'lWarna',l:'Warna',g:'Logo',v:'lWarna',dl:function(){return TPL_WARNA_P;}},
-    {k:'lLetak',l:'Letak',g:'Logo',v:'lLetak',dl:function(){return opsiList('letak');}},
-    {k:'cat',l:'Catatan',g:'Lain',v:'cat'}]);}
-function tplLabel(c){return (c.g==='Personalisasi'||c.g==='Logo')?(c.g+' — '+c.l.toLowerCase()):c.l;}
+    {k:'lLetak',l:'Letak',g:'Logo',v:'lLetak',df:'lLetak',dl:function(){return opsiList('letak');}}]
+  .concat(tplLogo2(o)?[
+    {k:'l2File',l:'File logo',g:'Logo 2',v:'l2File',dl:logoNama},
+    {k:'l2Tek',l:'Jasa · teknik',g:'Logo 2',v:'l2Tek',df:'l2Tek',dl:function(){return tplJasaOpsi(true);}},
+    {k:'l2Warna',l:'Warna',g:'Logo 2',v:'l2Warna',dl:function(){return TPL_WARNA_P;}},
+    {k:'l2Letak',l:'Letak',g:'Logo 2',v:'l2Letak',df:'l2Letak',dl:function(){return opsiList('letak');}}]:[])
+  .concat([{k:'cat',l:'Catatan',g:'Lain',v:'cat'}]));}
+function tplLabel(c){return (c.g==='Personalisasi'||c.g==='Logo'||c.g==='Logo 2')?(c.g+' — '+c.l.toLowerCase()):c.l;}
 function tplNyata(x){x=String(x==null?'':x).trim();return !!x&&x!=='-'&&x!=='—';}
 /* personalisasi & logo yang belum diisi diambil dari jasa order ini (Personalisasi di Brief) */
 function tplJasa(o){var L=[];try{L=liveList(o.svc);}catch(e){}
   return {logo:L.filter(function(n){return /logo/i.test(n);}),perso:L.filter(function(n){return !/logo/i.test(n);})};}
 function tplTeknikJasa(o,n){var t='';try{t=jasaTeknikOrder(o,n)||jasaTeknik(n)||'';}catch(e){}return (t==='-')?'':t;}
-function tplTurunan(o,k){var J=tplJasa(o);
-  if(k==='pTek')return J.perso.length?tplTeknikJasa(o,J.perso[0]):'—';
-  if(k==='pWarna'||k==='pIsi')return J.perso.length?'':'—';
-  if(k==='lTek')return J.logo.length?tplTeknikJasa(o,J.logo[0]):'—';
-  if(k==='lLetak')return J.logo.length?(svcLetak(o,J.logo[0])||''):'—';
+function tplTurunan(o,k){var J=tplJasa(o),tabel=!!o.jasaTabel;
+  var jt=function(n){if(!n)return '—';var t=tplTeknikJasa(o,n);return jasaNamaAsli(n)+(t?(TPL_JASA_SEP+t):'');};
+  var lt=function(n){return n?(svcLetak(o,n)||''):'—';};
+  if(k==='pTek')return tabel?'':jt(J.perso[0]);
+  if(k==='lTek')return tabel?'':jt(J.logo[0]);
+  if(k==='l2Tek')return tabel?'':jt(J.logo[1]);
+  if(k==='pLetak')return tabel?'':lt(J.perso[0]);
+  if(k==='lLetak')return tabel?'':lt(J.logo[0]);
+  if(k==='l2Letak')return tabel?'':lt(J.logo[1]);
+  if(tabel&&/^(pIsi|pWarna|lWarna|l2Warna|lFile|l2File)$/.test(k))return '';   // jasa dari tabel: tiap baris diisi sendiri
+  if(k==='pIsi'){if(!J.perso.length)return '—';var N=((o.persoNama||{})[J.perso[0]])||{};return N.perPcs?'Nama per pcs (daftar nama)':'';}
+  if(k==='pWarna')return J.perso.length?'':'—';
   if(k==='lWarna')return J.logo.length?'':'—';
+  if(k==='l2Warna')return J.logo.length>1?'':'—';
   if(k==='lFile'){var ada=false;try{ada=adaLogoFile(o);}catch(e){}return ada?'Logo client':(J.logo.length?'':'—');}
+  if(k==='l2File')return J.logo.length>1?'':'—';
   return '';}
+/* ---- jasa add-on dari tabel template (9 Nov, tahap 2) ----
+   Kolom "Jasa · teknik" (Personalisasi, Logo, Logo 2) berisi "Add-on Logo · Deboss". Begitu jasa pertama kali diatur di
+   tabel (o.jasaTabel), daftar jasa order (o.svc), tekniknya, letaknya, dan qty baris jasanya di pricing dibentuk ulang dari
+   tabel: satu jasa · teknik = satu baris jasa, qty = jumlah pcs kombinasi yang memakainya. Jasa sama dengan teknik lain
+   jadi "Add-on Logo (2)". Order lama tetap memakai daftar jasanya sampai tabelnya diubah. */
+const TPL_JASA_SEP=' · ';
+const TPL_JASA_GRUP=[['p','pTek','pLetak','pIsi'],['l','lTek','lLetak',''],['l2','l2Tek','l2Letak','']];
+function tplJasaKolom(k){return /^(pTek|pLetak|pIsi|lTek|lLetak|l2Tek|l2Letak)$/.test(k);}
+function tplJasaOpsi(logo){var out=[];try{jasaByJenis('Service').forEach(function(n){if(/logo/i.test(n)!==!!logo)return;
+  var T=jasaTekList(n);if(!T.length){var t1='';try{t1=jasaTeknik(n)||'';}catch(e){}if(t1&&t1!=='-')T=[t1];}
+  if(!T.length)out.push(n);else T.forEach(function(t){out.push(n+TPL_JASA_SEP+t);});});}catch(e){}
+  return out.concat(['—']);}
+function tplJasaPecah(v){v=String(v||'').trim();if(!tplNyata(v))return null;var i=v.indexOf(TPL_JASA_SEP);
+  var n=(i>=0?v.slice(0,i):v).trim(),t=(i>=0?v.slice(i+TPL_JASA_SEP.length):'').trim(),J=[];try{J=jasaByJenis('Service');}catch(e){}
+  if(J.indexOf(n)<0)return null;if(!t){var L=jasaTekList(n);if(L.length===1)t=L[0];else{try{t=jasaTeknik(n)||'';}catch(e){}if(t==='-')t='';}}
+  return {jasa:n,teknik:t};}
+/* pertama kali jasa diatur dari tabel: nilai turunan dari daftar jasa lama dibekukan ke tabel dulu (isian lama yang
+   bukan "jasa · teknik" diganti turunannya) supaya jasa yang sudah ada tak hilang */
+function tplJasaAktifkan(o){if(!o||o.jasaTabel)return;
+  lineProduk(o).forEach(function(x){var l=x.l,sp=lineSpek(l);
+    ['pTek','lTek','l2Tek','pLetak','lLetak','l2Letak','pIsi','lFile','l2File'].forEach(function(k){var jas=/Tek$/.test(k),cur=String(sp[k]||'').trim();
+      if(cur&&(!jas||tplJasaPecah(cur)))return;var d=tplTurunan(o,k);if(tplNyata(d))sp[k]=d;else if(jas)delete sp[k];});
+    lineVarian(l).forEach(function(v){['pTek','lTek','l2Tek'].forEach(function(k){if(v[k]!=null&&String(v[k]).trim()&&!tplJasaPecah(v[k])&&tplNyata(v[k]))delete v[k];});});});
+  o.jasaTabel=true;}
+function tplJasaPakai(o){var M={},urut=[];
+  lineProduk(o).forEach(function(x){var D=tplData(o,x.l);D.rows.forEach(function(r){TPL_JASA_GRUP.forEach(function(g){
+    var m=tplJasaPecah(r.vals[g[1]]);if(!m)return;var key=m.jasa+'|'+m.teknik;
+    if(!M[key]){M[key]={jasa:m.jasa,teknik:m.teknik,q:0,letak:'',perPcs:false,kode:[]};urut.push(key);}
+    var p=M[key];p.q+=(+r.q||0);p.kode.push(r.kode);if(!p.letak&&tplNyata(r.vals[g[2]]))p.letak=String(r.vals[g[2]]).trim();
+    if(g[3]&&/per pcs/i.test(String(r.vals[g[3]]||'')))p.perPcs=true;});});});
+  var hit={};urut.forEach(function(k){var p=M[k];hit[p.jasa]=(hit[p.jasa]||0)+1;p.nama=(hit[p.jasa]>1)?(p.jasa+' ('+hit[p.jasa]+')'):p.jasa;});
+  return urut.map(function(k){return M[k];});}
+function tplJasaSinkron(o){if(!o||!o.jasaTabel)return;var P=tplJasaPakai(o),nama=P.map(function(p){return p.nama;}),lama=liveList(o.svc);
+  if(!o.svcTeknik)o.svcTeknik={};if(!o.svcLetak)o.svcLetak={};
+  P.forEach(function(p){o.svcTeknik[p.nama]=p.teknik;if(p.letak)o.svcLetak[p.nama]=p.letak;if(p.perPcs)persoGet(o,p.nama).perPcs=true;});
+  o.svc=nama;
+  /* jasa yang tak dipakai lagi: barisnya dibuang (yang sudah ditanyakan / berharga ditandai lepas, seperti ordSvcDel) */
+  var L=((o.pricing||{}).lines)||[];
+  for(var i=L.length-1;i>=0;i--){var l=L[i];if(!l||l.jasa!=='Add-on')continue;if(nama.indexOf(namaJasaBaris(l))>=0)continue;
+    if((l.rfq&&l.rfq.minta)||(+l.hpp||0)>0)l._jasaLepas=true;else L.splice(i,1);}
+  try{barisVendorLengkapi(o);}catch(e){}
+  P.forEach(function(p){(((o.pricing||{}).lines)||[]).forEach(function(l){if(!l||l.jasa!=='Add-on'||namaJasaBaris(l)!==p.nama)return;
+    if((+l.qty||0)!==p.q)l.qty=p.q;delete l._jasaLepas;if(p.letak)l.letak=p.letak;});});
+  try{jasaTerapkanTeknik(o);persoSinkron(o);}catch(e){}
+  if(JSON.stringify(lama)!==JSON.stringify(nama))logHist(o,'Jasa dari tabel produk: '+(P.length?P.map(function(p){return p.nama+(p.teknik?(' · '+p.teknik):'')+' '+p.q+' pcs';}).join(', '):'tidak ada'));}
+/* grup Logo 2: muncul bila ada file berlabel Double logo, isian logo kedua, ＋ Logo kedua, atau order lama dengan dua jasa logo */
+function tplLogo2File(o){try{return fileKlien(o).some(function(x){return x.untuk==='Double logo';});}catch(e){return false;}}
+function tplLogo2Isi(o){return lineProduk(o).some(function(x){var l=x.l,sp=l.spek||{};
+  return tplNyata(sp.l2Tek)||tplNyata(sp.l2File)||lineVarian(l).some(function(v){return tplNyata(v.l2Tek)||tplNyata(v.l2File);});});}
+function tplLogo2(o){return !!(o&&(o.logo2||tplLogo2File(o)||tplLogo2Isi(o)||(!o.jasaTabel&&tplJasa(o).logo.length>=2)));}
+function tplLogo2Set(id,on){var o=ST.orders.find(function(x){return x.id===id;});if(!o)return;if(on)o.logo2=true;else delete o.logo2;o._m=Date.now();save();render();}
+/* produk katalog standar di tabel (9 Nov): kolom spesifikasi standar terkunci; warna di luar katalog ditandai untuk Radja */
+function tplStdKunci(l,c){var S=spekStd(l);if(!S)return false;if(c.sp&&STD_F.indexOf(c.sp)>=0)return true;
+  return c.aks!=null&&Array.isArray(S.aks)&&S.aks.length>0&&!(Array.isArray(l.aksesoris)&&l.aksesoris.length);}
+function tplStdWarna(o,l){if(!spekStd(l))return;var K=[];try{K=warnaProduk(prodKatalog(l.produk)).map(function(x){return String(x).toLowerCase();});}catch(e){}
+  var V=lineVarian(l),W=[];(V.length?V.map(function(v){return v.w;}):[(l.spek||{}).mainMatWarna]).forEach(function(w){w=String(w||'').trim();
+    if(w&&K.indexOf(w.toLowerCase())<0&&W.indexOf(w)<0)W.push(w);});
+  if(W.length)l.warnaLuar=W;else delete l.warnaLuar;try{katalogHppSegarkan(o,l);}catch(e){}}
+/* daftar nama per pcs — dulu di bagian Personalisasi; kini di bawah tabel produk */
+function tplNamaBlok(o){if(!lineProduk(o).length||spekKunci(o))return '';var J=liveList(o.svc).filter(function(n){return !/logo/i.test(n);});if(!J.length)return '';
+  return '<div data-f="tplNama" style="border:1px solid var(--line);border-radius:10px;padding:9px 12px;margin-bottom:10px;background:var(--bg)">'+
+    '<div class="nlbl" style="margin-bottom:5px">Daftar nama — personalisasi per pcs</div>'+
+    J.map(function(n){return '<div style="margin:6px 0"><b style="font-size:11px">'+esc(n)+'</b>'+persoBlok(o,n)+'</div>';}).join('')+'</div>';}
 /* nilai tingkat produk (sama untuk semua baris) */
 function tplP(o,l,c){
   if(c.k==='q')return String(+l.qty||0);
@@ -25449,7 +25536,8 @@ function tplBarisData(o,l){var V=lineVarian(l),q=+l.qty||0;
   if(!V.length){var w=tplP(o,l,{k:'warna',sp:'mainMatWarna'}),a=Math.ceil(q/2);l.varian=[{w:w,q:a},{w:w,q:q-a}];if(l.kode){l.varian[0].kode=l.kode;delete l.kode;}return 1;}
   var b=JSON.parse(JSON.stringify(V[V.length-1]));delete b.kode;delete b.hpp;b.q=Math.max(0,q-varianTotal(l));V.push(b);return V.length-1;}
 function tplCariO(id,li){var o=ST.orders.find(function(x){return x.id===id;});if(!o)return null;var l=(((o.pricing||{}).lines)||[])[li];return l?{o:o,l:l}:null;}
-function tplSimpan(o,l,fokus){tplKodePastikan(o,l);o._m=Date.now();save();if(fokus)ST._tplFokus=fokus;tplRender();}
+function tplSimpan(o,l,fokus){tplKodePastikan(o,l);if(spekStd(l))tplStdWarna(o,l);if(o.jasaTabel){try{tplJasaSinkron(o);}catch(e){}}
+  o._m=Date.now();save();if(fokus)ST._tplFokus=fokus;tplRender();}
 function tplRender(){setTimeout(function(){render();var id=ST._tplFokus;if(!id)return;var e=document.getElementById(id);if(e){try{e.focus();if(e.select)e.select();}catch(err){}}},0);}
 function tplBaris(id,li){var T=tplCariO(id,li);if(!T)return;var k=tplBarisData(T.o,T.l);
   logHist(T.o,'＋ Kombinasi '+(T.l.produk||'produk')+': baris '+(k+1)+' (salinan baris sebelumnya)');
@@ -25459,7 +25547,7 @@ function tplHapus(id,li,k){var T=tplCariO(id,li);if(!T)return;var o=T.o,l=T.l,V=
   var K=tplKolom(o,l);V.splice(k,1);
   if(V.length===1){K.forEach(function(c){if(c.k==='q')return;var ov=tplV(l,0,c);if(ov)tplSetP(o,l,c,ov);});if(V[0].kode)l.kode=V[0].kode;delete l.varian;}
   logHist(o,'✕ Kombinasi '+(l.produk||'produk')+' dihapus');tplSimpan(o,l);}
-function tplIsiBawah(id,li,ck){var T=tplCariO(id,li);if(!T)return;var o=T.o,l=T.l,V=lineVarian(l);if(V.length<2)return;
+function tplIsiBawah(id,li,ck){var T=tplCariO(id,li);if(!T)return;var o=T.o,l=T.l,V=lineVarian(l);if(V.length<2)return;if(tplJasaKolom(ck))tplJasaAktifkan(o);
   var c=tplKolom(o,l).filter(function(x){return x.k===ck;})[0];if(!c)return;var val=tplE(o,l,0,c);
   if(c.k==='warna')V.forEach(function(v){v.w=val;});else{tplSetP(o,l,c,val);V.forEach(function(v,k){tplHapusV(l,k,c);});}
   tplSimpan(o,l);}
@@ -25468,7 +25556,7 @@ function tplRata(id,li){var T=tplCariO(id,li);if(!T)return;var V=lineVarian(T.l)
 function tplCari(el){var T=tplCariO(el.getAttribute('data-o'),+el.getAttribute('data-li'));if(!T)return null;
   var c=tplKolom(T.o,T.l).filter(function(x){return x.k===el.getAttribute('data-c');})[0];if(!c)return null;
   return {o:T.o,l:T.l,li:+el.getAttribute('data-li'),k:+el.getAttribute('data-k'),c:c};}
-function tplUbah(el){var T=tplCari(el);if(!T)return;tplTulis(T.o,T.l,T.k,T.c,el.value);tplNormal(T.o,T.l);tplSimpan(T.o,T.l);}
+function tplUbah(el){var T=tplCari(el);if(!T)return;if(tplJasaKolom(T.c.k))tplJasaAktifkan(T.o);tplTulis(T.o,T.l,T.k,T.c,el.value);tplNormal(T.o,T.l);tplSimpan(T.o,T.l);}
 function tplTombol(ev,el){if(ev.key!=='Enter')return;ev.preventDefault();var p=String(el.id).split('_');
   var nx=document.getElementById('tpl_'+p[1]+'_'+(+p[2]+1)+'_'+p[3]);if(nx){ST._tplFokus=nx.id;nx.focus();}else el.blur();}
 /* tempel dari Excel: baris & kolom (dipisah tab) mengisi grid mulai sel ini; baris kurang → ditambah (salinan baris terakhir) */
@@ -25476,6 +25564,7 @@ function tplTempel(ev,el){var t='';try{t=(ev.clipboardData||window.clipboardData
   if(!t||(t.indexOf('\t')<0&&t.indexOf('\n')<0))return;
   ev.preventDefault();var T=tplCari(el);if(!T)return;var o=T.o,l=T.l,K=tplKolom(o,l),c0=K.findIndex(function(x){return x.k===T.c.k;});
   var B=t.replace(/\r/g,'').split('\n');while(B.length&&B[B.length-1]==='')B.pop();if(!B.length)return;
+  if(K.slice(c0).some(function(c){return tplJasaKolom(c.k);}))tplJasaAktifkan(o);
   var butuh=T.k+B.length;if(butuh>=2)while(Math.max(1,lineVarian(l).length)<butuh)tplBarisData(o,l);
   B.forEach(function(b,di){b.split('\t').forEach(function(sel,dj){var c=K[c0+dj];if(c)tplTulis(o,l,T.k+di,c,sel);});});
   tplNormal(o,l);logHist(o,'📋 Template '+(l.produk||'produk')+': '+B.length+' baris ditempel dari Excel');tplSimpan(o,l,el.id);}
@@ -25486,7 +25575,8 @@ function tplUnduh(id,li){var T=tplCariO(id,li);if(!T)return;var D=tplData(T.o,T.
   var a=document.createElement('a');a.href='data:text/csv;charset=utf-8,'+encodeURIComponent('﻿'+baris.join('\r\n'));
   a.download='Template kombinasi - '+String(T.l.produk||'produk').replace(/[\\\/:*?"<>|]+/g,' ')+' - '+String(T.o.customer||T.o.id).replace(/[\\\/:*?"<>|]+/g,' ')+'.csv';
   document.body.appendChild(a);a.click();a.remove();}
-function tplWajibKosong(c,v){var tak=function(x){x=String(x||'').trim().toLowerCase();return !x||x==='-'||x==='—'||/^(no |tanpa)/.test(x);};
+function tplWajibKosong(c,v){if(/Tek$/.test(c.k)&&c.k!=='finW'&&(c.g==='Personalisasi'||c.g==='Logo'||c.g==='Logo 2'))return tplNyata(v[c.k])&&!tplJasaPecah(v[c.k]);
+  var tak=function(x){x=String(x||'').trim().toLowerCase();return !x||x==='-'||x==='—'||/^(no |tanpa)/.test(x);};
   if(c.k==='mat'||c.k==='warna'){var x=String(v[c.k]||'').trim();return !x||x==='-';}
   if(c.k==='liningW')return !tak(v.lining)&&!String(v.liningW||'').trim();
   if(c.k==='benang')return !tak(v.stitch)&&!String(v.benang||'').trim();
@@ -25498,9 +25588,9 @@ function tplKartu(o,l,li){
   var grup=[],cur=null;K.forEach(function(c){if(!cur||cur.g!==c.g){cur={g:c.g,n:0};grup.push(cur);}cur.n++;});
   var body=D.rows.map(function(r){return '<tr><td class="tpl-fx tpl-kode">'+esc(r.kode)+'</td>'+K.map(function(c,ci){
       var kos=tplWajibKosong(c,r.vals);if(kos)kosong++;
-      var ident='tpl_'+li+'_'+r.k+'_'+ci,ro=(c.k==='q'&&!V.length);
-      return '<td class="'+(ci===0?'tpl-fx2 tpl-q ':'')+(kos?'tpl-kosong ':'')+(bedaK[c.k]?'tpl-beda':'')+'"><input id="'+ident+'" data-f="'+((r.k===0&&c.df)?(c.df+'_'+li):ident)+'" value="'+esc(r.vals[c.k]||'')+'"'+
-        (c.dl?(' list="tplDl_'+li+'_'+c.k+'"'):'')+(ro?' readonly title="qty produk — diubah di pricing; ＋ Baris untuk membagi ke beberapa kombinasi"':'')+
+      var ident='tpl_'+li+'_'+r.k+'_'+ci,ro=(c.k==='q'&&!V.length),std=tplStdKunci(l,c);
+      return '<td class="'+(ci===0?'tpl-fx2 tpl-q ':'')+(kos?'tpl-kosong ':'')+(std?'tpl-std ':'')+(bedaK[c.k]?'tpl-beda':'')+'"><input id="'+ident+'" data-f="'+((r.k===0&&c.df)?(c.df+'_'+li):ident)+'" value="'+esc(r.vals[c.k]||'')+'"'+
+        (c.dl?(' list="tplDl_'+li+'_'+c.k+'"'):'')+(ro?' readonly title="qty produk — diubah di pricing; ＋ Baris untuk membagi ke beberapa kombinasi"':(std?' readonly title="standar katalog — ubah lewat ✎ Ubah dari standar"':''))+
         ' data-o="'+esc(o.id)+'" data-li="'+li+'" data-k="'+r.k+'" data-c="'+esc(c.k)+'" onfocus="ST._tplFokus=this.id" onchange="tplUbah(this)" onkeydown="tplTombol(event,this)" onpaste="tplTempel(event,this)"></td>';}).join('')+
       (V.length>=2?('<td class="tpl-aksi"><button type="button" class="xrow" title="harga kombinasi ini beda → jadi baris pricing sendiri" onclick="varPisahKlik('+id+','+li+','+r.k+')">⇄</button>'+
         '<button type="button" class="xrow" title="hapus baris" onclick="tplHapus('+id+','+li+','+r.k+')">✕</button></td>'):'')+'</tr>';}).join('');
@@ -25516,11 +25606,15 @@ function tplKartu(o,l,li){
   return '<div data-f="varBlok_'+li+'" class="tpl-kartu" style="border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:10px;background:var(--bg)">'+
     '<div style="display:flex;gap:9px;align-items:baseline;flex-wrap:wrap;margin-bottom:7px"><b style="font-size:11.5px">'+esc(l.produk||'Produk')+'</b>'+
       '<span style="font-size:9.5px;color:var(--muted)">'+q+' pcs</span>'+
+      (spekStd(l)?('<span data-f="tplStd_'+li+'" style="font-size:9.5px;font-weight:800;color:var(--brand-dark)">🔒 spesifikasi standar katalog</span>'+
+        '<button type="button" class="btn ghost sm" data-f="stdLepas" onclick="stdLepas('+id+','+li+')">✎ Ubah dari standar</button>'):'')+
       (V.length?('<span data-f="tplTotal_'+li+'" style="font-size:10px;font-weight:800;color:'+(tot===q?'var(--ok)':'var(--warn)')+'">'+n+' kombinasi · '+tot+' / '+q+' pcs '+(tot===q?'✓':'≠')+'</span>'):'')+
       (kosong?('<span data-f="tplKosong_'+li+'" style="font-size:10px;font-weight:800;color:var(--warn)">'+kosong+' sel wajib kosong</span>'):'')+'</div>'+
     '<div class="tpl-alat"><button type="button" class="btn ghost sm" data-f="tplBaris_'+li+'" onclick="tplBaris('+id+','+li+')">＋ Baris (salin baris terakhir)</button>'+
       (V.length>=2?('<button type="button" class="btn ghost sm" onclick="tplRata('+id+','+li+')">⇵ Bagi qty rata</button>'):'')+
       '<button type="button" class="btn ghost sm" onclick="tplUnduh('+id+','+li+')">⬇ Unduh template (Excel)</button>'+
+      (tplLogo2(o)?((o.logo2&&!tplLogo2Isi(o)&&!tplLogo2File(o))?('<button type="button" class="btn ghost sm" data-f="logo2Off" onclick="tplLogo2Set('+id+',false)">− Logo kedua</button>'):'')
+        :('<button type="button" class="btn ghost sm" data-f="logo2On" onclick="tplLogo2Set('+id+',true)">＋ Logo kedua</button>'))+
       '<span style="font-size:9.5px;color:var(--muted)">Ctrl+V dari Excel mengisi banyak sel sekaligus · Enter = turun · ⇣ = isi semua baris seperti baris pertama</span></div>'+
     '<div class="tpl-w"><table class="tpl-x"><thead>'+th1+th2+'</thead><tbody>'+body+'</tbody></table></div>'+dl+
     (n>=2?('<div class="tpl-ft" data-f="tplBeda_'+li+'">Yang beda: <b>'+(D.beda.map(function(c){return esc(tplLabel(c));}).join(', ')||'—')+'</b> — di PO: yang sama ditulis sekali, yang beda masuk tabel Rincian kombinasi</div>')
@@ -25748,7 +25842,7 @@ function spekDokBaris(o,l){
   var D=tplData(o,l),gk=function(k){var c=D.K.filter(function(x){return x.k===k;})[0];if(!c)return '';if(D.beda.indexOf(c)>=0)return 'per kombinasi (lihat rincian)';
       var v=D.rows[0].vals[k];return tplNyata(v)?v:'';},
     isiT=function(K){var A=K.map(gk).filter(Boolean);return A.indexOf('per kombinasi (lihat rincian)')>=0?'per kombinasi (lihat rincian)':A.join(' · ');};
-  t('Personalisasi',isiT(['pTek','pWarna','pIsi']));t('Logo',isiT(['lFile','lTek','lWarna','lLetak']));t('Catatan',gk('cat'));
+  t('Personalisasi',isiT(['pTek','pWarna','pIsi','pLetak']));t('Logo',isiT(['lFile','lTek','lWarna','lLetak']));t('Logo 2',isiT(['l2File','l2Tek','l2Warna','l2Letak']));t('Catatan',gk('cat'));
   t('Ukuran',ukuranTeks(o,l));
   return R;}
 /* ukuran produk (cm): dari baris (diisi di Purchase Order Issuing) atau Master Product */
