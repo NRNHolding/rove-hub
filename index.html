@@ -800,6 +800,15 @@ table.tpl-x{border-collapse:separate;border-spacing:0;font-size:11.5px;min-width
 .tpl-x td.tpl-kosong{background:var(--warn-bg)}
 .tpl-x td.tpl-beda{background:rgba(208,173,99,.09)}
 .tpl-x td.tpl-std input{color:var(--muted);background:rgba(120,110,95,.06);cursor:not-allowed}
+.tpl-x .tpl-hid{display:none}
+.tpl-x thead tr.g th.tpl-gk{cursor:pointer;user-select:none}
+.tpl-x thead tr.g th.tpl-gk:hover{background:rgba(154,106,47,.14)}
+.tpl-x .tpl-ar{color:var(--brand);margin-right:4px}
+.tpl-x .tpl-tanda{margin-right:4px}.tpl-x .tpl-tanda.ok{color:var(--ok)}.tpl-x .tpl-tanda.kr{color:var(--warn)}
+.tpl-x thead tr.c th.tpl-ringh{font-style:italic;font-weight:600}
+.tpl-x td.tpl-ring{padding:5px 7px;color:var(--ink-soft);font-size:11px;cursor:pointer;background:rgba(120,110,95,.05)}
+.tpl-x td.tpl-ring div{max-width:15ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tpl-x td.tpl-ringk{background:var(--warn-bg)}
 .tpl-isi{cursor:pointer;color:var(--brand);font-weight:800;margin-left:4px}
 .tpl-aksi{padding:0 4px!important}
 .tpl-ft{font-size:10px;color:var(--muted);margin:6px 0 8px}
@@ -988,7 +997,7 @@ const KEY='rovehub_orders_v18';
 /* ================= VERSI YANG SEDANG BERJALAN =================
    Diisi otomatis oleh terbitkan.js waktu salinan ini diterbitkan; '-' berarti
    dibuka langsung dari berkas, bukan dari alamat terbitannya. */
-const VERSI='20261110-103604';
+const VERSI='20261110-140240';
 /* Berkas versi.txt di sebelah halaman ini berisi penanda yang sama. Ia
    ditanyakan tanpa cache, jadi ia jujur walau halamannya sendiri masih
    tersimpan di cache browser. */
@@ -1366,6 +1375,7 @@ const EN_RULES=[
 
 /* Kamus persis. Kunci = teks Indonesia apa adanya yang muncul di layar. */
 const EN={
+'ringkasan':'summary','▸ Lipat semua':'▸ Collapse all','▾ Buka semua':'▾ Expand all','lipat grup ini':'collapse this group','buka grup ini':'expand this group',
 'Qty jasa ini mengikuti tabel produk di Brief — ubah qty produk atau baris di tabelnya.':'This service quantity follows the product table in the Brief — change the product quantity or its table rows.',
 'Jasa · teknik':'Service · technique','＋ Logo kedua':'＋ Second logo','− Logo kedua':'− Second logo','🔒 spesifikasi standar katalog':'🔒 standard catalogue spec',
 'Daftar nama — personalisasi per pcs':'Name list — per-piece personalisation',
@@ -16221,6 +16231,7 @@ function sorotPanel(pk,kunci){
     /* tak ada sasaran terdaftar = berhenti di kepala panel. Dulu menebak
        'kolom kosong pertama' — itulah biang klik yang nyasar ke mana-mana. */
     if(!kol){try{e.scrollIntoView({block:'start'});}catch(err){}return;}
+    kol=tplBukaUntuk(kol);   /* kolom template yang terlipat dibuka dulu (patch202) */
     try{kol.scrollIntoView({block:'center',behavior:'smooth'});}catch(err){}
     kedip(kol,'var(--gold)');
     try{kol.focus({preventScroll:true});}catch(err){try{kol.focus();}catch(e2){}}
@@ -25602,26 +25613,53 @@ function tplWajibKosong(c,v){if(/Tek$/.test(c.k)&&c.k!=='finW'&&(c.g==='Personal
   if(c.k==='liningW')return !tak(v.lining)&&!String(v.liningW||'').trim();
   if(c.k==='benang')return !tak(v.stitch)&&!String(v.benang||'').trim();
   return false;}
+/* grup terlipat (patch202) — grup "kurang" = ada sel wajib kosong, atau jasa sudah dipilih tapi letaknya belum */
+function tplGrupKurang(D,cols){
+  var tek=cols.filter(function(c){return /Tek$/.test(c.k)&&/^(Personalisasi|Logo|Logo 2)$/.test(c.g);})[0],lt=cols.filter(function(c){return /Letak$/.test(c.k);})[0];
+  return D.rows.some(function(r){if(cols.some(function(c){return tplWajibKosong(c,r.vals);}))return true;
+    return !!(tek&&lt&&tplJasaPecah(r.vals[tek.k])&&!tplNyata(r.vals[lt.k]));});}
+function tplLipatBaca(){if(!ST._tplLipat){var m={};try{m=JSON.parse(localStorage.getItem('roveTplLipat')||'{}')||{};}catch(e){}ST._tplLipat=m;}return ST._tplLipat;}
+function tplLipatSimpan(){try{localStorage.setItem('roveTplLipat',JSON.stringify(ST._tplLipat||{}));}catch(e){}}
+function tplLipatKunci(o,l,g){return o.id+'|'+String(l.produk||'')+'|'+g;}
+function tplTerlipat(o,l,g,kurang){var v=tplLipatBaca()[tplLipatKunci(o,l,g)];return (v===true||v===false)?v:!kurang;}
+function tplLipat(id,li,g,on){var T=tplCariO(id,li);if(!T)return;var M=tplLipatBaca(),k=tplLipatKunci(T.o,T.l,g);
+  if(on==null){var D=tplData(T.o,T.l);on=!tplTerlipat(T.o,T.l,g,tplGrupKurang(D,D.K.filter(function(c){return c.g===g;})));}
+  M[k]=!!on;tplLipatSimpan();render();}
+function tplLipatSemua(id,li,on){var T=tplCariO(id,li);if(!T)return;var M=tplLipatBaca(),G=[];
+  tplKolom(T.o,T.l).forEach(function(c){if(G.indexOf(c.g)<0)G.push(c.g);});G.slice(1).forEach(function(g){M[tplLipatKunci(T.o,T.l,g)]=!!on;});tplLipatSimpan();render();}
+function tplRingTd(o,li,g,r,bedaK){bedaK=bedaK||{};var C=g.k.filter(function(c){return bedaK[c.k];}).concat(g.k.filter(function(c){return !bedaK[c.k];}));
+  var t=C.map(function(c){return String(r.vals[c.k]||'').trim();}).filter(tplNyata).join(' · ')||'—';
+  var kos=g.k.some(function(c){return tplWajibKosong(c,r.vals);});
+  return '<td class="tpl-ring'+(kos?' tpl-ringk':'')+'" title="'+esc(t)+'" onclick="tplLipat('+jsArg(o.id)+','+li+','+jsArg(g.g)+',false)"><div>'+esc(t)+'</div></td>';}
+/* lompat dari checklist ke kolom yang sedang terlipat → grupnya dibuka dulu */
+function tplBukaUntuk(x){try{var td=x&&x.closest&&x.closest('.tpl-hid');if(!td)return x;var i=(x.tagName==='INPUT')?x:td.querySelector('input');if(!i)return x;
+  var T=tplCari(i);if(!T)return x;tplLipatBaca()[tplLipatKunci(T.o,T.l,T.c.g)]=false;tplLipatSimpan();render();return document.getElementById(i.id)||x;}catch(e){return x;}}
 /* kartu produk di Brief: satu tabel seperti Excel */
 function tplKartu(o,l,li){
   var D=tplData(o,l),K=D.K,V=lineVarian(l),n=D.rows.length,id=jsArg(o.id),q=+l.qty||0;
   var tot=D.rows.reduce(function(a,r){return a+(+r.q||0);},0),bedaK={},kosong=0;D.beda.forEach(function(c){bedaK[c.k]=1;});
-  var grup=[],cur=null;K.forEach(function(c){if(!cur||cur.g!==c.g){cur={g:c.g,n:0};grup.push(cur);}cur.n++;});
+  var grup=[],cur=null;K.forEach(function(c,ci){if(!cur||cur.g!==c.g){cur={g:c.g,n:0,i0:ci,k:[]};grup.push(cur);}cur.n++;cur.k.push(c);});
+  /* grup bisa dilipat (patch202): bawaan lengkap = terlipat, masih kurang = terbuka; grup pertama (Umum) tak pernah dilipat */
+  var lipK={};grup.forEach(function(g,gi){g.kurang=tplGrupKurang(D,g.k);g.lipat=gi>0&&tplTerlipat(o,l,g.g,g.kurang);if(g.lipat)g.k.forEach(function(c){lipK[c.k]=g;});});
   var body=D.rows.map(function(r){return '<tr><td class="tpl-fx tpl-kode">'+esc(r.kode)+'</td>'+K.map(function(c,ci){
       var kos=tplWajibKosong(c,r.vals);if(kos)kosong++;
       var ident='tpl_'+li+'_'+r.k+'_'+ci,ro=(c.k==='q'&&!V.length),std=tplStdKunci(l,c);
-      return '<td class="'+(ci===0?'tpl-fx2 tpl-q ':'')+(kos?'tpl-kosong ':'')+(std?'tpl-std ':'')+(bedaK[c.k]?'tpl-beda':'')+'"><input id="'+ident+'" data-f="'+((r.k===0&&c.df)?(c.df+'_'+li):ident)+'" value="'+esc(r.vals[c.k]||'')+'"'+
+      var gl=lipK[c.k],pre=(gl&&gl.i0===ci)?tplRingTd(o,li,gl,r,bedaK):'';
+      return pre+'<td class="'+(gl?'tpl-hid ':'')+(ci===0?'tpl-fx2 tpl-q ':'')+(kos?'tpl-kosong ':'')+(std?'tpl-std ':'')+(bedaK[c.k]?'tpl-beda':'')+'"><input id="'+ident+'" data-f="'+((r.k===0&&c.df)?(c.df+'_'+li):ident)+'" value="'+esc(r.vals[c.k]||'')+'"'+
         (c.dl?(' list="tplDl_'+li+'_'+c.k+'"'):'')+(ro?' readonly title="qty produk — diubah di pricing; ＋ Baris untuk membagi ke beberapa kombinasi"':(std?' readonly title="standar katalog — ubah lewat ✎ Ubah dari standar"':''))+
         ' data-o="'+esc(o.id)+'" data-li="'+li+'" data-k="'+r.k+'" data-c="'+esc(c.k)+'" onfocus="ST._tplFokus=this.id" onchange="tplUbah(this)" onkeydown="tplTombol(event,this)" onpaste="tplTempel(event,this)"></td>';}).join('')+
       (V.length>=2?('<td class="tpl-aksi"><button type="button" class="xrow" title="harga kombinasi ini beda → jadi baris pricing sendiri" onclick="varPisahKlik('+id+','+li+','+r.k+')">⇄</button>'+
         '<button type="button" class="xrow" title="hapus baris" onclick="tplHapus('+id+','+li+','+r.k+')">✕</button></td>'):'')+'</tr>';}).join('');
-  var th1='<tr class="g"><th class="tpl-fx"></th>'+grup.map(function(g,i){return '<th colspan="'+g.n+'"'+(i===0?' class="tpl-fx2"':'')+'>'+esc(g.g)+'</th>';}).join('')+(V.length>=2?'<th></th>':'')+'</tr>';
+  var th1='<tr class="g"><th class="tpl-fx"></th>'+grup.map(function(g,i){if(i===0)return '<th colspan="'+g.n+'" class="tpl-fx2">'+esc(g.g)+'</th>';
+      return '<th colspan="'+(g.lipat?1:g.n)+'" class="tpl-gk" data-f="tplGrup_'+li+'_'+i+'" title="'+(g.lipat?'buka grup ini':'lipat grup ini')+'" onclick="tplLipat('+id+','+li+','+jsArg(g.g)+')">'+
+        '<span class="tpl-ar">'+(g.lipat?'▸':'▾')+'</span><span class="tpl-tanda '+(g.kurang?'kr':'ok')+'">'+(g.kurang?'!':'✓')+'</span>'+esc(g.g)+'</th>';}).join('')+(V.length>=2?'<th></th>':'')+'</tr>';
   var th2='<tr class="c"><th class="tpl-fx">Kode</th>'+K.map(function(c,i){
       var st=(c.k==='q'||n<2)?'':(bedaK[c.k]?'<span class="st beda">beda</span>':'<span class="st sama">sama</span>');
       var isi=(n>=2&&c.k!=='q')?('<span class="tpl-isi" title="isi semua baris seperti baris pertama" onclick="tplIsiBawah('+id+','+li+','+jsArg(c.k)+')">⇣</span>'):'';
       /* lebar kolom = isi terpanjang (huruf header lebih kecil dari isi sel → x1,2), 9–30 */
       var pj=D.rows.reduce(function(a,r){return Math.max(a,String(r.vals[c.k]||'').length);},String(c.l).length+2);
-      return '<th'+(i===0?' class="tpl-fx2"':(' style="min-width:'+Math.min(30,Math.max(9,Math.round(pj*1.2)+3))+'ch"'))+'>'+esc(c.l)+isi+st+'</th>';}).join('')+(V.length>=2?'<th></th>':'')+'</tr>';
+      var gl=lipK[c.k],pre=(gl&&gl.i0===i)?'<th class="tpl-ringh">ringkasan</th>':'';
+      return pre+'<th'+(i===0?' class="tpl-fx2"':((gl?' class="tpl-hid"':'')+' style="min-width:'+Math.min(30,Math.max(9,Math.round(pj*1.2)+3))+'ch"'))+'>'+esc(c.l)+isi+st+'</th>';}).join('')+(V.length>=2?'<th></th>':'')+'</tr>';
   var dl=K.filter(function(c){return c.dl;}).map(function(c){var L=[];try{L=c.dl()||[];}catch(e){}
     return '<datalist id="tplDl_'+li+'_'+c.k+'">'+L.map(function(x){return (x&&x.v)?('<option value="'+esc(x.v)+'" label="'+esc(x.ket)+'">'):('<option value="'+esc(x)+'">');}).join('')+'</datalist>';}).join('');
   return '<div data-f="varBlok_'+li+'" class="tpl-kartu" style="border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:10px;background:var(--bg)">'+
@@ -25636,6 +25674,8 @@ function tplKartu(o,l,li){
       '<button type="button" class="btn ghost sm" onclick="tplUnduh('+id+','+li+')">⬇ Unduh template (Excel)</button>'+
       (tplLogo2(o)?((o.logo2&&!tplLogo2Isi(o)&&!tplLogo2File(o))?('<button type="button" class="btn ghost sm" data-f="logo2Off" onclick="tplLogo2Set('+id+',false)">− Logo kedua</button>'):'')
         :('<button type="button" class="btn ghost sm" data-f="logo2On" onclick="tplLogo2Set('+id+',true)">＋ Logo kedua</button>'))+
+      (grup.length>2?('<button type="button" class="btn ghost sm" data-f="tplLipatSemua_'+li+'" onclick="tplLipatSemua('+id+','+li+',true)">▸ Lipat semua</button>'+
+        '<button type="button" class="btn ghost sm" data-f="tplBukaSemua_'+li+'" onclick="tplLipatSemua('+id+','+li+',false)">▾ Buka semua</button>'):'')+
       '<span style="font-size:9.5px;color:var(--muted)">Ctrl+V dari Excel mengisi banyak sel sekaligus · Enter = turun · ⇣ = isi semua baris seperti baris pertama</span></div>'+
     '<div class="tpl-w"><table class="tpl-x"><thead>'+th1+th2+'</thead><tbody>'+body+'</tbody></table></div>'+dl+
     (n>=2?('<div class="tpl-ft" data-f="tplBeda_'+li+'">Yang beda: <b>'+(D.beda.map(function(c){return esc(tplLabel(c));}).join(', ')||'—')+'</b> — di PO: yang sama ditulis sekali, yang beda masuk tabel Rincian kombinasi</div>')
