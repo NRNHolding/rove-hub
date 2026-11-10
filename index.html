@@ -801,6 +801,18 @@ table.tpl-x{border-collapse:separate;border-spacing:0;font-size:11.5px;min-width
 .tpl-x td.tpl-beda{background:rgba(208,173,99,.09)}
 .tpl-x td.tpl-std input{color:var(--muted);background:rgba(120,110,95,.06);cursor:not-allowed}
 .tpl-x .tpl-hid{display:none}
+.peta-tek{border:1px solid var(--line);border-radius:10px;background:var(--panel);padding:10px 12px;margin-bottom:10px}
+.peta-tek table{border-collapse:separate;border-spacing:0;font-size:11.5px}
+.peta-tek th,.peta-tek td{border-right:1px solid var(--line);border-bottom:1px solid var(--line);padding:5px 8px;white-space:nowrap}
+.peta-tek thead th{background:var(--bg);font-size:10px;color:var(--muted);text-align:center;vertical-align:bottom;font-weight:700}
+.peta-tek .hg{display:block;font-size:9px;font-weight:600}
+.peta-tek td.nm{font-weight:700;position:sticky;left:0;background:var(--panel);z-index:1}
+.peta-tek td.c{text-align:center}
+.peta-tek input[type=checkbox]{width:16px;height:16px;accent-color:var(--brand);cursor:pointer}
+.peta-tek input.us{outline:2px dashed var(--ok);outline-offset:1px}
+.peta-tek tr.kosong td{background:var(--warn-bg)}
+.peta-tek tr.kosong td.nm{color:var(--warn)}
+.peta-tek .st{font-size:9.5px;font-weight:800;margin-left:6px;color:var(--warn)}
 .tpl-x thead tr.g th.tpl-gk{cursor:pointer;user-select:none}
 .tpl-x thead tr.g th.tpl-gk:hover{background:rgba(154,106,47,.14)}
 .tpl-x .tpl-ar{color:var(--brand);margin-right:4px}
@@ -997,7 +1009,7 @@ const KEY='rovehub_orders_v18';
 /* ================= VERSI YANG SEDANG BERJALAN =================
    Diisi otomatis oleh terbitkan.js waktu salinan ini diterbitkan; '-' berarti
    dibuka langsung dari berkas, bukan dari alamat terbitannya. */
-const VERSI='20261110-140240';
+const VERSI='20261110-150340';
 /* Berkas versi.txt di sebelah halaman ini berisi penanda yang sama. Ia
    ditanyakan tanpa cache, jadi ia jujur walau halamannya sendiri masih
    tersimpan di cache browser. */
@@ -1140,6 +1152,8 @@ const BULAN_EN={Januari:'January',Februari:'February',Maret:'March',April:'April
 
 /* Aturan untuk kalimat yang mengandung angka — dicoba setelah kamus persis gagal. */
 const EN_RULES=[
+  [/^(\d+) jasa belum dikunci$/,function(m,n){return n+(n==='1'?' service':' services')+' not locked yet';}],   /* peta teknik (patch203) */
+  [/^(\d+) teknik$/,function(m,n){return n+(n==='1'?' technique':' techniques');}],
   /* kartu ringkas (13 Okt) */
   [/^(\d+) \/ (\d+) lengkap$/,function(m,a,b){return a+' / '+b+' complete';}],
   [/^(\d+) kurang$/,function(m,n){return n+' missing';}],
@@ -1375,6 +1389,10 @@ const EN_RULES=[
 
 /* Kamus persis. Kunci = teks Indonesia apa adanya yang muncul di layar. */
 const EN={
+'▦ Peta teknik':'▦ Technique map','Peta teknik — Add-on':'Technique map — Add-on','Peta teknik — Live service':'Technique map — Live service',
+'! belum dikunci':'! not locked','Pakai usulan':'Use suggestion','✓ Pakai semua usulan':'✓ Use all suggestions','semua sudah dikunci':'all locked',
+'semua teknik boleh':'any technique',
+'Centang = teknik itu boleh untuk jasa itu (hanya itu yang ditawarkan di order). Kotak bergaris hijau = usulan, belum tersimpan. Tanpa centang = semua teknik boleh.':'Tick = that technique is allowed for that service (only those are offered in orders). Green dashed box = suggestion, not saved yet. No tick = any technique allowed.',
 'ringkasan':'summary','▸ Lipat semua':'▸ Collapse all','▾ Buka semua':'▾ Expand all','lipat grup ini':'collapse this group','buka grup ini':'expand this group',
 'Qty jasa ini mengikuti tabel produk di Brief — ubah qty produk atau baris di tabelnya.':'This service quantity follows the product table in the Brief — change the product quantity or its table rows.',
 'Jasa · teknik':'Service · technique','＋ Logo kedua':'＋ Second logo','− Logo kedua':'− Second logo','🔒 spesifikasi standar katalog':'🔒 standard catalogue spec',
@@ -9082,6 +9100,51 @@ function tekListEdit(i){
       stampRow(j);saveMaster();
       logHist&&0; /* master, bukan order — tak ada hist order yang pas */
       render();}});}
+/* ============ PETA TEKNIK (10 Nov): semua jasa × semua teknik satu keluarga, dicentang di satu tabel ============ */
+function petaTekNama(j){return String((j&&j.tekList)||'').split(',').map(function(x){return x.trim();}).filter(Boolean);}
+function petaTekKolom(jenis){var K=teknikNamaUntuk(jenis).slice(),asing=[];
+  jasaAll().forEach(function(j){if(j.jenis!==jenis||j._del)return;petaTekNama(j).forEach(function(t){if(K.indexOf(t)<0&&asing.indexOf(t)<0)asing.push(t);});});
+  return {K:K.concat(asing),asing:asing};}
+/* usulan hanya untuk jasa yang belum dikunci: peta bawaan → jasa bernama mirip (awalan sama) → teknik tunggal jasanya */
+function petaTekUsulan(j){if(!j||petaTekNama(j).length)return [];var kenal=teknikNamaUntuk(j.jenis);
+  var saring=function(L){return kenal.length?L.filter(function(t){return kenal.indexOf(t)>=0;}):L;};
+  if(TEK_BAWAAN[j.nama]){var B=saring(TEK_BAWAAN[j.nama].split(',').map(function(x){return x.trim();}).filter(Boolean));if(B.length)return B;}
+  var nm=String(j.nama||''),mirip=jasaAll().filter(function(x){return x!==j&&x.jenis===j.jenis&&!x._del&&petaTekNama(x).length&&x.nama&&
+    (nm.indexOf(x.nama)===0||String(x.nama).indexOf(nm)===0);}).sort(function(a,b){return String(b.nama).length-String(a.nama).length;})[0];
+  if(mirip){var S=saring(petaTekNama(mirip));if(S.length)return S;}
+  var t=String(j.teknik||'').trim();return (t&&t!=='-'&&kenal.indexOf(t)>=0)?[t]:[];}
+function petaTekKosong(jenis){return jasaAll().filter(function(j){return j.jenis===jenis&&!j._del&&!petaTekNama(j).length;}).length;}
+function petaTekTombol(jenis){var n=petaTekKosong(jenis);
+  return '<button class="btn '+(ST._petaTek?'':'ghost ')+'sm" data-f="petaTekBtn" style="margin-bottom:9px" onclick="petaTekToggle()">▦ Peta teknik</button>'+
+    (n?('<span data-f="petaTekKosong" style="font-size:10.5px;font-weight:800;color:var(--warn);margin-left:7px">'+n+' jasa belum dikunci</span>'):'');}
+function petaTekToggle(){ST._petaTek=!ST._petaTek;render();}
+function petaTekBlok(jenis){
+  var J=((ST.master||{}).jasa)||[],idx=[];J.forEach(function(j,i){if(j.jenis===jenis&&!j._del)idx.push(i);});if(!idx.length)return '';
+  var C=petaTekKolom(jenis),kel=(jenis==='Live service')?'Live service':'Add-on';
+  if(!C.K.length)return '<div class="peta-tek" data-f="petaTekBlok"><b>Peta teknik — '+kel+'</b><div style="font-size:11px;color:var(--warn);margin-top:5px">Belum ada teknik di keluarga ini — isi dulu di chip '+(jenis==='Live service'?'Teknik live':'Teknik add-on')+'.</div></div>';
+  var nUs=idx.filter(function(i){return petaTekUsulan(J[i]).length;}).length,nKos=petaTekKosong(jenis);
+  var hd='<tr><th style="text-align:left">Jasa</th>'+C.K.map(function(t){var H=null;try{H=teknikHarga(t,0);}catch(e){}
+      var h=H?((H.perPc?(fmt0(H.perPc)+'/pcs'):'')+(H.fix?((H.perPc?' + ':'')+fmt0(H.fix)+' tetap'):'')):'';
+      return '<th'+(C.asing.indexOf(t)>=0?' title="belum ada di daftar teknik — buat baris Teknik-nya, atau hapus centangnya"':'')+'>'+esc(t)+(C.asing.indexOf(t)>=0?' ⚠':'')+'<span class="hg">'+esc(h||'—')+'</span></th>';}).join('')+'<th></th></tr>';
+  var bd=idx.map(function(i){var j=J[i],on=petaTekNama(j),us=petaTekUsulan(j),kos=!on.length;
+    return '<tr'+(kos?' class="kosong"':'')+'><td class="nm">'+esc(j.nama)+(kos?'<span class="st">! belum dikunci</span>':'')+'</td>'+
+      C.K.map(function(t,ti){var a=on.indexOf(t)>=0,u=us.indexOf(t)>=0;
+        return '<td class="c"><input type="checkbox" data-f="petaTek_'+i+'_'+ti+'"'+(a?' checked':'')+(u?' class="us" title="usulan — belum tersimpan"':'')+
+          ' onchange="petaTekSet('+i+','+jsArg(t)+',this.checked)"></td>';}).join('')+
+      '<td>'+(us.length?('<button class="btn ghost sm" data-f="petaTekPakai_'+i+'" title="'+esc(us.join(', '))+'" onclick="petaTekPakai('+i+')">Pakai usulan</button>')
+        :('<span style="font-size:10px;color:var(--muted)">'+(kos?'semua teknik boleh':(on.length+' teknik'))+'</span>'))+'</td></tr>';}).join('');
+  return '<div class="peta-tek" data-f="petaTekBlok"><div style="display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-bottom:7px">'+
+      '<b style="font-size:12px">Peta teknik — '+kel+'</b>'+
+      (nKos?('<span style="font-size:10px;font-weight:800;color:var(--warn)">'+nKos+' jasa belum dikunci</span>'):'<span style="font-size:10px;font-weight:800;color:var(--ok)">semua sudah dikunci</span>')+
+      (nUs?('<button class="btn sm" data-f="petaTekSemua" onclick="petaTekPakaiSemua('+jsArg(jenis)+')">✓ Pakai semua usulan</button>'):'')+'</div>'+
+    '<div class="xscroll"><table><thead>'+hd+'</thead><tbody>'+bd+'</tbody></table></div>'+
+    '<div style="font-size:10px;color:var(--muted);margin-top:6px">Centang = teknik itu boleh untuk jasa itu (hanya itu yang ditawarkan di order). Kotak bergaris hijau = usulan, belum tersimpan. Tanpa centang = semua teknik boleh.</div></div>';}
+function petaTekSet(i,t,on){var j=((ST.master||{}).jasa||[])[i];if(!j)return;var L=petaTekNama(j),k=L.indexOf(t);
+  if(on&&k<0)L.push(t);if(!on&&k>=0)L.splice(k,1);var U=petaTekKolom(j.jenis).K;L.sort(function(a,b){return U.indexOf(a)-U.indexOf(b);});
+  j.tekList=L.join(', ');stampRow(j);saveMaster();render();}
+function petaTekPakai(i){var j=((ST.master||{}).jasa||[])[i];if(!j)return;var U=petaTekUsulan(j);if(!U.length)return;j.tekList=U.join(', ');stampRow(j);saveMaster();render();}
+function petaTekPakaiSemua(jenis){var n=0;(((ST.master||{}).jasa)||[]).forEach(function(j){if(j.jenis!==jenis||j._del||petaTekNama(j).length)return;
+  var U=petaTekUsulan(j);if(U.length){j.tekList=U.join(', ');stampRow(j);n++;}});if(n)saveMaster();render();}
 function jasaTekList(nama){
   nama=jasaNamaAsli(nama);
   var j=jasaAll().filter(function(x){return x.nama===nama;})[0];
@@ -10378,6 +10441,7 @@ function renderMaster(){
            jChip('TeknikAddon','Teknik add-on',J.filter(function(x){return x.jenis==='Teknik'&&teknikUntuk(x)!=='Live service';}).length)+
            '</div>'+
          '<div style="font-size:10.5px;color:var(--muted);margin-bottom:9px">'+jKet+'</div>'+
+         (adaTeknikChip?'':(petaTekTombol(JT)+(ST._petaTek?petaTekBlok(JT):'')))+   /* peta teknik (patch203) */
          '<div class="xscroll">'+tbl('jasa',
            (adaTeknikChip
              /* baris Teknik tak butuh kolom kunci/vendor — itu milik jasa.
