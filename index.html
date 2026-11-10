@@ -988,7 +988,7 @@ const KEY='rovehub_orders_v18';
 /* ================= VERSI YANG SEDANG BERJALAN =================
    Diisi otomatis oleh terbitkan.js waktu salinan ini diterbitkan; '-' berarti
    dibuka langsung dari berkas, bukan dari alamat terbitannya. */
-const VERSI='20261109-154942';
+const VERSI='20261110-103604';
 /* Berkas versi.txt di sebelah halaman ini berisi penanda yang sama. Ia
    ditanyakan tanpa cache, jadi ia jujur walau halamannya sendiri masih
    tersimpan di cache browser. */
@@ -20079,7 +20079,7 @@ function profitSet(id,i,f,v){
     l.hpp=Math.max(0,moneyVal(v));l._hppManual=true;   // HPP selalu bisa ditimpa (mis. vendor naik harga)
     try{negoTutup(o,l,l.hpp);}catch(e){}}
   else if(f==='qty'){
-    if(o.jasaTabel&&l.jasa==='Add-on'&&l.jasaKunci){alert('Qty jasa ini mengikuti tabel produk di Brief — ubah qty produk atau baris di tabelnya.');render();return;}
+    if(o.jasaTabel&&!spekKunci(o)&&l.jasa==='Add-on'&&l.jasaKunci&&!l._tbh){alert('Qty jasa ini mengikuti tabel produk di Brief — ubah qty produk atau baris di tabelnya.');render();return;}
     l.qty=Math.max(0,+v||0);
     /* qty vendor tak boleh di bawah qty client: kalau qty client naik melewatinya, qty vendor mengikuti dan spare ditentukan ulang */
     if((+l.qtyPO||0)>0&&l.qty>(+l.qtyPO||0)){l.qtyPO=0;if(o.pricing.spareTgl){delete o.pricing.spareTgl;delete o.pricing.spareTglBy;}
@@ -25455,20 +25455,23 @@ function tplJasaPakai(o){var M={},urut=[];
   urut.forEach(function(k){var l=L.filter(function(x){return J(x)&&x.jasaKunci===k;})[0],n=l?namaJasaBaris(l):'';
     if(n&&!pakai[n]){M[k].nama=n;pakai[n]=1;}});
   urut.forEach(function(k){var p=M[k];if(p.nama)return;var n=p.jasa,i=1;
-    while(pakai[n]||L.some(function(x){return J(x)&&x.jasaKunci&&x.jasaKunci!==k&&namaJasaBaris(x)===n;})){i++;n=p.jasa+' ('+i+')';}
+    while(pakai[n]||L.some(function(x){return J(x)&&((x.jasaKunci&&x.jasaKunci!==k)||(x._tbh&&!x.jasaKunci))&&namaJasaBaris(x)===n;})){i++;n=p.jasa+' ('+i+')';}
     p.nama=n;pakai[n]=1;});
   return urut.map(function(k){return M[k];});}
-function tplJasaSinkron(o){if(!o||!o.jasaTabel)return;var P=tplJasaPakai(o),nama=P.map(function(p){return p.nama;}),lama=liveList(o.svc);
+function tplJasaSinkron(o){if(!o||!o.jasaTabel||spekKunci(o))return;var P=tplJasaPakai(o),nama=P.map(function(p){return p.nama;}),lama=liveList(o.svc);
+  /* jasa dari Tambahan order (baris _tbh) bukan milik tabel: namanya tetap, barisnya tak disentuh (patch201) */
+  var L0=((o.pricing||{}).lines)||[],tbhN=lama.filter(function(n){return nama.indexOf(n)<0&&L0.some(function(l){return l&&l._tbh&&l.jasa==='Add-on'&&namaJasaBaris(l)===n;});});
+  if(tbhN.length)nama=nama.concat(tbhN);
   if(!o.svcTeknik)o.svcTeknik={};if(!o.svcLetak)o.svcLetak={};
   var banyak=lineProduk(o).length>1;o.svcUntuk={};P.forEach(function(p){o.svcUntuk[p.nama]=p.produk;});   /* jasa ini untuk barang apa (patch200) */
   P.forEach(function(p){o.svcTeknik[p.nama]=p.teknik;if(p.letak)o.svcLetak[p.nama]=p.letak;if(p.perPcs)persoGet(o,p.nama).perPcs=true;});
   o.svc=nama;
   /* jasa yang tak dipakai lagi: barisnya dibuang (yang sudah ditanyakan / berharga ditandai lepas, seperti ordSvcDel) */
   var L=((o.pricing||{}).lines)||[];
-  for(var i=L.length-1;i>=0;i--){var l=L[i];if(!l||l.jasa!=='Add-on')continue;if(nama.indexOf(namaJasaBaris(l))>=0)continue;
+  for(var i=L.length-1;i>=0;i--){var l=L[i];if(!l||l.jasa!=='Add-on'||l._tbh)continue;if(nama.indexOf(namaJasaBaris(l))>=0)continue;
     if((l.rfq&&l.rfq.minta)||(+l.hpp||0)>0)l._jasaLepas=true;else L.splice(i,1);}
   try{barisVendorLengkapi(o);}catch(e){}
-  P.forEach(function(p){(((o.pricing||{}).lines)||[]).forEach(function(l){if(!l||l.jasa!=='Add-on'||namaJasaBaris(l)!==p.nama)return;
+  P.forEach(function(p){(((o.pricing||{}).lines)||[]).forEach(function(l){if(!l||l.jasa!=='Add-on'||l._tbh||namaJasaBaris(l)!==p.nama)return;
     if((+l.qty||0)!==p.q)l.qty=p.q;delete l._jasaLepas;if(p.letak)l.letak=p.letak;
     l.jasaKunci=p.kunci;if(banyak)l.jasaUntuk=p.produk;else delete l.jasaUntuk;});});
   try{jasaTerapkanTeknik(o);persoSinkron(o);}catch(e){}
