@@ -1009,7 +1009,7 @@ const KEY='rovehub_orders_v18';
 /* ================= VERSI YANG SEDANG BERJALAN =================
    Diisi otomatis oleh terbitkan.js waktu salinan ini diterbitkan; '-' berarti
    dibuka langsung dari berkas, bukan dari alamat terbitannya. */
-const VERSI='20261111-100437';
+const VERSI='20261111-103635';
 /* Berkas versi.txt di sebelah halaman ini berisi penanda yang sama. Ia
    ditanyakan tanpa cache, jadi ia jujur walau halamannya sendiri masih
    tersimpan di cache browser. */
@@ -1152,6 +1152,7 @@ const BULAN_EN={Januari:'January',Februari:'February',Maret:'March',April:'April
 
 /* Aturan untuk kalimat yang mengandung angka — dicoba setelah kamus persis gagal. */
 const EN_RULES=[
+  [/^(\d+) PO belum terbit$/,function(m,n){return n+' PO'+(n==='1'?'':'s')+' not issued';}],[/^lewat (\d+) hari$/,function(m,n){return n+' day'+(n==='1'?'':'s')+' overdue';}],   /* patch205 */
   [/^(\d+) jasa belum dikunci$/,function(m,n){return n+(n==='1'?' service':' services')+' not locked yet';}],   /* peta teknik (patch203) */
   [/^(\d+) teknik$/,function(m,n){return n+(n==='1'?' technique':' techniques');}],
   /* kartu ringkas (13 Okt) */
@@ -1389,6 +1390,9 @@ const EN_RULES=[
 
 /* Kamus persis. Kunci = teks Indonesia apa adanya yang muncul di layar. */
 const EN={
+'PO collateral menyusul':'Collateral POs to follow','TAGIH TERUS SAMPAI PO TERBIT · PALING LAMBAT SEBELUM QC & PACKING':'CHASE UNTIL THE PO IS ISSUED · NO LATER THAN QC & PACKING',
+'🕓 PO menyusul':'🕓 PO to follow','PO Radja sudah terbit — PO ini paling lambat sebelum QC & Packing.':'The Radja PO is out — this PO is due before QC & Packing at the latest.',
+'siap diterbitkan':'ready to issue','tenggat belum ada':'no due date','🕓 logo menyusul':'🕓 logo to follow','🕓 nama menyusul':'🕓 names to follow',
 '▦ Peta teknik':'▦ Technique map','Peta teknik — Add-on':'Technique map — Add-on','Peta teknik — Live service':'Technique map — Live service',
 '! belum dikunci':'! not locked','Pakai usulan':'Use suggestion','✓ Pakai semua usulan':'✓ Use all suggestions','semua sudah dikunci':'all locked',
 'semua teknik boleh':'any technique',
@@ -11016,7 +11020,7 @@ ${muatDcSitusUji()?contohBawaanPanelHTML():`       <div style="margin-top:16px;b
    <div class="topbar"><h1>Tugas saya</h1><span class="demo">${role}</span><div class="sp"></div>${can('neworder')?`<button class="btn" onclick="openNew()">＋ Order baru</button>`:''}</div>
    ${tabNote('Hanya order yang <b>menunggu tindakan jabatanmu ('+role+')</b>. Klik kartu → kerjakan langkah yang tertulis → klik <b>✓ Selesai — lanjut fase</b>. Order akan hilang dari sini setelah berpindah ke PIC lain.')}
    ${akuDirektur?bayarAjuDirekturBlok():((myRoles().indexOf('Finance')>=0||myRoles().indexOf('Purchasing')>=0)?bayarAjuFinanceBlok():'')}${adminTugasBlok()}
-   ${myRoles().indexOf('Marketing')>=0?konTugasBlok():''}${tbhTugasBlok()}${gabTugasBlok()}${inqIngatBlok()}
+   ${myRoles().indexOf('Marketing')>=0?konTugasBlok():''}${tbhTugasBlok()}${gabTugasBlok()}${inqIngatBlok()}${poSusulBlok()}
    <div style="font-size:12px;color:var(--muted);margin-bottom:14px">${(function(){
      if(tasks.length)return tasks.length+' order menunggu tindakanmu.';
      /* pesan lama buta: mengaku kosong padahal blok kelengkapan di bawah berisi */
@@ -11072,7 +11076,7 @@ function kartuTugas(o){
       (isVip(o)?';border-left-color:var(--gold);border-left-width:4px;background:var(--warn-bg)':'')+
       '" onclick="openOrder(\''+o.id+'\')">'+
     '<div class="on"><span class="pf" style="background:'+pfColor(o.prefix)+'">'+String(o.prefix||'?').toUpperCase()+'</span>'+
-      esc(o.customer)+(isVip(o)?(' '+vipLencana(true)):'')+' <span style="color:var(--muted);font-weight:400">· '+esc(o.product||'-')+' '+(o.qty||0)+'pcs</span></div>'+susulanChipHTML(o)+inqIngatChip(o)+
+      esc(o.customer)+(isVip(o)?(' '+vipLencana(true)):'')+' <span style="color:var(--muted);font-weight:400">· '+esc(o.product||'-')+' '+(o.qty||0)+'pcs</span></div>'+susulanChipHTML(o)+menyusulChip(o)+inqIngatChip(o)+
     /* judul kelompok sudah menyebut langkah fasenya — di kartu yang berguna
        justru berapa kelengkapan order INI yang masih menunggu jabatanku */
     '<div class="om" style="margin-top:5px"><span>'+(function(){
@@ -14543,7 +14547,7 @@ function renderBoard(){
        ${c.items.length?c.items.filter(o=>!seen.has(o.id)&&seen.add(o.id)).map(o=>`
          <div class="oc ${o.status==='Cancel'?'cancel':''}${papanTelat(o)?' telat':''}" data-oid="${esc(o.id)}" style="border-left-color:${pfColor(o.prefix)}" onclick="openOrder('${o.id}')">
            <div class="on"><span class="pf" style="background:${pfColor(o.prefix)}">${String(o.prefix||'?').toUpperCase()}</span>${esc(o.customer||'(tanpa nama)')}${isVip(o)?(' '+vipLencana(true)):''}</div>
-           <div class="om"><span>${esc(o.product||'-')} · ${o.qty||0}pcs</span><span>${o.trello?'📋':''} ${(o.disc||[]).length?'💬':''}</span></div>${cancelKartuHTML(o)}${susulanChipHTML(o)}
+           <div class="om"><span>${esc(o.product||'-')} · ${o.qty||0}pcs</span><span>${o.trello?'📋':''} ${(o.disc||[]).length?'💬':''}</span></div>${cancelKartuHTML(o)}${susulanChipHTML(o)}${menyusulChip(o)}
            ${(o.phase||0)===8?(function(){var d=sketchDeadline(o),sd=dLeft(ymdDari(d.deadline));return '<div class="om" style="margin-top:3px"><span style="font-weight:800;color:'+((sd!==null&&sd<0)?'#8f2a1e':((sd!==null&&sd<=1)?'var(--warn)':'var(--ok)'))+'">✏️ deadline '+tglID(ymdDari(d.deadline))+'</span><span>antrean '+d.urut+'/'+d.total+'</span></div>';})():''}${papanJatuhHTML(o)}
            <div class="om" style="margin-top:5px"><span class="stbadge st-${o.status}">${o.status}</span><span>${collIcons(o.coll)}</span></div>
          </div>`).join(''):'<div class="colempty">—</div>'}
@@ -14915,7 +14919,7 @@ const PH_CHECK=[
   /* Logo ditanyakan di sini, bukan nanti di Sketch. Kotaknya memang sudah
      ada di panel Brief; yang dulu tak ada cuma yang menagihnya. Tak wajib di
      sini — di Sketch barulah menahan fase. */
-  {auto:function(o){return adaLogoFile(o);}, k:'logoCl', t:'Minta file logo client (.ai / .eps) — dasar hitung harga plat deboss; kalau client tak punya, Creative yang membuat', en:'Ask for the client logo file (.ai / .eps) — the basis for pricing the deboss plate; if the client has none, Creative makes it', guna:'supaya harga plat deboss bisa dihitung sejak awal — dan Creative tak menunggu logo di fase Product Sketch Processing', gunaEn:'so the deboss plate can be priced from the start — and Creative is not waiting for the logo at Product Sketch Processing', pic:'Sales', w:true, jika:'adaLogo'},
+  {auto:function(o){return adaLogoFile(o);}, k:'logoCl', t:'Minta file logo client (.ai / .eps) — dasar hitung harga plat deboss; kalau client tak punya, Creative yang membuat', en:'Ask for the client logo file (.ai / .eps) — the basis for pricing the deboss plate; if the client has none, Creative makes it', guna:'supaya harga plat deboss bisa dihitung sejak awal — dan Creative tak menunggu logo di fase Product Sketch Processing', gunaEn:'so the deboss plate can be priced from the start — and Creative is not waiting for the logo at Product Sketch Processing', pic:'Sales', jika:'adaLogo'},
   {auto:function(o){var b=o.brief||{};
     /* kolom lama sudah dibuang — yang berlaku letak per jasa; isian lama dan
        acuan gambar tetap dihitung */
@@ -15058,12 +15062,9 @@ const PH_CHECK=[
    guna:'ini yang paling sering membuat Creative menunggu: sketsanya cepat, jawaban client yang lama',
    gunaEn:'this is what most often keeps Creative waiting: the sketch is quick, the client’s answer is slow',
    pic:'Sales', w:true},
-  {auto:function(o){return !(o.coll||{}).pouch||kemasanAdaGambar(o,'pouch');}, k:'logoPch', t:'Siapkan logo untuk soft pouch', en:'Prepare the logo for the soft pouch', guna:'supaya pouch tak dicetak polos', gunaEn:'so the pouch is not printed blank',            pic:'Creative', w:true},
-  {auto:function(o){return !(o.coll||{}).box||kemasanAdaGambar(o,'box');}, k:'logoBox', t:'Siapkan logo untuk box', en:'Prepare the logo for the box', guna:'supaya box tak dicetak polos', gunaEn:'so the box is not printed blank',                   pic:'Creative', w:true},
-  {auto:function(o){return !(o.coll||{}).card||kemasanAdaGambar(o,'card');}, k:'logoCard', t:'Siapkan logo untuk thank you card', en:'Prepare the logo for the thank you card', guna:'supaya kartu tak dicetak tanpa logo', gunaEn:'so the card is not printed without a logo',        pic:'Creative', w:true},
-  {auto:function(o){
-     var L=persoSemua(o).filter(function(x){return x.N.perPcs;});
-     return L.length>0&&L.every(function(x){return x.N.daftar.length===persoQtyUntuk(o,x.nama);});}, k:'daftarNama', t:'Minta daftar nama tamu, cocokkan jumlahnya dengan qty', en:'Ask for the guest name list, match the count against the qty', guna:'supaya tak ada pcs yang tercetak tanpa nama', gunaEn:'so no piece is produced without a name', pic:'Sales', w:true, jika:'perPcs'},
+  {auto:function(o){return !(o.coll||{}).pouch||kemasanAdaGambar(o,'pouch');}, k:'logoPch', t:'Siapkan logo untuk soft pouch', en:'Prepare the logo for the soft pouch', guna:'supaya pouch tak dicetak polos', gunaEn:'so the pouch is not printed blank',            pic:'Creative'},
+  {auto:function(o){return !(o.coll||{}).box||kemasanAdaGambar(o,'box');}, k:'logoBox', t:'Siapkan logo untuk box', en:'Prepare the logo for the box', guna:'supaya box tak dicetak polos', gunaEn:'so the box is not printed blank',                   pic:'Creative'},
+  {auto:function(o){return !(o.coll||{}).card||kemasanAdaGambar(o,'card');}, k:'logoCard', t:'Siapkan logo untuk thank you card', en:'Prepare the logo for the thank you card', guna:'supaya kartu tak dicetak tanpa logo', gunaEn:'so the card is not printed without a logo',        pic:'Creative'},
   {auto:function(o){return (((o.brief||{}).previewFiles)||[]).length>0;}, k:'preview', t:'Buat preview desain lalu kirim ke client', en:'Make the design preview and send it to the client', guna:'supaya client melihat hasilnya sebelum produksi jalan', gunaEn:'so the client sees it before production starts',  pic:'Creative', w:true}
  ],
  [ // 9 Product Sketch – Awaiting Approval
@@ -15075,10 +15076,13 @@ const PH_CHECK=[
    k:'poRevRadja', t:'Konfirmasi PO revisi ke Radja — pastikan bahan belum terpotong salah', en:'Confirm the revised PO with Radja — check no material has been cut wrongly', guna:'supaya perubahan tak menabrak barang yang sudah dikerjakan', gunaEn:'so the change does not collide with work already done', pic:'PM', w:true, jika:'poRev'},
   {auto:function(o){return !!((o.poRevOk||{}).direktur);},
    k:'poRevDir', t:'Setujui PO revisi beserta biaya tambahannya', en:'Approve the revised PO and any extra cost it brings', guna:'supaya biaya tambahan revisi disetujui dulu, bukan baru ketahuan saat tagihan vendor datang', gunaEn:'so the extra cost of the revision is approved first, not discovered when the vendor bill arrives', pic:'Direktur', w:true, jika:'poRev'},
+  {auto:function(o){
+     var L=persoSemua(o).filter(function(x){return x.N.perPcs;});
+     return L.length>0&&L.every(function(x){return x.N.daftar.length===persoQtyUntuk(o,x.nama);});}, k:'daftarNama', t:'Minta daftar nama tamu, cocokkan jumlahnya dengan qty', en:'Ask for the guest name list, match the count against the qty', guna:'supaya tak ada pcs yang tercetak tanpa nama — sketsa cukup memakai contoh nama, daftar aslinya ditagih sebelum PO turun', gunaEn:'so no piece is produced without a name', pic:'Sales', w:true, jika:'perPcs'},
   {auto:function(o){return poMissing(o).length===0;}, k:'spec', t:'Periksa spesifikasi dari Brief yang terkunci: bahan utama tiap produk dan deadline produksi', en:'Check the locked spec from the Brief: main material of every product and the production deadline', guna:'supaya vendor tak menebak spesifikasi', gunaEn:'so the vendor is not guessing the spec',               pic:'Purchasing', w:true},
   {auto:function(o){return !!(((o.pricing||{}).marginAppr||{}).tgl)&&!susulanHppBerubah(o);}, k:'appr', t:'Setujui kelengkapan spesifikasi sebelum PO turun ke produksi', en:'Approve that the specification is complete before the PO goes to production', guna:'yang diperiksa di sini kesiapan produksi — profitnya sudah diputus di Profitability Checking', gunaEn:'what is checked here is production readiness — the profit was already decided at Profitability Checking',                 pic:'Direktur',      w:true},
   {auto:function(o){return !!((o.po||{}).generated);}, jika:'adaKulit', k:'poR', t:'Terbitkan PO ke Radja', en:'Issue the PO to Radja', guna:'supaya vendor punya dasar mulai produksi', gunaEn:'so the vendor has authority to start',                       pic:'Purchasing', w:true},
-  {auto:function(o){var V=poVendors(o);return V.length===0||V.every(function(v){return !!(((o.vpo||{})[v]||{}).generated);});}, k:'poV', t:'Terbitkan PO ke tiap vendor collateral, lengkap dengan ukuran', en:'Issue a PO to each collateral vendor, sizes included', guna:'supaya kemasan siap bersamaan dengan produknya', gunaEn:'so packaging is ready at the same time as the product',           pic:'Purchasing', w:true},
+  {auto:function(o){var V=poVendors(o);return V.length===0||V.every(function(v){return !!(((o.vpo||{})[v]||{}).generated);})||(!orderNonProduk(o)&&!!((o.po||{}).generated));}, k:'poV', t:'Terbitkan PO ke tiap vendor collateral, lengkap dengan ukuran — yang belum siap boleh menyusul sesudah PO Radja (tenggat sebelum QC & Packing)', en:'Issue a PO to each collateral vendor, sizes included — any not ready may follow after the Radja PO (due before QC & Packing)', guna:'supaya kemasan siap bersamaan dengan produknya', gunaEn:'so packaging is ready at the same time as the product',           pic:'Purchasing', w:true},
   {auto:function(o){return !!((o.trello||{}).created);}, jika:'adaKulit', k:'trello', t:'Pastikan kartu Trello Production sudah terbentuk', en:'Make sure the Trello Production card was created', guna:'supaya progres produksi bisa dipantau', gunaEn:'so production progress can be tracked',               pic:'PM', w:true},
   {auto:function(o){return !!((o.pricing||{}).spareTgl);},
    k:'spare', t:'Tentukan qty spare produksi', en:'Decide the production spare qty', guna:'supaya ada cadangan kalau ada yang reject', gunaEn:'so there is cover if something is rejected',            pic:'Purchasing', w:true},
@@ -15099,6 +15103,7 @@ const PH_CHECK=[
   {auto:function(o){return bvAdaTahap(o,1)||bvLunasSemua(o);}, k:'bayarV1', t:'Catat pembayaran vendor tahap 1 (boleh dicatat belakangan — tak menahan fase)', en:'Record stage-1 vendor payments (can be recorded later — does not block)', guna:'supaya vendor mulai produksi dan pembayarannya tercatat', gunaEn:'so vendors start and payments are on record', pic:'Finance'},
  ],
  [ // 12 Produksi
+  {auto:function(o){var V=poVendors(o);return V.length===0||V.every(function(v){return !!(((o.vpo||{})[v]||{}).generated);});}, k:'poVSusul', t:'Terbitkan PO collateral yang menyusul — sebelum QC & Packing', en:'Issue the collateral POs that were left to follow — before QC & Packing', guna:'PO collateral boleh menyusul sesudah PO Radja, tapi kemasannya harus siap saat produk jadi', gunaEn:'collateral POs may follow the Radja PO, but the packaging must be ready when the product is done', pic:'Purchasing', w:true},
   {auto:function(o){return prodLangkahLewat(o,'sampleFiles')||(!!((o.prod||{}).sampleTgl)&&(((o.brief||{}).sampleFiles)||[]).length>0);}, k:'sample', t:'Setujui sample / first article sebelum produksi massal', en:'Approve the sample / first article before mass production', guna:'supaya kesalahan tak terlanjur di semua pcs', gunaEn:'so a mistake does not run through every piece',             pic:'PM', w:true},
   {auto:function(o){return collKirimLengkap(o);}, jika:'collKulit', k:'coll', t:'Catat collateral yang sudah terkirim ke Radja — centang tiap collateral', en:'Record which collaterals have been delivered to Radja — tick each one', guna:'supaya paket tak sampai tanpa kemasannya', gunaEn:'so the parcel does not arrive without its packaging',             pic:'Packing', w:true},
   {auto:function(o){return !!((o.prod||{}).updated)||prodFotoAda(o)>=2;}, k:'progres', t:'Perbarui tahap dan catatan progres produksi', en:'Update the production stage and progress notes', guna:'supaya tim tahu produksi sampai mana', gunaEn:'so the team knows how far production has got',           pic:'PM', w:true},
@@ -15559,7 +15564,7 @@ const CHK_PANEL={jualJasa:'_master',operator:'_live',opFix:'_live',logoLetak:'br
   fotoProduk:'dokProduk', fotoKemasan:'dokProduk', caption:'dokProduk',
   daftarNama:'brief', preview:'sketch', approve:'sketch',
   inv:'inv', dp:'pay', faktur:'inv',
-  spec:'po', appr:'po', poR:'po', poV:'vpo', trello:'po', spare:'po', warnaLogo:'po',
+  spec:'po', appr:'po', poR:'po', poV:'vpo',poVSusul:'vpo', trello:'po', spare:'po', warnaLogo:'po',
   mat:'prod', sample:'prod', progres:'prod', qc:'prod', pack:'prod', coll:'prod', fotoPotong:'prod', terima:'qc', terimaFoto:'qc',
   invP:'pel', fotoJadi:'prod', lunas:'pay', alamat:'brief', penerima:'kirim', resi:'kirim',
   tglTerima:'kirim', bukti:'kirim', testi:'cs', arsip:'cs', kirimSemua:'kirim',
@@ -25393,9 +25398,16 @@ function poMissing(o){
   /* spesifikasi dari Brief: tiap produk utama wajib punya main material */
   try{lineProduk(o).forEach(function(x){if(!String(spekVal(o,x.l,'mainMat')||'').trim())miss.push('Main material '+(x.l.produk||'produk'));});}catch(e){}
   /* PO turun hanya dengan harga vendor yang sudah disetujui (dipastikan ke vendornya) */
+  var nonP=orderNonProduk(o);
   try{(((o.pricing||{}).lines)||[]).forEach(function(l){if(!((l.qty||0)>0)||l.svcFee||l._tbh)return;
+    if(!nonP&&l.sumber&&!isLeatherVendor(l.sumber))return;   /* barang vendor lain diperiksa di PO vendornya (patch205) */
     var ada=(+l.hpp||0)>0||(+l.hppFix||0)>0;if(!ada)miss.push('Harga vendor '+(l.produk||'item'));
     else if(hargaOtomatis(l)&&!konfSah(l))miss.push('Harga '+(l.produk||'item')+' belum dipastikan ke vendor');});}catch(e){}
+  /* daftar nama jasa per pcs yang dikerjakan Radja — wajib sebelum PO turun (patch205) */
+  try{if(!nonP)persoSemua(o).forEach(function(x){if(!x.N.perPcs)return;
+    var lj=(((o.pricing||{}).lines)||[]).filter(function(l){return l.jasa&&!l._tbh&&namaJasaBaris(l)===x.nama;})[0];
+    if(lj&&lj.sumber&&!isLeatherVendor(lj.sumber))return;var q=persoQtyUntuk(o,x.nama);
+    if(x.N.daftar.length!==q)miss.push('Daftar nama '+x.nama+' ('+x.N.daftar.length+' / '+q+')');});}catch(e){}
   Object.keys(PO_SEL).forEach(k=>{ if(p[k]==='Others'&&!(p[k+'Other']||'').trim())miss.push('isi "Others" '+(PO_LABEL[k]||k)); });
   (p.logos||[]).forEach((lg,i)=>{
     if(lg.milik==='Others'&&!(lg.milikOther||'').trim())miss.push('isi "Others" milik logo #'+(i+1));
@@ -26203,7 +26215,49 @@ function vpoDeadlineIsi(o){
     if(d){p.deadline=d;p._deadlineAuto=true;ubah=true;}});
   return ubah;}
 function vpoSlot(v){return String(v||'').replace(/[^A-Za-z0-9]+/g,'_');}
-function vpoMissing(o,v){var p=vpoGet(o,v),m=[];if(!p.deadline)m.push('Deadline');if(!vendorLines(o,v).length)m.push('item di pricing');return m;}
+function vpoMissing(o,v){var p=vpoGet(o,v),m=[];if(!p.deadline)m.push('Deadline');var ls=vendorLines(o,v);if(!ls.length)m.push('item di pricing');
+  /* patch205: harga, logo kemasan, dan daftar nama kini diperiksa per vendor — tak lagi menahan PO Radja */
+  ls.forEach(function(l){if(l.svcFee)return;var ada=(+l.hpp||0)>0||(+l.hppFix||0)>0;
+    if(!ada)m.push('Harga vendor '+(l.produk||'item'));else if(hargaOtomatis(l)&&!konfSah(l))m.push('Harga '+(l.produk||'item')+' belum dipastikan ke vendor');
+    if(KEMASAN_LOGO[l.coll]&&!kemasanAdaGambar(o,l.coll))m.push('Logo '+({box:'box',pouch:'soft pouch',card:'thank you card'}[l.coll]));});
+  try{persoSemua(o).forEach(function(x){if(!x.N.perPcs)return;if(!ls.some(function(l){return l.jasa&&namaJasaBaris(l)===x.nama;}))return;
+    var q=persoQtyUntuk(o,x.nama);if(x.N.daftar.length!==q)m.push('Daftar nama '+x.nama+' ('+x.N.daftar.length+' / '+q+')');});}catch(e){}
+  return m.filter(function(x,i){return m.indexOf(x)===i;});}
+/* PO collateral menyusul (patch205): sesudah PO Radja terbit, vendor yang belum ber-PO menyusul dengan tenggat
+   (bawaan = deadline produksi Radja = sebelum QC & Packing; bisa diubah per vendor) dan ditagih terus di Tugas saya */
+function poSusulDaftar(o){if(!o||o.done||o.deleted)return [];var f=o.phase||0;if(f<10||f>12)return [];
+  if(orderNonProduk(o)||!((o.po||{}).generated))return [];
+  var T=o.vpoTenggat||{},dl=(o.po||{}).deadline||'';
+  return poVendors(o).filter(function(v){return !(((o.vpo||{})[v])||{}).generated;}).map(function(v){var t=T[v]||dl,sisa=null;
+    if(t){sisa=Math.round((new Date(t+'T00:00:00')-new Date(hariIni()+'T00:00:00'))/864e5);}return {v:v,tenggat:t,sisa:sisa};});}
+function poSusulSisaTeks(x){return x.sisa==null?'tenggat belum ada':(x.sisa<0?('lewat '+(-x.sisa)+' hari'):(x.sisa===0?'hari ini':('H-'+x.sisa)));}
+function poSusulTenggatSet(id,v,val){var o=ST.orders.find(function(x){return x.id===id;});if(!o)return;if(!o.vpoTenggat)o.vpoTenggat={};
+  if(val)o.vpoTenggat[v]=val;else delete o.vpoTenggat[v];logHist(o,'Tenggat PO '+v+' (menyusul): '+(val?tglID(val):'ikut deadline produksi'));o._m=Date.now();save();render();}
+function poSusulBarisVendor(o,v){var x=poSusulDaftar(o).filter(function(y){return y.v===v;})[0];if(!x)return '';var mer=x.sisa!=null&&x.sisa<=3;
+  return '<div data-f="poSusul_'+esc(v)+'" style="display:flex;gap:9px;align-items:center;flex-wrap:wrap;border:1px dashed '+(mer?'var(--red)':'var(--warn)')+';background:'+(mer?'var(--red-bg)':'var(--warn-bg)')+';border-radius:8px;padding:6px 10px;margin-bottom:9px;font-size:11px">'+
+    '<b style="color:'+(mer?'var(--red)':'var(--warn)')+'">🕓 PO menyusul</b><span>PO Radja sudah terbit — PO ini paling lambat sebelum QC &amp; Packing.</span>'+
+    '<label style="margin-left:auto;font-weight:700;color:var(--muted)">Tenggat <input type="date" class="pin" style="margin-left:4px" value="'+esc(x.tenggat||'')+'" onchange="poSusulTenggatSet('+jsArg(o.id)+','+jsArg(v)+',this.value)"></label>'+
+    '<b style="color:'+(mer?'var(--red)':'var(--warn)')+'">'+poSusulSisaTeks(x)+'</b></div>';}
+function poSusulBlok(){var R=myRoles();if(!['Purchasing','Project Manager','Holding'].some(function(r){return R.indexOf(r)>=0;}))return '';
+  var L=[];(ST.orders||[]).forEach(function(o){poSusulDaftar(o).forEach(function(x){L.push({o:o,x:x});});});if(!L.length)return '';
+  L.sort(function(a,b){var p=a.x.sisa==null?9999:a.x.sisa,q=b.x.sisa==null?9999:b.x.sisa;return p-q;});
+  var mer=L.filter(function(y){return y.x.sisa!=null&&y.x.sisa<=3;}).length;
+  return '<div class="card actcard" data-f="poSusulBlok" style="margin-bottom:14px"><div class="ch"><span class="ico" style="background:'+(mer?'var(--red)':'var(--warn)')+'">🕓</span>'+
+    '<div><div class="t">PO collateral menyusul</div><div class="s">TAGIH TERUS SAMPAI PO TERBIT · PALING LAMBAT SEBELUM QC &amp; PACKING</div></div>'+
+    '<span style="margin-left:auto;font-size:11px;font-weight:800;color:'+(mer?'var(--red)':'var(--warn)')+'">'+L.length+' PO belum terbit</span></div><div class="body">'+
+    L.map(function(y){var o=y.o,x=y.x,m=[];try{m=vpoMissing(o,x.v);}catch(e){}var merah=x.sisa!=null&&x.sisa<=3;
+      return '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;border-top:1px solid var(--line);padding:8px 0">'+
+        '<div style="flex:1;min-width:200px;cursor:pointer" onclick="openOrder('+jsArg(o.id)+')"><b style="font-size:11.5px">PO '+esc(x.v)+'</b> <span style="font-size:11px;color:var(--muted)">· '+esc(o.customer||o.id)+'</span>'+
+          '<div style="font-size:10px;color:var(--muted)">'+(m.length?('kurang: '+esc(m.join(', '))):'siap diterbitkan')+'</div></div>'+
+        '<span style="font-size:10.5px;font-weight:800;color:'+(merah?'var(--red)':'var(--warn)')+'">'+(x.tenggat?tglID(x.tenggat)+' · ':'')+poSusulSisaTeks(x)+'</span>'+
+        '<button class="btn ghost sm" onclick="openOrder('+jsArg(o.id)+')">Buka</button></div>';}).join('')+'</div></div>';}
+/* tanda "menyusul" di kartu order: logo, daftar nama, PO collateral */
+function menyusulChip(o){if(!o||o.done||o.deleted)return '';var f=o.phase||0,C=[];
+  try{if(f>=1&&f<=8&&liveList(o.svc).some(function(n){return /logo/i.test(n);})&&!adaLogoFile(o))C.push('🕓 logo menyusul');}catch(e){}
+  try{if(f>=1&&f<=10&&persoSemua(o).some(function(x){return x.N.perPcs&&x.N.daftar.length!==persoQtyUntuk(o,x.nama);}))C.push('🕓 nama menyusul');}catch(e){}
+  try{var P=poSusulDaftar(o);if(P.length)C.push('🕓 PO menyusul: '+P.map(function(x){return x.v;}).join(', '));}catch(e){}
+  if(!C.length)return '';
+  return '<div data-f="menyusulChip" style="margin-top:4px;display:flex;gap:4px;flex-wrap:wrap">'+C.map(function(c){return '<span style="font-size:9.5px;font-weight:800;border-radius:20px;padding:1px 7px;background:var(--warn-bg);color:var(--warn)">'+esc(c)+'</span>';}).join('')+'</div>';}
 function vendorKontak(n){var v=((ST.master&&ST.master.vendors)||[]).find(function(x){return x.nama===n;});return v?(v.kontak||''):'';}
 function vpoPanel(o){
   var vs=poVendors(o),yatim='';
@@ -26216,6 +26270,7 @@ function vpoPanel(o){
         '<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:9px"><b style="font-size:12.5px">'+esc(v)+'</b>'+
           '<span style="font-size:9.5px;color:var(--muted)">'+esc(tipeLabel(vendorTipe(v))||'—')+(vendorKontak(v)?(' · '+esc(vendorKontak(v))):'')+'</span>'+
           '<span class="badge" style="margin-left:auto;background:'+(ready?'var(--ok-bg)':'var(--warn-bg)')+';color:'+(ready?'var(--ok)':'var(--warn)')+'">'+(ready?'siap ✓':miss.join(', ')+' kurang')+'</span></div>'+
+        poSusulBarisVendor(o,v)+
         '<div class="xscroll"><table class="ptable" style="min-width:420px"><thead><tr><th>Item</th><th>Bahan</th><th>Finishing</th><th style="width:52px">Qty</th><th class="num" style="width:96px">HPP</th></tr></thead><tbody>'+
           ls.map(function(l){var ex=[l.tali&&l.tali!=='-'?'Tali: '+l.tali:'',l.ukuran&&l.ukuran!=='-'?'Uk: '+l.ukuran:''].filter(Boolean).join(' · ');
             var spek=[];try{spek=rfqDocSpek(o,l).map(function(r){return r[0]+': '+r[1];});}catch(e){}
