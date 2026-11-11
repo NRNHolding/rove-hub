@@ -1063,7 +1063,7 @@ const KEY='rovehub_orders_v18';
 /* ================= VERSI YANG SEDANG BERJALAN =================
    Diisi otomatis oleh terbitkan.js waktu salinan ini diterbitkan; '-' berarti
    dibuka langsung dari berkas, bukan dari alamat terbitannya. */
-const VERSI='20261111-113633';
+const VERSI='20261111-153841';
 /* Berkas versi.txt di sebelah halaman ini berisi penanda yang sama. Ia
    ditanyakan tanpa cache, jadi ia jujur walau halamannya sendiri masih
    tersimpan di cache browser. */
@@ -1444,6 +1444,9 @@ const EN_RULES=[
 
 /* Kamus persis. Kunci = teks Indonesia apa adanya yang muncul di layar. */
 const EN={
+'Catatan error perangkat':'Device error log','Muat catatan':'Load log','Kosongkan':'Clear','✓ Tak ada error tercatat.':'✓ No errors logged.',
+'Cadangan harian':'Daily backup','Lihat cadangan':'View backups','Pulihkan':'Restore','⧉ Repeat order':'⧉ Repeat order','Muat isi lengkap':'Load full order',
+'📦 arsip — klik untuk memuat':'📦 archived — click to load','Order di arsip server':'Orders in server archive',
 'menghitung…':'calculating…',' Penyimpanan ditandai permanen.':' Storage is marked persistent.',
 'Penyimpanan':'Storage','Browser perangkat ini':'This device’s browser','Gambar di dalam data':'Images stored in the data','Database server':'Server database','Order terbesar':'Largest orders',
 'Hampir penuh — perubahan bisa gagal tersimpan di perangkat ini.':'Almost full — changes may fail to save on this device.','Sudah lewat separuh — pantau terus.':'Past half — keep an eye on it.',
@@ -2903,7 +2906,8 @@ function kredHapus(){try{LS.removeItem('rovehub_kred');}catch(e){}}
 function cloudAmbil(sejak){var c=ST.cfg||{},k=kredGet();
   if(c.url&&k)return fetch(c.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
       body:JSON.stringify({action:'db.load',auth:k,sejak:+sejak||0})}).then(function(r){return r.text();}).then(function(t){var d=JSON.parse(t);
-        if(d&&!d.sama&&d.ok!==false&&t.length>200){ST._dbUkuran=t.length;ST._dbUkuranJam=nowStr();}return d;});   /* meteran penyimpanan (patch206) */
+        if(d&&!d.sama&&d.ok!==false&&t.length>200){ST._dbUkuran=t.length;ST._dbUkuranJam=nowStr();}
+        if(d&&Array.isArray(d.hadir)){ST._hadir=d.hadir;try{hadirSegarkan();}catch(e){}}return d;});   /* meteran penyimpanan (patch206); tanda sedang dibuka (patch209) */
   if(c.dbUrl)return fetch(c.dbUrl,{cache:'no-store'}).then(function(r){return r.json();});   // belum login (backend lama)
   return Promise.reject(new Error('backend belum diisi'));}
 /* backend menolak (belum login / password berubah / akun nonaktif) */
@@ -2935,11 +2939,90 @@ function penyimpananKartu(){
     '<div style="display:flex;justify-content:space-between;align-items:baseline"><b style="font-size:12px">Browser perangkat ini</b><b data-f="lsPersen" style="color:'+warna+'">'+mbTeks(pakai)+' / '+(kuota?mbTeks(kuota):'menghitung…')+' · '+pct+'%</b></div>'+bar(pct,warna)+
     (pct>=85?'<div style="font-size:11px;font-weight:800;color:var(--red);margin-bottom:6px">Hampir penuh — perubahan bisa gagal tersimpan di perangkat ini.</div>':(pct>=60?'<div style="font-size:11px;font-weight:700;color:var(--warn);margin-bottom:6px">Sudah lewat separuh — pantau terus.</div>':''))+
     baris('Order ('+O.length+', '+selesai+' selesai)',mbTeks(pO))+baris('Prospek ('+Ld.length+')',mbTeks(pL))+baris('Master data',mbTeks(pM))+baris('Lainnya',mbTeks(pX))+
+    baris('Order di arsip server',O.filter(function(o){return o._arsip;}).length+' ringkasan'+(rilis24()?(' <span style="font-weight:400;color:var(--muted)">· order Selesai / Cancel yang '+(ST._arsipHari||30)+' hari tak disentuh</span> <button class="btn ghost sm" data-f="arsipAtur" onclick="arsipAtur()">ubah</button>'):' <span style="font-weight:400;color:var(--muted)">(arsip aktif dengan Code.gs 2.4)</span>'))+
     baris('Gambar di dalam data',G.n+' gambar order · '+mbTeks(G.b)+(GL.n?(' &nbsp;+ '+GL.n+' gambar prospek · '+mbTeks(GL.b)):''))+
     baris('Database server',ST._dbUkuran?(mbTeks(ST._dbUkuran)+' <span style="font-weight:400;color:var(--muted)">· dibaca '+esc(ST._dbUkuranJam||'')+' · tiap simpan diunduh &amp; dikirim utuh</span>'):'<span style="font-weight:400;color:var(--muted)">belum terbaca di sesi ini — muncul sesudah sinkron berikutnya</span>')+
     (besar.length?('<div style="font-size:11px;font-weight:800;color:var(--ink-soft);margin:9px 0 3px">Order terbesar</div>'+besar.map(function(x){
       return '<div style="display:flex;gap:8px;align-items:center;font-size:11px;padding:2px 0;cursor:pointer" onclick="openOrder('+jsArg(x.o.id)+')"><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(x.o.customer||x.o.id)+'</span>'+
         '<span style="color:var(--muted)">'+x.g+' gambar</span><b>'+mbTeks(x.z)+'</b></div>';}).join('')):'')+'</div>';}
+/* ============ SERVER 2.4 (patch209) ============ */
+function rilis24(){return parseFloat(ST._rilis||'0')>=2.4;}
+function cekRilis(){var c=ST.cfg||{};if(!c.url)return;try{fetch(c.url).then(function(r){return r.json();}).then(function(d){
+  var lama=ST._rilis;ST._rilis=String((d&&d.rilis)||'');ST._sharedDrive=!!(d&&d.sharedDrive);if(d&&d.arsipHari)ST._arsipHari=+d.arsipHari;if(lama!==ST._rilis&&ST.user&&ST.view==='tasks')render();}).catch(function(){});}catch(e){}}
+/* ---- catatan error perangkat ---- */
+var _galatKirim={n:0,terakhir:{}};
+function galatLapor(p){try{var c=ST.cfg||{};if(!c.url||!kredGet()||!rilis24())return;var k=String((p&&p.pesan)||'').slice(0,120),now=Date.now();
+  if(!k||(_galatKirim.terakhir[k]&&now-_galatKirim.terakhir[k]<600000)||_galatKirim.n>=30)return;_galatKirim.terakhir[k]=now;_galatKirim.n++;
+  var x=backendTanya('galat.catat',Object.assign({versi:VERSI,layar:ST.view||'',order:ST.cur||'',ua:String((typeof navigator!=='undefined'&&navigator.userAgent)||'').slice(0,160)},p));
+  if(x&&x.catch)x.catch(function(){});}catch(e){}}
+try{window.addEventListener('error',function(ev){galatLapor({pesan:String((ev&&ev.message)||'error'),sumber:String((ev&&ev.filename)||'').slice(-120),baris:(ev&&ev.lineno)||0,stack:String((ev&&ev.error&&ev.error.stack)||'').slice(0,600)});});
+  window.addEventListener('unhandledrejection',function(ev){var r=ev&&ev.reason;galatLapor({pesan:'Promise: '+String((r&&r.message)||r||''),stack:String((r&&r.stack)||'').slice(0,600)});});}catch(e){}
+function galatKartu(){var isi;
+  if(!rilis24())isi='<div style="font-size:11.5px;color:var(--muted);line-height:1.6">Butuh <b>Code.gs 2.4</b> di server. Sesudah dipasang, error yang muncul di laptop / HP staf tercatat otomatis di sini (jam, akun, layar, pesannya).</div>';
+  else{var d=ST._galat,G={},L=[];if(d&&d.ok)(d.daftar||[]).forEach(function(x){var k=x.pesan||'?';if(!G[k]){G[k]={pesan:k,n:0,u:{},t:0,layar:x.layar,versi:x.versi};L.push(G[k]);}G[k].n++;G[k].u[x.u]=1;G[k].t=Math.max(G[k].t,+x.t||0);});
+    isi='<div style="font-size:11.5px;color:var(--muted);line-height:1.6;margin-bottom:8px">Error dari perangkat staf tercatat otomatis (pesan yang sama paling sering sekali per 10 menit per perangkat).</div>'+
+      '<div style="display:flex;gap:7px;flex-wrap:wrap"><button class="btn sm" data-f="galatMuat" onclick="galatMuat()">Muat catatan</button>'+(L.length?'<button class="btn ghost sm" onclick="galatKosongkan()">Kosongkan</button>':'')+'</div>'+
+      (d&&!d.ok?'<div style="font-size:11px;color:var(--red);margin-top:6px">'+esc(d.error||'gagal memuat')+'</div>':'')+
+      (d&&d.ok&&!L.length?'<div style="font-size:11.5px;color:var(--ok);margin-top:8px;font-weight:700">✓ Tak ada error tercatat.</div>':'')+
+      L.map(function(g){return '<div style="border-top:1px solid var(--line);padding:6px 0;margin-top:6px;font-size:11.5px"><b>'+esc(g.pesan)+'</b>'+
+        '<div style="font-size:10.5px;color:var(--muted)">'+g.n+'× · '+esc(Object.keys(g.u).join(', '))+' · layar '+esc(g.layar||'-')+' · terakhir '+esc(new Date(g.t).toLocaleString('id-ID'))+(g.versi?(' · versi '+esc(g.versi)):'')+'</div></div>';}).join('');}
+  return '<div class="rcard" data-f="galatKartu" style="max-width:660px"><h3>Catatan error perangkat</h3>'+isi+'</div>';}
+function galatMuat(){backendTanya('galat.daftar',{}).then(function(d){ST._galat=d;render();}).catch(function(e){ST._galat={ok:false,error:String(e.message||e)};render();});}
+function galatKosongkan(){if(!confirm('Kosongkan semua catatan error?'))return;backendTanya('galat.hapus',{}).then(function(){ST._galat={ok:true,daftar:[]};render();}).catch(function(){});}
+/* ---- cadangan harian ---- */
+function cadanganKartu(){var isi;
+  if(!rilis24())isi='<div style="font-size:11.5px;color:var(--muted);line-height:1.6">Butuh <b>Code.gs 2.4</b> di server. Sesudah dipasang, server menyimpan salinan seluruh data tiap hari ke folder <b>ROVE HUB / Cadangan</b> (30 hari terakhir) dan bisa dipulihkan dari sini.</div>';
+  else{var d=ST._cadangan;
+    isi='<div style="font-size:11.5px;color:var(--muted);line-height:1.6;margin-bottom:8px">Server menyimpan salinan seluruh data tiap hari ke folder <b>ROVE HUB / Cadangan</b>'+(ST._sharedDrive?' (Shared Drive Rove)':'')+' — 30 hari terakhir. Memulihkan = data kembali ke keadaan tanggal itu; keadaan sekarang disimpan dulu.</div>'+
+      '<button class="btn sm" data-f="cadanganMuat" onclick="cadanganMuat()">Lihat cadangan</button>'+
+      (d&&!d.ok?'<div style="font-size:11px;color:var(--red);margin-top:6px">'+esc(d.error||'gagal memuat')+'</div>':'')+
+      (d&&d.ok&&!(d.daftar||[]).length?'<div style="font-size:11.5px;color:var(--muted);margin-top:8px">Belum ada cadangan — dibuat otomatis saat simpan pertama tiap hari.</div>':'')+
+      ((d&&d.ok)?(d.daftar||[]).map(function(x){return '<div style="display:flex;gap:9px;align-items:center;border-top:1px solid var(--line);padding:5px 0;margin-top:5px;font-size:11.5px">'+
+        '<span style="flex:1">'+esc(String(x.nama||'').replace(/^rovehub_db_|\.json$/g,''))+'</span><span style="color:var(--muted)">'+mbTeks((+x.kb||0)*1024)+'</span>'+
+        '<button class="btn ghost sm" onclick="cadanganPulihkan('+jsArg(x.id)+','+jsArg(x.nama)+')">Pulihkan</button></div>';}).join(''):'');}
+  return '<div class="rcard" data-f="cadanganKartu" style="max-width:660px"><h3>Cadangan harian</h3>'+isi+'</div>';}
+function cadanganMuat(){backendTanya('cadangan.daftar',{}).then(function(d){ST._cadangan=d;render();}).catch(function(e){ST._cadangan={ok:false,error:String(e.message||e)};render();});}
+function cadanganPulihkan(id,nama){
+  if(!confirm('Pulihkan data ke cadangan "'+nama+'"?'+String.fromCharCode(10,10)+'Semua order, prospek, dan master kembali ke keadaan saat itu. Keadaan sekarang disimpan dulu sebagai cadangan "sebelum-pulih".'))return;
+  var t=prompt('Ketik PULIHKAN untuk melanjutkan');if(String(t||'').trim().toUpperCase()!=='PULIHKAN')return;
+  backendTanya('cadangan.pulihkan',{id:id}).then(function(d){if(d&&d.ok){alert('Dipulihkan dari '+d.dari+' ('+d.nOrder+' order). Data dimuat ulang dari server.');ST._cloudTsLihat=0;try{cloudAutoLoad();}catch(e){}}
+    else alert('Gagal memulihkan: '+((d&&d.error)||'tak diketahui'));}).catch(function(e){alert('Gagal memulihkan: '+e.message);});}
+/* ---- tanda "juga sedang dibuka" ---- */
+function hadirKirim(){try{var c=ST.cfg||{};if(!c.url||!kredGet()||!rilis24()||!ST.user)return;
+  var x=backendTanya('hadir',{order:ST.cur||'',nama:ST.userName||'',jabatan:ST.user||''});
+  if(x&&x.then)x.then(function(d){if(d&&d.ok&&Array.isArray(d.hadir)){ST._hadir=d.hadir;hadirSegarkan();}}).catch(function(){});}catch(e){}}
+function hadirBanner(o){var L=(ST._hadir||[]).filter(function(h){return h&&o&&h.o===o.id;});if(!L.length)return '';
+  return '<div data-f="hadirBanner" style="display:flex;gap:8px;align-items:center;border:1px solid #c9dbef;background:#eaf2fb;color:#1f4f7a;border-radius:9px;padding:6px 10px;font-size:11.5px;font-weight:700;margin:6px 0">👥 Juga sedang dibuka: '+
+    L.map(function(h){return '<b>'+esc(h.n||h.u)+'</b>'+(h.j?(' ('+esc(h.j)+')'):'');}).join(', ')+'<span style="font-weight:400;color:#46658a">— ubahan per bagian digabung otomatis</span></div>';}
+function hadirSegarkan(){try{var el=document.querySelector('[data-f="hadirSlot"]');if(!el||!ST.cur)return;var o=(ST.orders||[]).find(function(x){return x.id===ST.cur;});var h=hadirBanner(o);if(el.innerHTML!==h)el.innerHTML=h;}catch(e){}}
+/* ---- arsip: membuka order arsip = memuat utuh dari server ---- */
+function arsipPanggil(id){ST._arsipMuat=id;try{kilat('📦 Memuat order dari arsip…');}catch(e){}
+  var lanjut=function(pesan){ST._arsipMuat='lewat';if(pesan)alert(pesan);openOrder(id);ST._arsipMuat=null;};
+  var x=backendTanya('arsip.kembalikan',{id:id});
+  x.then(function(d){if(d&&d.ok&&d.order){var o=(ST.orders||[]).find(function(y){return y.id===id;});
+      if(o){Object.keys(o).forEach(function(k){delete o[k];});Object.assign(o,d.order);}else{o=d.order;ST.orders.push(o);}
+      try{ordSnapSet(o);}catch(e){}simpanLokal();ST._arsipMuat=null;papanSimpanPosisi();ST.cur=id;render();try{hadirKirim();}catch(e){}return;}
+    lanjut('Order ini ada di arsip, tapi isinya belum bisa dimuat'+((d&&d.error)?(' ('+d.error+')'):'')+'. Ringkasannya ditampilkan dulu.');})
+  .catch(function(){lanjut('Tak tersambung ke server — ringkasan order ditampilkan dulu.');});}
+function arsipAtur(){var v=prompt('Order Selesai / Cancel diarsip sesudah berapa hari tak disentuh? (7–365)',String(ST._arsipHari||30));if(v==null)return;
+  backendTanya('arsip.atur',{hari:+v||30}).then(function(d){if(d&&d.ok){ST._arsipHari=d.hari;render();}else alert('Gagal: '+((d&&d.error)||'tak diketahui'));}).catch(function(e){alert('Gagal: '+e.message);});}
+function arsipBanner(o){if(!o||!o._arsip)return '';
+  return '<div data-f="arsipBanner" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;border:1px dashed #c9dbef;background:#eaf2fb;color:#1f4f7a;border-radius:9px;padding:6px 10px;font-size:11.5px;margin:6px 0">📦 <b>Ringkasan dari arsip</b> — isi lengkapnya (brief, chat, gambar) belum termuat.'+
+    '<button class="btn ghost sm" onclick="arsipPanggil('+jsArg(o.id)+')">Muat isi lengkap</button></div>';}
+/* ---- repeat order: order baru dari order lama (produk, spesifikasi, jasa, file client) ---- */
+function orderUlang(id){var o=(ST.orders||[]).find(function(x){return x.id===id;});if(!o)return;
+  if(o._arsip){alert('Order ini masih berupa ringkasan arsip — muat isi lengkapnya dulu.');return;}
+  if(!confirm('Buat order baru (repeat order) dari '+(o.customer||id)+'?'+String.fromCharCode(10,10)+'Disalin: client & kontak, produk + spesifikasi + kombinasi, jasa, collateral, file dari client.'+String.fromCharCode(10)+'Tidak disalin: tanggal, harga vendor yang sudah dipastikan, pembayaran, dokumen, chat, daftar nama.'))return;
+  var c=JSON.parse(JSON.stringify(o)),b=c.brief||{},nb={};
+  Object.keys(b).forEach(function(k){if(/^(tgl|tanggal)|preview|sample|sketch|foto|bukti|terima|qc|pack|ttd|approv|^acc|dp|bayar|invoice|quo|kirim/i.test(k))return;nb[k]=b[k];});
+  var bersih=function(l){['rfq','konf','konfTanya','nego','negoHasil','_jasaLepas','_jasaDobel','dc','dcT','mg','_vendorTebakan','_tbh','_tbhK','qtyPO','_hppManual','kirimQty','terima'].forEach(function(k){delete l[k];});return l;};
+  var n=mk({customer:c.customer,type:c.type,prefix:c.prefix,kategori:c.kategori,date:today(),phone:c.phone,email:c.email,addr:c.addr,addrKantor:c.addrKantor,pic3:c.pic3,
+    product:c.product,qty:c.qty,mat:c.mat,coll:c.coll||{},svc:c.svc||[],svcTeknik:c.svcTeknik||{},svcLetak:c.svcLetak||{},liveSvc:c.liveSvc||[],vip:c.vip});
+  if(c.jasaTabel)n.jasaTabel=true;if(c.logo2)n.logo2=true;
+  n.brief=Object.assign({fitur:['','','']},nb);n.pricing={margin:(c.pricing||{}).margin||30,lines:(((c.pricing||{}).lines)||[]).filter(function(l){return l&&!l._tbh&&!l._jasaLepas&&!l.svcFee;}).map(bersih)};
+  n.phase=0;n.status='Inquiry';n.dcTunda=true;n.repeatDari=o.id;n._m=Date.now();
+  logHist(n,'Repeat order dari '+(o.soNo?('SO '+o.soNo):(o.customer||o.id)));logHist(o,'Dibuat repeat order: '+n.id);o._m=Date.now();
+  ST.orders.unshift(n);save();openOrder(n.id);}
 function cloudTolak(d){
   if(d&&d.ok===false&&d.perluLogin){ST.cloudStatus='🔒 Server menolak — keluar lalu masuk lagi supaya data tersinkron';try{sinkronBadge();}catch(e){}return true;}
   return false;}
@@ -5914,6 +5997,8 @@ function mergeOrders(cloud,skipCur){
     if(pt&&(co._m||0)<pt)return;                       // order dari sebelum pembersihan — jangan hidupkan lagi
     var lo=byId[co.id];
     if(!lo){ST.orders.push(co);byId[co.id]=co;changed=true;try{ordSnapSet(co);}catch(e){}}                 // order baru orang lain
+    else if(co._arsip&&!((lo._m||0)>(co._m||0))){Object.keys(lo).forEach(function(k){delete lo[k];});Object.assign(lo,co);changed=true;try{ordSnapSet(lo);}catch(e){}}   // patch209: diarsip server → perangkat cukup ringkasan
+    else if(lo._arsip&&!co._arsip){Object.keys(lo).forEach(function(k){delete lo[k];});Object.assign(lo,co);changed=true;try{ordSnapSet(lo);}catch(e){}}   // dikembalikan dari arsip
     else{var g=ordGabung(lo,co,sinkronTs);if(g.ubah){changed=true;try{ordSnapSet(lo);}catch(e){}}if(g.konflik.length)ordKonflikKabari(lo,g.konflik);}   // patch208: per bagian
   });_ordSinkronTs=Date.now();return changed;}
 /* Prospek digabung PER BARIS menurut _m — sama seperti order. Dulu diganti
@@ -6005,11 +6090,48 @@ function pushCloud(opsi){var c=ST.cfg||{};var ts=Date.now(),tanpaM=!!(opsi&&opsi
   if(!tanpaM){try{_msMemo=(typeof WeakMap==='function')?new WeakMap():null;msSidikSet(MASTER_KIRIM_KEY,ST.master,ts);}catch(e){}finally{_msMemo=null;}}
   /* try/catch tak menangkap penolakan promise — tanpa .catch, backend yang mati
      memuntahkan "Uncaught (in promise)" ke konsol tiap kali menyimpan. */
-  try{fetch(c.url,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'db.save',auth:kredGet(),payload:{data:tanpaM?cloudBlobTanpaMaster(ts):cloudBlob(ts)}})})
-    .catch(function(e){ST.cloudStatus='gagal simpan cloud — cek URL backend';console.warn('pushCloud gagal',e);});}catch(e){}
+  /* patch209: yang dikirim hanya yang berubah sejak kiriman terakhir yang dijawab OK; jawaban server dibaca */
+  var kir=null;try{kir=kirimSiapkan(ts,tanpaM);}catch(e){kir={data:tanpaM?cloudBlobTanpaMaster(ts):cloudBlob(ts),penuh:true,sidik:null};}
+  try{fetch(c.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'db.save',auth:kredGet(),payload:{data:kir.data}})})
+    .then(function(r){return r.json();}).then(function(d){kirimJawaban(d,kir,ts);})
+    .catch(function(e){kirimGagal(e,ts,tanpaM);});}catch(e){}
   var b=document.getElementById('cloudstat');if(b)b.textContent=ST.cloudStatus;
-  try{sinkronBadge();}catch(e){}
-  try{pushPeriksa();}catch(e){}}
+  try{sinkronBadge();}catch(e){}}
+/* ============ KIRIMAN PER BAGIAN (patch209, 11 Nov) ============ */
+var _kirim={ts:0,purge:0,sidik:null};
+function hashTeks(t){t=String(t);var h=2166136261;for(var i=0;i<t.length;i++){h^=t.charCodeAt(i);h=Math.imul(h,16777619);}return (h>>>0).toString(36)+t.length;}
+const KIRIM_BAGIAN=['master','tax','konten','hr','buy','inv','admin'];
+function kirimSiapkan(ts,tanpaM){
+  var penuh=tanpaM?cloudBlobTanpaMaster(ts):cloudBlob(ts),P=JSON.parse(penuh),S={o:{},l:{},k:{}};
+  (P.orders||[]).forEach(function(o){if(o&&o.id)S.o[o.id]=hashTeks(JSON.stringify(o));});
+  (P.leads||[]).forEach(function(l){if(l&&l.id)S.l[l.id]=hashTeks(JSON.stringify(l));});
+  KIRIM_BAGIAN.forEach(function(k){if(k in P)S.k[k]=hashTeks(JSON.stringify(P[k]));});
+  var D=_kirim.sidik;
+  /* kiriman penuh: belum ada dasar di sesi ini, atau ada pembersihan baru (server memakai potret utuh) */
+  if(!D||!_kirim.ts||(+P.purgeTs||0)>(+_kirim.purge||0))return {data:penuh,sidik:S,penuh:true,purge:+P.purgeTs||0,n:(P.orders||[]).length};
+  var d={ts:P.ts,seq:P.seq,purgeTs:P.purgeTs,masterDasarTs:P.masterDasarTs};
+  d.orders=(P.orders||[]).filter(function(o){return o&&o.id&&D.o[o.id]!==S.o[o.id];});
+  d.leads=(P.leads||[]).filter(function(l){return l&&l.id&&D.l[l.id]!==S.l[l.id];});
+  Object.keys(S.k).forEach(function(k){if(D.k[k]!==S.k[k])d[k]=P[k];});
+  return {data:JSON.stringify(d),sidik:S,penuh:false,purge:+P.purgeTs||0,n:d.orders.length};}
+function kirimJawaban(d,kir,ts){
+  if(d&&d.ok){var S=kir.sidik;
+    if(S){if(!('master' in S.k)&&_kirim.sidik&&_kirim.sidik.k&&_kirim.sidik.k.master)S.k.master=_kirim.sidik.k.master;_kirim={ts:ts,purge:kir.purge||0,sidik:S};}
+    ST._kirimGagal=0;
+    /* server sebelum kiriman ini = versi yang sudah diproses perangkat ini → tak perlu mengunduh ulang hasilnya */
+    if(d.sebelum&&+d.sebelum===+(ST._cloudTsLihat||0)&&+d.ts===+ts)ST._cloudTsLihat=+d.ts;
+    ST.cloudStatus='tersimpan di server '+new Date().toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'})+(kir.penuh?'':(' · '+(kir.n||0)+' order berubah'));
+    if(Date.now()-(ST._periksaTs||0)>600000){ST._periksaTs=Date.now();try{pushPeriksa();}catch(e){}}   // pemeriksaan unduh-penuh cukup tiap 10 menit
+  }else if(d&&d.perluLogin){try{cloudTolak(d);}catch(e){}}
+  else{ST._kirimGagal=(ST._kirimGagal||0)+1;
+    if(ST._kirimGagal<=3){ST.cloudStatus='server sibuk — dicoba lagi otomatis';var tunda=[5000,15000,45000][ST._kirimGagal-1];setTimeout(function(){try{pushCloudAman();}catch(e){}},tunda);}
+    else ST.cloudStatus='⚠ gagal menyimpan ke server — dicoba lagi saat menyimpan berikutnya';}
+  var b=document.getElementById('cloudstat');if(b)b.textContent=ST.cloudStatus;try{sinkronBadge();}catch(e){}}
+/* jawaban tak terbaca (jaringan / CORS): kirim penuh cara lama, lalu diperiksa seperti dulu */
+function kirimGagal(e,ts,tanpaM){var c=ST.cfg||{};_kirim={ts:0,purge:0,sidik:null};
+  try{fetch(c.url,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'db.save',auth:kredGet(),payload:{data:tanpaM?cloudBlobTanpaMaster(ts):cloudBlob(ts)}})})
+    .catch(function(x){ST.cloudStatus='gagal simpan cloud — cek koneksi';try{sinkronBadge();}catch(y){}});}catch(x){}
+  try{pushPeriksa();}catch(x){}}
 function cloudSave(){var c=ST.cfg||{};if(!c.live||!c.url)return;clearTimeout(_cloudT);
   _cloudT=setTimeout(function(){
     pushCloudAman();
@@ -11102,7 +11224,7 @@ function renderTasks(){
          <button class="btn ghost" onclick="ST.view='board';ST.cur=null;render()">▦ Lihat Pipeline</button>
        </div>
      </div>
-${penyimpananKartu()}
+${penyimpananKartu()}${cadanganKartu()}${galatKartu()}
 ${muatDcSitusUji()?'':`     <div class="rcard" style="max-width:660px"><h3>Data uji — contoh order</h3>
        <div style="font-size:11.5px;color:var(--muted);margin-bottom:9px;line-height:1.6">Satu client wedding (<b>Sarah &amp; Kevin</b> — 100 pcs produk katalog (Irvine Card Wallet kalau ada di katalog), box + soft pouch + thank you card dengan logo yang sama, add-on logo, engrave 3 nama, live calligraphy) dengan data <b>persis sama</b> di ${PH.length} kartu: satu kartu per fase, tiap kartu terisi lengkap sampai fase kartunya sendiri (semua harga vendor tercatat, semua persetujuan ada) — tinggal tombol Selesai. Logo Rove asli: monogram di produk, ROVE GIFTS di kemasan. Harga vendor sengaja beda dari katalog. Ikut dimuat: <b>${CONTOH_LIVE.length} acara contoh</b> untuk menu <b>Live service</b> (client berbeda: sudah lewat &amp; fee diajukan, H-2, H-5 persiapan telat, dua acara setanggal dengan operator yang sama = bentrok, H-12 belum ada operator — tanggalnya selalu dihitung dari hari ini) dan <b>spare 5%</b> kartu contoh yang masuk Gudang otomatis. Isinya karangan; kartu contoh lama diganti, order lain tak disentuh.</div>
        <button class="btn sm" onclick="seedContohMuat()">＋ Muat contoh order — 1 client × ${PH.length} fase</button> <button class="btn ghost sm" onclick="if(confirm('Hapus semua kartu contoh Sarah & Kevin?'))seedContohHapus()">Hapus kartu contoh</button>
@@ -13216,7 +13338,8 @@ function bReset(){if(ST._bmeja){PAPAN_X=0;try{sessionStorage.setItem('rovehub_pa
   ST._bqX0=null;ST._bqFokus='';ST._bq='';ST._bpf='';ST._bst='';ST._bhide=false;ST._bmeja='';render();}
 function boardMatch(o){
   var q=(ST._bq||'').toLowerCase();
-  if(q&&[o.customer,o.product,o.mat,o.id].join(' ').toLowerCase().indexOf(q)<0)return false;
+  if(q){var dk=[];try{Object.keys(o.docs||{}).forEach(function(k){var d=o.docs[k];if(d&&typeof d==='object'&&d.no)dk.push(d.no);});}catch(e){}
+    if([o.customer,o.product,o.mat,o.id,o.pic3,(o.brief||{}).woNama,(o.po||{}).poNo,o.soNo].concat(dk).join(' ').toLowerCase().indexOf(q)<0)return false;}   /* patch209: juga WO / PO / SO / nomor dokumen */
   if(ST._bpf&&o.prefix!==ST._bpf)return false;
   if(ST._bst&&o.status!==ST._bst)return false;
   if(ST._bhide&&(o.status==='Cancel'||o.phase>=PH.length||o.done))return false;
@@ -14757,7 +14880,8 @@ function renderDetail(){
           <div style="font-size:9.5px;color:var(--muted);margin-top:4px">dipegang ${esc(fasePemilik(o))}</div></div>`}</div>`;}
 
   $('#main').innerHTML=`
-   <div style="display:flex;justify-content:space-between;align-items:center"><div class="back" onclick="closeOrder()">‹ Kembali ke pipeline</div>${isVip(o)?vipLencana():''}${bolehAturVip()?vipTombol(o,'order'):''}${revisiAll(o).length?`<span style="background:var(--accent);color:#2b1d0e;border-radius:5px;padding:1px 7px;font-size:9px;font-weight:800">✎ R${revisiAll(o).length}</span>`:''}${(o.phase===0&&o.status!=='Deal')?`<button class="btn ghost sm" style="color:#d9534f" onclick="delOrder('${o.id}')">🗑 Hapus order</button>`:''}</div>
+   <div style="display:flex;justify-content:space-between;align-items:center"><div class="back" onclick="closeOrder()">‹ Kembali ke pipeline</div>${isVip(o)?vipLencana():''}${bolehAturVip()?vipTombol(o,'order'):''}${revisiAll(o).length?`<span style="background:var(--accent);color:#2b1d0e;border-radius:5px;padding:1px 7px;font-size:9px;font-weight:800">✎ R${revisiAll(o).length}</span>`:''}${(o.phase===0&&o.status!=='Deal')?`<button class="btn ghost sm" style="color:#d9534f" onclick="delOrder('${o.id}')">🗑 Hapus order</button>`:''}${(o.done||o.status==='Cancel')&&!o._arsip?`<button class="btn ghost sm" data-f="orderUlang" onclick="orderUlang('${o.id}')">⧉ Repeat order</button>`:''}</div>
+   <div data-f="hadirSlot">${hadirBanner(o)}</div>${arsipBanner(o)}
    <div class="dhead">
      <div><h2># ${nm}</h2>${discordMeta(o)}<div class="meta">${o.type} · ${o.product} · <b>${o.qty} pcs</b> · ${o.mat}${o.soNo?` · <span style="color:#8fd4a8;font-weight:700;cursor:pointer" onclick="soSetManual('${o.id}')" title="klik untuk ubah No. SO">SO ${esc(o.soNo)}</span> <span style="cursor:pointer;opacity:.6" onclick="soClear('${o.id}')" title="batalkan nomor SO">✕</span>`:susulanInduk(o)?'':(` · <span style="cursor:pointer;opacity:.75;border:1px dashed rgba(255,255,255,.35);border-radius:5px;padding:1px 6px;font-size:10px" onclick="soSetManual('${o.id}')" title="tetapkan No. SO manual (untuk order pertama saat transisi)">＋ No. SO</span>`)}</div>${susulanKepalaHTML(o)}</div>
      <div class="right"><div class="phasetag">${selesai?'Status <b>SELESAI</b>':`Fase <b>${o.phase+1}/${PH.length}</b> · ${ph?ph.n+' · PIC '+ph.pic:''}`}</div>
@@ -26390,7 +26514,8 @@ function poSusulBlok(){var R=myRoles();if(!['Purchasing','Project Manager','Hold
         '<span style="font-size:10.5px;font-weight:800;color:'+(merah?'var(--red)':'var(--warn)')+'">'+(x.tenggat?tglID(x.tenggat)+' · ':'')+poSusulSisaTeks(x)+'</span>'+
         '<button class="btn ghost sm" onclick="openOrder('+jsArg(o.id)+')">Buka</button></div>';}).join('')+'</div></div>';}
 /* tanda "menyusul" di kartu order: logo, daftar nama, PO collateral */
-function menyusulChip(o){if(!o||o.done||o.deleted)return '';var f=o.phase||0,C=[];
+function menyusulChip(o){if(o&&o._arsip&&!o.deleted)return '<div data-f="arsipChip" style="margin-top:4px"><span style="font-size:9.5px;font-weight:800;border-radius:20px;padding:1px 7px;background:#eaf2fb;color:#1f4f7a">📦 arsip — klik untuk memuat</span></div>';
+  if(!o||o.done||o.deleted)return '';var f=o.phase||0,C=[];
   try{if(f>=1&&f<=8&&liveList(o.svc).some(function(n){return /logo/i.test(n);})&&!adaLogoFile(o))C.push('🕓 logo menyusul');}catch(e){}
   try{if(f>=1&&f<=10&&persoSemua(o).some(function(x){return x.N.perPcs&&x.N.daftar.length!==persoQtyUntuk(o,x.nama);}))C.push('🕓 nama menyusul');}catch(e){}
   try{var P=poSusulDaftar(o);if(P.length)C.push('🕓 PO menyusul: '+P.map(function(x){return x.v;}).join(', '));}catch(e){}
@@ -26589,8 +26714,10 @@ function papanSimpanPosisi(){var b=null;try{b=document.querySelector('.board');}
   PAPAN_X=b.scrollLeft;try{sessionStorage.setItem('rovehub_papan_x',String(PAPAN_X));}catch(e){}}
 function papanPulihkanPosisi(){var b=null;try{b=document.querySelector('.board');}catch(e){}if(b&&PAPAN_X)b.scrollLeft=PAPAN_X;}
 try{document.addEventListener('scroll',function(e){if(e&&e.target&&e.target.classList&&e.target.classList.contains&&e.target.classList.contains('board'))papanSimpanPosisi();},true);}catch(e){}
-function openOrder(id){papanSimpanPosisi();ST.cur=id;render();}
-function closeOrder(){ST.cur=null;render();}
+function openOrder(id){var oa=(ST.orders||[]).find(function(x){return x.id===id;});
+  if(oa&&oa._arsip&&!ST._arsipMuat&&rilis24()){arsipPanggil(id);return;}   /* patch209: order arsip dimuat utuh dulu */
+  papanSimpanPosisi();ST.cur=id;render();try{hadirKirim();}catch(e){}}
+function closeOrder(){ST.cur=null;render();try{hadirKirim();}catch(e){}}
 /* Saran nama customer disaring menurut Jenis order yang dipilih —
    pilih "Wedding" ya yang muncul client wedding, bukan semua. */
 function jenisKeTipe(kode){return {w:'Wedding',c:'Corporate',o:'Others'}[kode]||'';}
@@ -27182,6 +27309,7 @@ document.addEventListener('keydown',function(e){
 LS.siapkan(function(){   /* patch207: data perangkat dibaca dulu dari IndexedDB */
 load();try{adminTerapkanFakta(false,true);}catch(e){}render();fetchCatalog();cloudAutoLoad();startCloudPoll();
 try{(ST.orders||[]).forEach(ordSnapSet);}catch(e){}   /* patch208: potret awal untuk mencap bagian yang berubah */
+try{cekRilis();setInterval(function(){if(ST.cur&&!(typeof document!=='undefined'&&document.visibilityState==='hidden'))hadirKirim();},60000);}catch(e){}   /* patch209 */
 try{sinkronBadge();}catch(e){}
 try{LS.perkiraan(function(){try{if(ST.user&&ST.view==='tasks')render();}catch(e){}});}catch(e){}
 setTimeout(checkDeadlines,4000);
