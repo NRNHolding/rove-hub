@@ -1009,7 +1009,7 @@ const KEY='rovehub_orders_v18';
 /* ================= VERSI YANG SEDANG BERJALAN =================
    Diisi otomatis oleh terbitkan.js waktu salinan ini diterbitkan; '-' berarti
    dibuka langsung dari berkas, bukan dari alamat terbitannya. */
-const VERSI='20261111-103635';
+const VERSI='20261111-110002';
 /* Berkas versi.txt di sebelah halaman ini berisi penanda yang sama. Ia
    ditanyakan tanpa cache, jadi ia jujur walau halamannya sendiri masih
    tersimpan di cache browser. */
@@ -1390,6 +1390,10 @@ const EN_RULES=[
 
 /* Kamus persis. Kunci = teks Indonesia apa adanya yang muncul di layar. */
 const EN={
+'Penyimpanan':'Storage','Browser perangkat ini':'This device’s browser','Gambar di dalam data':'Images stored in the data','Database server':'Server database','Order terbesar':'Largest orders',
+'Hampir penuh — perubahan bisa gagal tersimpan di perangkat ini.':'Almost full — changes may fail to save on this device.','Sudah lewat separuh — pantau terus.':'Past half — keep an eye on it.',
+'belum terbaca di sesi ini — muncul sesudah sinkron berikutnya':'not read in this session yet — shows after the next sync',
+'Tiap perangkat menyimpan semua order, prospek, dan master di browser (kuota ±5 MB per perangkat). Gambar yang diunggah ikut tersimpan di dalamnya — itu yang paling cepat memenuhi kuota.':'Every device keeps all orders, leads and master data in the browser (±5 MB quota per device). Uploaded images are stored inside it — they fill the quota fastest.',
 'PO collateral menyusul':'Collateral POs to follow','TAGIH TERUS SAMPAI PO TERBIT · PALING LAMBAT SEBELUM QC & PACKING':'CHASE UNTIL THE PO IS ISSUED · NO LATER THAN QC & PACKING',
 '🕓 PO menyusul':'🕓 PO to follow','PO Radja sudah terbit — PO ini paling lambat sebelum QC & Packing.':'The Radja PO is out — this PO is due before QC & Packing at the latest.',
 'siap diterbitkan':'ready to issue','tenggat belum ada':'no due date','🕓 logo menyusul':'🕓 logo to follow','🕓 nama menyusul':'🕓 names to follow',
@@ -2843,10 +2847,41 @@ function kredHapus(){try{localStorage.removeItem('rovehub_kred');}catch(e){}}
 /* baca data cloud: POST db.load berkunci (sejak = versi cloud terakhir yang sudah diproses → {sama:true} bila tak berubah) */
 function cloudAmbil(sejak){var c=ST.cfg||{},k=kredGet();
   if(c.url&&k)return fetch(c.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
-      body:JSON.stringify({action:'db.load',auth:k,sejak:+sejak||0})}).then(function(r){return r.json();});
+      body:JSON.stringify({action:'db.load',auth:k,sejak:+sejak||0})}).then(function(r){return r.text();}).then(function(t){var d=JSON.parse(t);
+        if(d&&!d.sama&&d.ok!==false&&t.length>200){ST._dbUkuran=t.length;ST._dbUkuranJam=nowStr();}return d;});   /* meteran penyimpanan (patch206) */
   if(c.dbUrl)return fetch(c.dbUrl,{cache:'no-store'}).then(function(r){return r.json();});   // belum login (backend lama)
   return Promise.reject(new Error('backend belum diisi'));}
 /* backend menolak (belum login / password berubah / akun nonaktif) */
+/* ============ METERAN PENYIMPANAN (patch206, 11 Nov) ============
+   Browser menyimpan semua order, prospek, dan master di tiap perangkat — kuotanya ±5 juta karakter per situs (Chrome / Edge).
+   Gambar yang diunggah ikut tersimpan di dalam data, jadi merekalah yang paling cepat memenuhi kuota. */
+const LS_KUOTA=5*1024*1024;
+function lsPakai(){var t=0,per={},ks=[];
+  try{if(typeof localStorage.length==='number'&&localStorage.key){for(var i=0;i<localStorage.length;i++)ks.push(localStorage.key(i));}}catch(e){}
+  if(!ks.length)ks=[KEY,'rovehub_master','rovehub_leads_v1'];
+  ks.forEach(function(k){var v='';try{v=localStorage.getItem(k)||'';}catch(e){}var n=String(k).length+v.length;t+=n;per[k]=n;});return {t:t,per:per};}
+function dataUriHitung(x,acc,d){acc=acc||{n:0,b:0};d=d||0;if(!x||d>12)return acc;
+  if(typeof x==='string'){if(x.length>200&&x.slice(0,5)==='data:'){acc.n++;acc.b+=x.length;}return acc;}
+  if(typeof x==='object')for(var k in x){if(Object.prototype.hasOwnProperty.call(x,k))dataUriHitung(x[k],acc,d+1);}return acc;}
+function mbTeks(n){n=+n||0;return (n/1048576).toFixed(n<1048576?2:1).replace('.',',')+' MB';}
+function penyimpananKartu(){
+  var L=lsPakai(),pct=Math.min(100,Math.round(L.t/LS_KUOTA*100)),warna=pct>=85?'var(--red)':(pct>=60?'var(--warn)':'var(--ok)');
+  var pO=L.per[KEY]||0,pL=L.per['rovehub_leads_v1']||0,pM=L.per['rovehub_master']||0,pX=Math.max(0,L.t-pO-pL-pM);
+  var O=(ST.orders||[]).filter(function(o){return o&&!o.deleted;}),Ld=[];try{Ld=(leadsAll()||[]).filter(function(l){return l&&!l.deleted;});}catch(e){}
+  var G=dataUriHitung(O),GL=dataUriHitung(Ld),selesai=O.filter(function(o){return !!o.done;}).length;
+  var besar=O.map(function(o){var z=0,g=0;try{z=JSON.stringify(o).length;g=dataUriHitung(o).n;}catch(e){}return {o:o,z:z,g:g};}).sort(function(a,b){return b.z-a.z;}).slice(0,5);
+  var bar=function(p,w){return '<div style="height:9px;border-radius:6px;background:var(--line);overflow:hidden;margin:5px 0 4px"><div style="height:100%;width:'+p+'%;background:'+w+'"></div></div>';};
+  var baris=function(a,b){return '<div style="display:flex;gap:10px;font-size:11.5px;padding:3px 0"><span style="color:var(--muted);min-width:150px">'+a+'</span><b>'+b+'</b></div>';};
+  return '<div class="rcard" data-f="penyimpananKartu" style="max-width:660px"><h3>Penyimpanan</h3>'+
+    '<div style="font-size:11.5px;color:var(--muted);line-height:1.6;margin-bottom:8px">Tiap perangkat menyimpan semua order, prospek, dan master di browser (kuota ±5 MB per perangkat). Gambar yang diunggah ikut tersimpan di dalamnya — itu yang paling cepat memenuhi kuota.</div>'+
+    '<div style="display:flex;justify-content:space-between;align-items:baseline"><b style="font-size:12px">Browser perangkat ini</b><b data-f="lsPersen" style="color:'+warna+'">'+mbTeks(L.t)+' / '+mbTeks(LS_KUOTA)+' · '+pct+'%</b></div>'+bar(pct,warna)+
+    (pct>=85?'<div style="font-size:11px;font-weight:800;color:var(--red);margin-bottom:6px">Hampir penuh — perubahan bisa gagal tersimpan di perangkat ini.</div>':(pct>=60?'<div style="font-size:11px;font-weight:700;color:var(--warn);margin-bottom:6px">Sudah lewat separuh — pantau terus.</div>':''))+
+    baris('Order ('+O.length+', '+selesai+' selesai)',mbTeks(pO))+baris('Prospek ('+Ld.length+')',mbTeks(pL))+baris('Master data',mbTeks(pM))+baris('Lainnya',mbTeks(pX))+
+    baris('Gambar di dalam data',G.n+' gambar order · '+mbTeks(G.b)+(GL.n?(' &nbsp;+ '+GL.n+' gambar prospek · '+mbTeks(GL.b)):''))+
+    baris('Database server',ST._dbUkuran?(mbTeks(ST._dbUkuran)+' <span style="font-weight:400;color:var(--muted)">· dibaca '+esc(ST._dbUkuranJam||'')+' · tiap simpan diunduh &amp; dikirim utuh</span>'):'<span style="font-weight:400;color:var(--muted)">belum terbaca di sesi ini — muncul sesudah sinkron berikutnya</span>')+
+    (besar.length?('<div style="font-size:11px;font-weight:800;color:var(--ink-soft);margin:9px 0 3px">Order terbesar</div>'+besar.map(function(x){
+      return '<div style="display:flex;gap:8px;align-items:center;font-size:11px;padding:2px 0;cursor:pointer" onclick="openOrder('+jsArg(x.o.id)+')"><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(x.o.customer||x.o.id)+'</span>'+
+        '<span style="color:var(--muted)">'+x.g+' gambar</span><b>'+mbTeks(x.z)+'</b></div>';}).join('')):'')+'</div>';}
 function cloudTolak(d){
   if(d&&d.ok===false&&d.perluLogin){ST.cloudStatus='🔒 Server menolak — keluar lalu masuk lagi supaya data tersinkron';try{sinkronBadge();}catch(e){}return true;}
   return false;}
@@ -10965,6 +11000,7 @@ function renderTasks(){
          <button class="btn ghost" onclick="ST.view='board';ST.cur=null;render()">▦ Lihat Pipeline</button>
        </div>
      </div>
+${penyimpananKartu()}
 ${muatDcSitusUji()?'':`     <div class="rcard" style="max-width:660px"><h3>Data uji — contoh order</h3>
        <div style="font-size:11.5px;color:var(--muted);margin-bottom:9px;line-height:1.6">Satu client wedding (<b>Sarah &amp; Kevin</b> — 100 pcs produk katalog (Irvine Card Wallet kalau ada di katalog), box + soft pouch + thank you card dengan logo yang sama, add-on logo, engrave 3 nama, live calligraphy) dengan data <b>persis sama</b> di ${PH.length} kartu: satu kartu per fase, tiap kartu terisi lengkap sampai fase kartunya sendiri (semua harga vendor tercatat, semua persetujuan ada) — tinggal tombol Selesai. Logo Rove asli: monogram di produk, ROVE GIFTS di kemasan. Harga vendor sengaja beda dari katalog. Ikut dimuat: <b>${CONTOH_LIVE.length} acara contoh</b> untuk menu <b>Live service</b> (client berbeda: sudah lewat &amp; fee diajukan, H-2, H-5 persiapan telat, dua acara setanggal dengan operator yang sama = bentrok, H-12 belum ada operator — tanggalnya selalu dihitung dari hari ini) dan <b>spare 5%</b> kartu contoh yang masuk Gudang otomatis. Isinya karangan; kartu contoh lama diganti, order lain tak disentuh.</div>
        <button class="btn sm" onclick="seedContohMuat()">＋ Muat contoh order — 1 client × ${PH.length} fase</button> <button class="btn ghost sm" onclick="if(confirm('Hapus semua kartu contoh Sarah & Kevin?'))seedContohHapus()">Hapus kartu contoh</button>
