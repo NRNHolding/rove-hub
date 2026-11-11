@@ -1009,7 +1009,7 @@ const KEY='rovehub_orders_v18';
 /* ================= VERSI YANG SEDANG BERJALAN =================
    Diisi otomatis oleh terbitkan.js waktu salinan ini diterbitkan; '-' berarti
    dibuka langsung dari berkas, bukan dari alamat terbitannya. */
-const VERSI='20261110-150340';
+const VERSI='20261111-100437';
 /* Berkas versi.txt di sebelah halaman ini berisi penanda yang sama. Ia
    ditanyakan tanpa cache, jadi ia jujur walau halamannya sendiri masih
    tersimpan di cache browser. */
@@ -7136,6 +7136,10 @@ function opsiKlon(o,op){
     /* margin opsi ini: harga jual dihitung dari HPP × (1+margin), kecuali harganya diketik sendiri */
     if(op.mg&&op.mg[k]!=null&&op.mg[k]!==''){l.mg=+op.mg[k]||0;if(!(op.jual&&(+op.jual[k]||0)>0))l.jual=0;}
     if(op.dc&&op.dc[k]!=null){l.dc=+op.dc[k]||0;l.dcT=((op.dcT||{})[k])||l.dcT||'rp';}});
+  /* jasa dari tabel produk (patch204): qty jasa dihitung ulang dari qty produk opsi ini — aturan sama dengan tabel */
+  if(o.jasaTabel&&!spekKunci(o)){try{tplJasaPakai(oc).forEach(function(p){oc.pricing.lines.forEach(function(l){
+    if(!l||l.jasa!=='Add-on'||l._tbh||namaJasaBaris(l)!==p.nama)return;
+    if((+l.qty||0)!==p.q){l.qty=p.q;if(!(op.qtyPO&&(+op.qtyPO[opsiKunci(l)]||0)>0))l.qtyPO=0;}});});}catch(e){}}
   if(op.discType!=null||op.disc!=null){oc.pricing.discType=op.discType||'rp';oc.pricing.disc=+op.disc||0;}
   if(op.discKet!=null)oc.pricing.discKet=op.discKet;
   if(Array.isArray(op.biaya))oc.pricing.biaya=op.biaya;
@@ -7173,7 +7177,10 @@ function opsiSet(id,opId,f,k,v){
   var op=opsiCari(o,opId);if(!op)return;
   var uang=function(x){return Math.max(0,moneyVal(x));};
   if(f==='nama')op.nama=String(v||'').trim();
-  else if(f==='qty'){if(!op.qty)op.qty={};op.qty[k]=Math.max(0,+v||0);}
+  else if(f==='qty'){
+    var lj=(((o.pricing||{}).lines)||[]).filter(function(l){return opsiKunci(l)===k;})[0];
+    if(o.jasaTabel&&!spekKunci(o)&&lj&&lj.jasa==='Add-on'&&lj.jasaKunci&&!lj._tbh){alert('Qty jasa ini mengikuti tabel produk di Brief — ubah qty produk atau baris di tabelnya.');render();return;}
+    if(!op.qty)op.qty={};op.qty[k]=Math.max(0,+v||0);}
   else if(f==='qtyPO'){if(!op.qtyPO)op.qtyPO={};var q=Math.max(0,+v||0);if(q>0)op.qtyPO[k]=q;else delete op.qtyPO[k];}
   else if(f==='hpp'){if(!hppBolehEdit()){alert('Sales tidak mengubah HPP langsung — pakai tombol Nego harga di baris itemnya.');render();return;}
     if(!op.hpp)op.hpp={};var hh=uang(v);if(hh>0)op.hpp[k]=hh;else delete op.hpp[k];}
