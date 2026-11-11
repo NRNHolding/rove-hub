@@ -1005,11 +1005,65 @@ table.tpl-x{border-collapse:separate;border-spacing:0;font-size:11.5px;min-width
 </div>
 
 <script>
+/* ================= PENYIMPANAN PERANGKAT (patch207, 11 Nov 2026) =================
+   localStorage cuma ±5 MB per situs — order + gambar cepat memenuhinya. Data besar kini di IndexedDB (ratusan MB–GB),
+   dibaca sekali ke memori saat HUB dibuka, jadi seluruh kode tetap memanggil LS.getItem / LS.setItem secara sinkron.
+   Pengaturan kecil (sesi, nomor urut, bahasa) tetap di localStorage. Tanpa IndexedDB → semuanya tetap di localStorage. */
+var LS=(function(){
+  var asli=null;try{asli=(typeof localStorage!=='undefined')?localStorage:null;}catch(e){}
+  var BESAR={'rovehub_orders_v18':1,'rovehub_master':1,'rovehub_leads_v1':1,'rovehub_konten_v1':1,'rovehub_buy_v1':1,'rovehub_tax_v1':1,'rovehub_inv_v1':1,
+    'rovehub_hr_v1':1,'rovehub_fin_v1':1,'rovehub_admin':1,'rovehub_catalog':1,'rovehub_collimg':1,'rovehub_colldata':1,'rovehub_draf_form_v1':1};
+  var mem={},bk=null,aktif=false,bc=null,galat='';
+  var L={BESAR:BESAR,get aktif(){return aktif;},get galat(){return galat;}};
+  function besar(k){return aktif&&BESAR[k]===1;}
+  L.getItem=function(k){k=String(k);if(besar(k))return (k in mem)?mem[k]:null;return asli?asli.getItem(k):null;};
+  L.setItem=function(k,v){k=String(k);v=String(v);if(besar(k)){mem[k]=v;tulis(k,v);kabari(k,v);return;}if(asli)asli.setItem(k,v);};
+  L.removeItem=function(k){k=String(k);if(besar(k)){delete mem[k];if(bk)bk.hapus(k);kabari(k,null);return;}if(asli)asli.removeItem(k);};
+  L.clear=function(){mem={};if(bk)bk.kosongkan();if(asli)asli.clear();};
+  function kunciSemua(){var K=[];try{if(asli&&typeof asli.length==='number'&&asli.key){for(var i=0;i<asli.length;i++){var k=asli.key(i);if(!besar(k))K.push(k);}}}catch(e){}
+    if(aktif)Object.keys(mem).forEach(function(k){K.push(k);});return K;}
+  Object.defineProperty(L,'length',{get:function(){return kunciSemua().length;}});
+  L.key=function(i){return kunciSemua()[i]||null;};
+  function tulis(k,v){bk.tulis(k,v,function(err){if(!err)return;galat=String((err&&err.message)||err);
+    try{if(typeof kilat==='function')kilat('⚠ Gagal menyimpan di perangkat ini ('+galat+') — data tetap dikirim ke cloud.','#7a1f1f');}catch(e){}});}
+  function kabari(k,v){try{if(bc)bc.postMessage({k:k,v:v});}catch(e){}}
+  /* pasang backend lalu baca semuanya ke memori; data lama di localStorage dipindah sekali */
+  L.pakai=function(b,cb){bk=b;b.baca(function(err,isi){if(err){bk=null;galat=String(err.message||err);cb&&cb(err);return;}
+    mem=isi||{};aktif=true;
+    Object.keys(BESAR).forEach(function(k){var v=null;try{v=asli?asli.getItem(k):null;}catch(e){}if(v==null)return;
+      if(!(k in mem)){mem[k]=v;b.tulis(k,v,function(e2){if(!e2){try{asli.removeItem(k);}catch(e3){}}});}
+      else{try{asli.removeItem(k);}catch(e3){}}});   // salinan lama di localStorage dibuang supaya kuotanya lega
+    cb&&cb(null);});};
+  L.lepas=function(){aktif=false;bk=null;mem={};};
+  L.ukuranMem=function(){var t=0;Object.keys(mem).forEach(function(k){t+=k.length+String(mem[k]).length;});return t;};
+  function idbBackend(db){return {
+    baca:function(cb){try{var tx=db.transaction('kv','readonly'),st=tx.objectStore('kv'),isi={},rq=st.openCursor();
+      rq.onsuccess=function(){var c=rq.result;if(c){isi[c.key]=c.value;c.continue();}else cb(null,isi);};rq.onerror=function(){cb(rq.error||new Error('baca IndexedDB'));};}catch(e){cb(e);}},
+    tulis:function(k,v,cb){try{var tx=db.transaction('kv','readwrite');tx.objectStore('kv').put(v,k);tx.oncomplete=function(){cb&&cb(null);};
+      tx.onerror=tx.onabort=function(){cb&&cb(tx.error||new Error('tulis IndexedDB'));};}catch(e){cb&&cb(e);}},
+    hapus:function(k){try{db.transaction('kv','readwrite').objectStore('kv').delete(k);}catch(e){}},
+    kosongkan:function(){try{db.transaction('kv','readwrite').objectStore('kv').clear();}catch(e){}}};}
+  /* dipanggil sekali saat HUB dibuka: cb jalan sesudah data siap (paling lambat 4 dtk; gagal → tetap localStorage) */
+  L.siapkan=function(cb){var selesai=false,jalan=function(){if(selesai)return;selesai=true;cb();};
+    var idb=null;try{idb=(typeof indexedDB!=='undefined')?indexedDB:null;}catch(e){}
+    if(!idb){jalan();return;}
+    var t=setTimeout(function(){galat='IndexedDB tak menjawab — memakai localStorage';jalan();},4000);
+    try{var rq=idb.open('rovehub',1);
+      rq.onupgradeneeded=function(){try{rq.result.createObjectStore('kv');}catch(e){}};
+      rq.onerror=function(){clearTimeout(t);galat=String((rq.error&&rq.error.message)||'IndexedDB ditolak');jalan();};
+      rq.onsuccess=function(){if(selesai){return;}L.pakai(idbBackend(rq.result),function(){clearTimeout(t);
+        try{if(typeof BroadcastChannel!=='undefined'){bc=new BroadcastChannel('rovehub-ls');bc.onmessage=function(ev){var d=ev.data||{};if(!d.k)return;
+          if(d.v==null)delete mem[d.k];else mem[d.k]=d.v;try{if(typeof tabLainBerubah==='function')tabLainBerubah({key:d.k,newValue:d.v});}catch(e){}};}}catch(e){}
+        try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist().then(function(p){L.tetap=!!p;});}catch(e){}
+        jalan();});};}catch(e){clearTimeout(t);galat=String(e.message||e);jalan();}};
+  /* perkiraan pemakaian & kapasitas dari browser (async) */
+  L.perkiraan=function(cb){try{if(navigator.storage&&navigator.storage.estimate){navigator.storage.estimate().then(function(e){L.est=e;cb&&cb(e);}).catch(function(){cb&&cb(null);});return;}}catch(e){}cb&&cb(null);};
+  return L;})();
 const KEY='rovehub_orders_v18';
 /* ================= VERSI YANG SEDANG BERJALAN =================
    Diisi otomatis oleh terbitkan.js waktu salinan ini diterbitkan; '-' berarti
    dibuka langsung dari berkas, bukan dari alamat terbitannya. */
-const VERSI='20261111-110002';
+const VERSI='20261111-112102';
 /* Berkas versi.txt di sebelah halaman ini berisi penanda yang sama. Ia
    ditanyakan tanpa cache, jadi ia jujur walau halamannya sendiri masih
    tersimpan di cache browser. */
@@ -1143,8 +1197,8 @@ const CHECK=['Potong & skiving','Deboss logo','Jahit / stitch','Finishing','QC +
    Data (nama client, produk, catatan) tidak pernah masuk kamus → tak ikut berubah. */
 const LANG_KEY='rovehub_lang';
 function lang(){return ST.lang||'id';}
-function setLang(v){ST.lang=v;localStorage.setItem(LANG_KEY,v);ST.cur=ST.cur;render();}
-function loadLang(){ST.lang=localStorage.getItem(LANG_KEY)||'id';}
+function setLang(v){ST.lang=v;LS.setItem(LANG_KEY,v);ST.cur=ST.cur;render();}
+function loadLang(){ST.lang=LS.getItem(LANG_KEY)||'id';}
 function locale(){return lang()==='en'?'en-GB':'id-ID';}
 const BULAN_EN={Januari:'January',Februari:'February',Maret:'March',April:'April',Mei:'May',Juni:'June',
   Juli:'July',Agustus:'August',September:'September',Oktober:'October',November:'November',Desember:'December',
@@ -1390,6 +1444,7 @@ const EN_RULES=[
 
 /* Kamus persis. Kunci = teks Indonesia apa adanya yang muncul di layar. */
 const EN={
+'menghitung…':'calculating…',' Penyimpanan ditandai permanen.':' Storage is marked persistent.',
 'Penyimpanan':'Storage','Browser perangkat ini':'This device’s browser','Gambar di dalam data':'Images stored in the data','Database server':'Server database','Order terbesar':'Largest orders',
 'Hampir penuh — perubahan bisa gagal tersimpan di perangkat ini.':'Almost full — changes may fail to save on this device.','Sudah lewat separuh — pantau terus.':'Past half — keep an eye on it.',
 'belum terbaca di sesi ini — muncul sesudah sinkron berikutnya':'not read in this session yet — shows after the next sync',
@@ -2628,13 +2683,13 @@ let ST={orders:[],cur:null,view:'board',user:null,userName:''};
 /* ---- penyimpanan sesi login ---- */
 function sesiGet(k){
   try{var v=sessionStorage.getItem(k);if(v!==null)return v;}catch(e){}
-  try{return localStorage.getItem(k);}catch(e){return null;}}
+  try{return LS.getItem(k);}catch(e){return null;}}
 function sesiSet(k,v){
   try{sessionStorage.setItem(k,v);}catch(e){}
-  try{localStorage.setItem(k,v);}catch(e){}}   // cadangan untuk tab baru
+  try{LS.setItem(k,v);}catch(e){}}   // cadangan untuk tab baru
 function sesiHapus(k){
   try{sessionStorage.removeItem(k);}catch(e){}
-  try{localStorage.removeItem(k);}catch(e){}}
+  try{LS.removeItem(k);}catch(e){}}
 
 /* ---- penanda mode uji ---- */
 function modeUji(){
@@ -2791,7 +2846,7 @@ function migrasiFase12(){
     o._faseV=2;});
   if(n)simpanLokal();
   return n;}
-function load(){const r=localStorage.getItem(KEY);
+function load(){const r=LS.getItem(KEY);
   /* Papan mulai KOSONG. Data contoh dimuat lewat tombol, bukan sendirinya —
      supaya order dummy buatan sendiri tak tercampur 36 order contoh. */
 if(r){ST.orders=JSON.parse(r);}else{ST.orders=[];}
@@ -2800,7 +2855,7 @@ if(r){ST.orders=JSON.parse(r);}else{ST.orders=[];}
   try{var nyusut=0;ST.orders.forEach(function(o){if(tombstoneRingkas(o))nyusut++;});if(nyusut)simpanLokal();}catch(e){}
   ST.user=sesiGet('rovehub_user')||null;ST.userName=sesiGet('rovehub_username')||'';
   try{ST._roles=JSON.parse(sesiGet('rovehub_roles')||'null');}catch(e){ST._roles=null;}
-  try{ST.cfg=JSON.parse(localStorage.getItem('rovehub_cfg')||'{"url":"","live":false,"catalogUrl":""}');}catch(e){ST.cfg={url:'',live:false,catalogUrl:''};}
+  try{ST.cfg=JSON.parse(LS.getItem('rovehub_cfg')||'{"url":"","live":false,"catalogUrl":""}');}catch(e){ST.cfg={url:'',live:false,catalogUrl:''};}
   ST.cfg=cfgBawaan(ST.cfg);
   /* 12 Okt: backend kini berkunci — sesi lama (sebelum ada kunci sesi) diminta masuk ulang sekali */
   if(ST.user&&ST.cfg&&ST.cfg.url&&!kredGet()){ST.user=null;ST.userName='';ST._roles=null;sesiHapus('rovehub_user');sesiHapus('rovehub_username');sesiHapus('rovehub_roles');ST._masukUlang=true;}
@@ -2823,7 +2878,7 @@ if(r){ST.orders=JSON.parse(r);}else{ST.orders=[];}
     setInterval(versiCek,180000);
     document.addEventListener('visibilitychange',function(){if(!document.hidden)versiCek();});
   }catch(e){}
-  if(!hasEstColl()){try{var cd=JSON.parse(localStorage.getItem('rovehub_colldata')||'null');if(cd&&Object.keys(cd).length){setEstColl(collRowsFrom(cd));saveMaster();}}catch(e){}}
+  if(!hasEstColl()){try{var cd=JSON.parse(LS.getItem('rovehub_colldata')||'null');if(cd&&Object.keys(cd).length){setEstColl(collRowsFrom(cd));saveMaster();}}catch(e){}}
   buildCollatData();}
 
 /* Ambil isi kotak Integrasi yang sedang tampil ke ST.cfg. Dipanggil tombol yang
@@ -2834,16 +2889,16 @@ function cfgSerap(){
   var ambil=function(id,f){var e=document.getElementById(id);if(e)C[f]=(e.value||'').trim();};
   ambil('cfgurl','url');ambil('cfgcatalog','catalogUrl');ambil('cfgcattoken','catalogToken');ambil('cfgdb','dbUrl');ambil('cfgklien','klienUrl');
   var lv=document.getElementById('cfglive');if(lv)C.live=!!lv.checked;var dv=document.getElementById('cfgdrive');if(dv)C.drive=!!dv.checked;
-  try{localStorage.setItem('rovehub_cfg',JSON.stringify(C));}catch(e){}
+  try{LS.setItem('rovehub_cfg',JSON.stringify(C));}catch(e){}
   return C;}
 function saveCfg(){ST.cfg.url=(document.getElementById('cfgurl').value||'').trim();ST.cfg.live=document.getElementById('cfglive').checked;
-  var dp=document.getElementById('cfgdipakai');if(dp)ST.cfg.dipakai=dp.checked;try{dipakaiTerapkan();}catch(e){}var dv=document.getElementById('cfgdrive');if(dv)ST.cfg.drive=dv.checked;ST.cfg.catalogUrl=(document.getElementById('cfgcatalog').value||'').trim();var tk=document.getElementById('cfgcattoken');if(tk)ST.cfg.catalogToken=(tk.value||'').trim();var db=document.getElementById('cfgdb');ST.cfg.dbUrl=db?(db.value||'').trim():(ST.cfg.dbUrl||'');var kl=document.getElementById('cfgklien');ST.cfg.klienUrl=kl?(kl.value||'').trim():(ST.cfg.klienUrl||'');localStorage.setItem('rovehub_cfg',JSON.stringify(ST.cfg));fetchCatalog();render();}
+  var dp=document.getElementById('cfgdipakai');if(dp)ST.cfg.dipakai=dp.checked;try{dipakaiTerapkan();}catch(e){}var dv=document.getElementById('cfgdrive');if(dv)ST.cfg.drive=dv.checked;ST.cfg.catalogUrl=(document.getElementById('cfgcatalog').value||'').trim();var tk=document.getElementById('cfgcattoken');if(tk)ST.cfg.catalogToken=(tk.value||'').trim();var db=document.getElementById('cfgdb');ST.cfg.dbUrl=db?(db.value||'').trim():(ST.cfg.dbUrl||'');var kl=document.getElementById('cfgklien');ST.cfg.klienUrl=kl?(kl.value||'').trim():(ST.cfg.klienUrl||'');LS.setItem('rovehub_cfg',JSON.stringify(ST.cfg));fetchCatalog();render();}
 /* ================= KUNCI SESI (12 Okt) =================
    Backend hanya melayani yang login: tiap baca / tulis membawa auth {u, h} — username + hash SHA-256 password
    (hash yang sama dengan yang dicocokkan saat login). Disimpan di perangkat sejak login, dihapus saat keluar. */
-function kredGet(){try{var k=JSON.parse(localStorage.getItem('rovehub_kred')||'null');return (k&&k.u&&k.h)?k:null;}catch(e){return null;}}
-function kredSet(u,h){try{localStorage.setItem('rovehub_kred',JSON.stringify({u:String(u||'').toLowerCase(),h:String(h||'')}));}catch(e){}}
-function kredHapus(){try{localStorage.removeItem('rovehub_kred');}catch(e){}}
+function kredGet(){try{var k=JSON.parse(LS.getItem('rovehub_kred')||'null');return (k&&k.u&&k.h)?k:null;}catch(e){return null;}}
+function kredSet(u,h){try{LS.setItem('rovehub_kred',JSON.stringify({u:String(u||'').toLowerCase(),h:String(h||'')}));}catch(e){}}
+function kredHapus(){try{LS.removeItem('rovehub_kred');}catch(e){}}
 /* baca data cloud: POST db.load berkunci (sejak = versi cloud terakhir yang sudah diproses → {sama:true} bila tak berubah) */
 function cloudAmbil(sejak){var c=ST.cfg||{},k=kredGet();
   if(c.url&&k)return fetch(c.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
@@ -2857,15 +2912,17 @@ function cloudAmbil(sejak){var c=ST.cfg||{},k=kredGet();
    Gambar yang diunggah ikut tersimpan di dalam data, jadi merekalah yang paling cepat memenuhi kuota. */
 const LS_KUOTA=5*1024*1024;
 function lsPakai(){var t=0,per={},ks=[];
-  try{if(typeof localStorage.length==='number'&&localStorage.key){for(var i=0;i<localStorage.length;i++)ks.push(localStorage.key(i));}}catch(e){}
+  try{if(typeof LS.length==='number'&&LS.key){for(var i=0;i<LS.length;i++)ks.push(LS.key(i));}}catch(e){}
   if(!ks.length)ks=[KEY,'rovehub_master','rovehub_leads_v1'];
-  ks.forEach(function(k){var v='';try{v=localStorage.getItem(k)||'';}catch(e){}var n=String(k).length+v.length;t+=n;per[k]=n;});return {t:t,per:per};}
+  ks.forEach(function(k){var v='';try{v=LS.getItem(k)||'';}catch(e){}var n=String(k).length+v.length;t+=n;per[k]=n;});return {t:t,per:per};}
 function dataUriHitung(x,acc,d){acc=acc||{n:0,b:0};d=d||0;if(!x||d>12)return acc;
   if(typeof x==='string'){if(x.length>200&&x.slice(0,5)==='data:'){acc.n++;acc.b+=x.length;}return acc;}
   if(typeof x==='object')for(var k in x){if(Object.prototype.hasOwnProperty.call(x,k))dataUriHitung(x[k],acc,d+1);}return acc;}
-function mbTeks(n){n=+n||0;return (n/1048576).toFixed(n<1048576?2:1).replace('.',',')+' MB';}
+function mbTeks(n){n=+n||0;if(n>=1073741824)return (n/1073741824).toFixed(1).replace('.',',')+' GB';return (n/1048576).toFixed(n<1048576?2:1).replace('.',',')+' MB';}
 function penyimpananKartu(){
-  var L=lsPakai(),pct=Math.min(100,Math.round(L.t/LS_KUOTA*100)),warna=pct>=85?'var(--red)':(pct>=60?'var(--warn)':'var(--ok)');
+  var L=lsPakai(),kuota=LS_KUOTA,pakai=L.t,est=LS.aktif?LS.est:null;
+  if(LS.aktif){kuota=(est&&est.quota)?est.quota:0;pakai=(est&&est.usage)?est.usage:L.t;}   /* patch207: IndexedDB — kapasitas dari browser */
+  var pct=kuota?Math.min(100,Math.round(pakai/kuota*100)):0,warna=pct>=85?'var(--red)':(pct>=60?'var(--warn)':'var(--ok)');
   var pO=L.per[KEY]||0,pL=L.per['rovehub_leads_v1']||0,pM=L.per['rovehub_master']||0,pX=Math.max(0,L.t-pO-pL-pM);
   var O=(ST.orders||[]).filter(function(o){return o&&!o.deleted;}),Ld=[];try{Ld=(leadsAll()||[]).filter(function(l){return l&&!l.deleted;});}catch(e){}
   var G=dataUriHitung(O),GL=dataUriHitung(Ld),selesai=O.filter(function(o){return !!o.done;}).length;
@@ -2873,8 +2930,9 @@ function penyimpananKartu(){
   var bar=function(p,w){return '<div style="height:9px;border-radius:6px;background:var(--line);overflow:hidden;margin:5px 0 4px"><div style="height:100%;width:'+p+'%;background:'+w+'"></div></div>';};
   var baris=function(a,b){return '<div style="display:flex;gap:10px;font-size:11.5px;padding:3px 0"><span style="color:var(--muted);min-width:150px">'+a+'</span><b>'+b+'</b></div>';};
   return '<div class="rcard" data-f="penyimpananKartu" style="max-width:660px"><h3>Penyimpanan</h3>'+
-    '<div style="font-size:11.5px;color:var(--muted);line-height:1.6;margin-bottom:8px">Tiap perangkat menyimpan semua order, prospek, dan master di browser (kuota ±5 MB per perangkat). Gambar yang diunggah ikut tersimpan di dalamnya — itu yang paling cepat memenuhi kuota.</div>'+
-    '<div style="display:flex;justify-content:space-between;align-items:baseline"><b style="font-size:12px">Browser perangkat ini</b><b data-f="lsPersen" style="color:'+warna+'">'+mbTeks(L.t)+' / '+mbTeks(LS_KUOTA)+' · '+pct+'%</b></div>'+bar(pct,warna)+
+    (LS.aktif?'<div style="font-size:11.5px;color:var(--muted);line-height:1.6;margin-bottom:8px">Tiap perangkat menyimpan semua order, prospek, dan master di browser — sejak 11 Nov di <b>IndexedDB</b>, kapasitasnya mengikuti sisa disk (bukan lagi ±5 MB).'+(LS.tetap?' Penyimpanan ditandai permanen.':'')+'</div>'
+      :'<div style="font-size:11.5px;color:var(--muted);line-height:1.6;margin-bottom:8px">Tiap perangkat menyimpan semua order, prospek, dan master di browser (kuota ±5 MB per perangkat). Gambar yang diunggah ikut tersimpan di dalamnya — itu yang paling cepat memenuhi kuota.'+(LS.galat?(' <b style="color:var(--warn)">IndexedDB tak dipakai: '+esc(LS.galat)+'</b>'):'')+'</div>')+
+    '<div style="display:flex;justify-content:space-between;align-items:baseline"><b style="font-size:12px">Browser perangkat ini</b><b data-f="lsPersen" style="color:'+warna+'">'+mbTeks(pakai)+' / '+(kuota?mbTeks(kuota):'menghitung…')+' · '+pct+'%</b></div>'+bar(pct,warna)+
     (pct>=85?'<div style="font-size:11px;font-weight:800;color:var(--red);margin-bottom:6px">Hampir penuh — perubahan bisa gagal tersimpan di perangkat ini.</div>':(pct>=60?'<div style="font-size:11px;font-weight:700;color:var(--warn);margin-bottom:6px">Sudah lewat separuh — pantau terus.</div>':''))+
     baris('Order ('+O.length+', '+selesai+' selesai)',mbTeks(pO))+baris('Prospek ('+Ld.length+')',mbTeks(pL))+baris('Master data',mbTeks(pM))+baris('Lainnya',mbTeks(pX))+
     baris('Gambar di dalam data',G.n+' gambar order · '+mbTeks(G.b)+(GL.n?(' &nbsp;+ '+GL.n+' gambar prospek · '+mbTeks(GL.b)):''))+
@@ -3349,12 +3407,12 @@ function leadLengkapiBlok(l){var buka=!!((ST._lspek||{})[l.id]),n=leadLengkapN(l
     sub('B. FILE DARI CLIENT')+leadRefBlok(l)+'</div>');}
 
 function saveLeads(){
-  try{localStorage.setItem(LEAD_KEY,JSON.stringify(ST.leads||[]));}
+  try{LS.setItem(LEAD_KEY,JSON.stringify(ST.leads||[]));}
   catch(e){try{kilat('⚠ Penyimpanan browser penuh — prospek tetap dikirim ke cloud; lampiran gambar besar sedang dikecilkan otomatis.','#7a1f1f');}catch(e2){}
     try{setTimeout(function(){gambarRampingkan();},0);}catch(e3){}}
   cloudSave();}
-function loadLeads(){try{ST.leads=JSON.parse(localStorage.getItem(LEAD_KEY)||'null');}catch(e){ST.leads=null;}
-  if(!ST.leads){ST.leads=defLeads();localStorage.setItem(LEAD_KEY,JSON.stringify(ST.leads));}}
+function loadLeads(){try{ST.leads=JSON.parse(LS.getItem(LEAD_KEY)||'null');}catch(e){ST.leads=null;}
+  if(!ST.leads){ST.leads=defLeads();LS.setItem(LEAD_KEY,JSON.stringify(ST.leads));}}
 function defLeads(){var d=function(n){var x=new Date();x.setDate(x.getDate()+n);return x.toISOString().slice(0,10);};
   return [
    {id:'L001',nama:'Wedding Sinta & Bagas',kontak:'+62 813-2200-1101',channel:'Instagram',produk:'Pouch + Card',qty:250,vip:true,estimasi:32000000,status:'Follow-up',masuk:d(-12),fuNext:d(-2),pic:'Jessica B',catatan:'',touch:d(-6),log:[{t:'',by:'Jessica B',txt:'Sudah kirim katalog, minta waktu diskusi pasangan'}],_m:Date.now()},
@@ -3839,9 +3897,9 @@ const INV_KAT=['Produk jadi','Collateral','Sample','Lainnya'];
 const INV_SAT=['pcs','lembar','meter','roll','kg','box','set'];
 function invData(){if(!ST.inv)ST.inv={items:[],moves:[]};
   if(!ST.inv.items)ST.inv.items=[];if(!ST.inv.moves)ST.inv.moves=[];return ST.inv;}
-function saveInv(){localStorage.setItem(INV_KEY,JSON.stringify(ST.inv||{}));cloudSave();}
-function loadInv(){try{ST.inv=JSON.parse(localStorage.getItem(INV_KEY)||'null');}catch(e){ST.inv=null;}
-  if(!ST.inv){ST.inv=defInv();localStorage.setItem(INV_KEY,JSON.stringify(ST.inv));}invData();}
+function saveInv(){LS.setItem(INV_KEY,JSON.stringify(ST.inv||{}));cloudSave();}
+function loadInv(){try{ST.inv=JSON.parse(LS.getItem(INV_KEY)||'null');}catch(e){ST.inv=null;}
+  if(!ST.inv){ST.inv=defInv();LS.setItem(INV_KEY,JSON.stringify(ST.inv));}invData();}
 function defInv(){var d=function(n){var x=new Date();x.setDate(x.getDate()+n);return x.toISOString().slice(0,10);};
   /* Gudang menyimpan BARANG JADI — sisa lebihan produksi (spare) dan sample.
      Bahan baku tetap di vendor, bukan urusan HUB untuk sekarang. */
@@ -3991,9 +4049,9 @@ const BUY_STEPS=[
   {k:'verif',  n:'Verifikasi invoice',         pic:'Finance'},
   {k:'bayar',  n:'Pembayaran',                 pic:'Finance'}];
 function buyAll(){return ST.buy||(ST.buy=[]);}
-function saveBuy(){localStorage.setItem(BUY_KEY,JSON.stringify(ST.buy||[]));cloudSave();}
-function loadBuy(){try{ST.buy=JSON.parse(localStorage.getItem(BUY_KEY)||'null');}catch(e){ST.buy=null;}
-  if(!ST.buy){ST.buy=defBuy();localStorage.setItem(BUY_KEY,JSON.stringify(ST.buy));}}
+function saveBuy(){LS.setItem(BUY_KEY,JSON.stringify(ST.buy||[]));cloudSave();}
+function loadBuy(){try{ST.buy=JSON.parse(LS.getItem(BUY_KEY)||'null');}catch(e){ST.buy=null;}
+  if(!ST.buy){ST.buy=defBuy();LS.setItem(BUY_KEY,JSON.stringify(ST.buy));}}
 function defBuy(){var d=function(n){var x=new Date();x.setDate(x.getDate()+n);return x.toISOString().slice(0,10);};
   return [
   {id:'B001',judul:'Mesin deboss cadangan',kat:'Alat kerja',qty:1,estimasi:18000000,pemohon:'Event Management',tgl:d(-9),
@@ -4061,7 +4119,7 @@ function buyCopyAIS(){var rows=buyAISRows();
    Angkanya ditarik dari order & pembayaran yang sudah ada di HUB — tak diketik dua kali. */
 const FIN_KEY='rovehub_fin_v1';
 function finData(){
-  if(!ST.fin){try{ST.fin=JSON.parse(localStorage.getItem(FIN_KEY)||'null');}catch(e){ST.fin=null;}}
+  if(!ST.fin){try{ST.fin=JSON.parse(LS.getItem(FIN_KEY)||'null');}catch(e){ST.fin=null;}}
   if(!ST.fin)ST.fin={kas:[],jurnal:[],proyeksi:{masukLain:0,keluarLain:0,saldoAwal:0}};
   if(!ST.fin.kas)ST.fin.kas=[];
   if(!ST.fin.jurnal)ST.fin.jurnal=[];
@@ -4074,7 +4132,7 @@ function finData(){
   if(!Array.isArray(ST.fin.manual))ST.fin.manual=[];
   if(ST.fin.kasAutoV!==2){ST.fin.kasAuto=true;ST.fin.kasAutoV=2;}   // keputusan user 9 Sep 2026: hidup (sekali migrasi; boleh dimatikan lagi)
   return ST.fin;}
-function saveFin(){localStorage.setItem(FIN_KEY,JSON.stringify(finData()));}
+function saveFin(){LS.setItem(FIN_KEY,JSON.stringify(finData()));}
 function finTab(v){ST._finTab=v;render();}
 /* ---- pemotong daftar panjang: tampil sepotong, sisanya dibuka lewat tombol ---- */
 function batasKe(kunci,arr,nHP,nLayar){
@@ -4767,10 +4825,10 @@ function renderFin(){
 const ASET_KEY='rovehub_aset_v1';
 const ASET_KAT=['Mesin & alat produksi','Kendaraan','Perangkat kantor','Furniture','Bangunan','Lainnya'];
 function asetAll(){
-  if(!ST.aset){try{ST.aset=JSON.parse(localStorage.getItem(ASET_KEY)||'null');}catch(e){ST.aset=null;}}
+  if(!ST.aset){try{ST.aset=JSON.parse(LS.getItem(ASET_KEY)||'null');}catch(e){ST.aset=null;}}
   if(!ST.aset)ST.aset=[];
   return ST.aset;}
-function saveAset(){localStorage.setItem(ASET_KEY,JSON.stringify(asetAll()));}
+function saveAset(){LS.setItem(ASET_KEY,JSON.stringify(asetAll()));}
 function asetUmurBulan(a){
   if(!a.tglBeli)return 0;
   var b=new Date(a.tglBeli+'T00:00:00');if(isNaN(b))return 0;
@@ -4921,9 +4979,9 @@ const KAN_ST=['Lamar masuk','Screening','Interview','Ditawari','Diterima','Ditol
 const ONBOARD=['Kontrak kerja ditandatangani','Data & rekening lengkap','Akun HUB dibuat','Perkenalan tim','Materi onboarding diberikan','Serah terima alat kerja'];
 function hrData(){if(!ST.hr)ST.hr={karyawan:[],kandidat:[],payroll:[]};
   ['karyawan','kandidat','payroll'].forEach(function(k){if(!ST.hr[k])ST.hr[k]=[];});return ST.hr;}
-function saveHR(){localStorage.setItem(HR_KEY,JSON.stringify(ST.hr||{}));cloudSave();}
-function loadHR(){try{ST.hr=JSON.parse(localStorage.getItem(HR_KEY)||'null');}catch(e){ST.hr=null;}
-  if(!ST.hr){ST.hr=defHR();localStorage.setItem(HR_KEY,JSON.stringify(ST.hr));}hrData();}
+function saveHR(){LS.setItem(HR_KEY,JSON.stringify(ST.hr||{}));cloudSave();}
+function loadHR(){try{ST.hr=JSON.parse(LS.getItem(HR_KEY)||'null');}catch(e){ST.hr=null;}
+  if(!ST.hr){ST.hr=defHR();LS.setItem(HR_KEY,JSON.stringify(ST.hr));}hrData();}
 function defHR(){return {karyawan:[
    {id:'E01',nama:'David Edward',jabatan:'Sales',masuk:'2023-02-01',status:'Tetap',gaji:7500000,tunjangan:1500000,bank:'BCA',rek:'8221195256',ptype:HR_PTYPE[0],onboard:{},evaluasi:[],catatan:''},
    {id:'E02',nama:'Jessica B',jabatan:'Sales',masuk:'2024-06-10',status:'Tetap',gaji:6500000,tunjangan:1200000,bank:'BCA',rek:'8221100011',ptype:HR_PTYPE[0],onboard:{},evaluasi:[],catatan:''},
@@ -5111,10 +5169,10 @@ const KON_AGENCY=[['Tenshi Studio','foto & video',['foto','video']],['Akronim','
 const KON_PROD_H=3;               /* rencana produksi bawaan: 3 hari sebelum tayang */
 const KON_CH_BAWAAN='marketing';  /* channel Discord pengingat konten — bisa diganti dari Planner Konten */
 function kontenAll(){return ST.konten||(ST.konten=[]);}
-function saveKonten(){localStorage.setItem(KON_KEY,JSON.stringify(ST.konten||[]));cloudSave();}
-function loadKonten(){try{ST.konten=JSON.parse(localStorage.getItem(KON_KEY)||'null');}catch(e){ST.konten=null;}
-  if(!ST.konten){ST.konten=defKonten();localStorage.setItem(KON_KEY,JSON.stringify(ST.konten));return;}
-  try{if(konMigrasi())localStorage.setItem(KON_KEY,JSON.stringify(ST.konten));}catch(e){}}
+function saveKonten(){LS.setItem(KON_KEY,JSON.stringify(ST.konten||[]));cloudSave();}
+function loadKonten(){try{ST.konten=JSON.parse(LS.getItem(KON_KEY)||'null');}catch(e){ST.konten=null;}
+  if(!ST.konten){ST.konten=defKonten();LS.setItem(KON_KEY,JSON.stringify(ST.konten));return;}
+  try{if(konMigrasi())LS.setItem(KON_KEY,JSON.stringify(ST.konten));}catch(e){}}
 function konGeserTgl(tgl,n){var d=new Date(String(tgl)+'T00:00:00');if(isNaN(d))return '';d.setDate(d.getDate()+n);return ymd(d.getFullYear(),d.getMonth()+1,d.getDate());}
 /* selisih hari kalender terhadap hariIni() — satu sumber "hari ini" untuk lencana, pengingat, dan Tugas saya */
 function konSelisih(tgl){if(!tgl)return null;var a=new Date(String(tgl)+'T00:00:00'),b=new Date(hariIni()+'T00:00:00');if(isNaN(a)||isNaN(b))return null;return Math.round((a-b)/864e5);}
@@ -5467,8 +5525,8 @@ function taxCfg(){var c=(ST.master&&ST.master.taxCfg)||{};
   return {setor:+c.setor||10,lapor:+c.lapor||20,tahunan:c.tahunan||'04-30',mulai:String(c.mulai||'')};}
 function taxCfgSet(f,v){if(!ST.master.taxCfg)ST.master.taxCfg={};ST.master.taxCfg[f]=v;saveMaster();render();}
 function taxAll(){return ST.tax||(ST.tax=[]);}
-function saveTax(){localStorage.setItem(TAX_KEY,JSON.stringify(ST.tax||[]));cloudSave();}
-function loadTax(){try{ST.tax=JSON.parse(localStorage.getItem(TAX_KEY)||'[]');}catch(e){ST.tax=[];}}
+function saveTax(){LS.setItem(TAX_KEY,JSON.stringify(ST.tax||[]));cloudSave();}
+function loadTax(){try{ST.tax=JSON.parse(LS.getItem(TAX_KEY)||'[]');}catch(e){ST.tax=[];}}
 function taxGet(p){var t=taxAll().find(function(x){return x.periode===p;});
   if(!t){t={periode:p,pph21:0,pph23:0,pphFinal:0,ntpn:'',setorTgl:'',bpe:'',laporTgl:'',bukpot:'',catatan:'',chk:{}};taxAll().push(t);}
   if(!t.chk)t.chk={};return t;}
@@ -5608,18 +5666,18 @@ function renderTax(){
    Kosongkan data contoh, pertahankan master. Penanda `purgeTs` mencegah
    data lama kembali dari device lain yang belum di-refresh. */
 const PURGE_KEY='rovehub_purge';
-function purgeTs(){return +localStorage.getItem(PURGE_KEY)||0;}
-function setPurgeTs(t){localStorage.setItem(PURGE_KEY,String(t));}
+function purgeTs(){return +LS.getItem(PURGE_KEY)||0;}
+function setPurgeTs(t){LS.setItem(PURGE_KEY,String(t));}
 function purgeLokal(opsi){ // hapus data transaksi; master menyesuaikan pilihan
-  ST.orders=[];localStorage.setItem(KEY,'[]');
-  ST.leads=[];localStorage.setItem(LEAD_KEY,'[]');
-  ST.tax=[];localStorage.setItem(TAX_KEY,'[]');
-  ST.konten=[];localStorage.setItem(KON_KEY,'[]');
-  ST.buy=[];localStorage.setItem(BUY_KEY,'[]');
+  ST.orders=[];LS.setItem(KEY,'[]');
+  ST.leads=[];LS.setItem(LEAD_KEY,'[]');
+  ST.tax=[];LS.setItem(TAX_KEY,'[]');
+  ST.konten=[];LS.setItem(KON_KEY,'[]');
+  ST.buy=[];LS.setItem(BUY_KEY,'[]');
   hrData().payroll=[];hrData().kandidat=[];
   invData().moves=[];                                   // riwayat stok dikosongkan → stok jadi 0
   ['rovehub_seq_quotation','rovehub_seq_invoice','rovehub_seq_po','rovehub_seq_rfq']
-    .forEach(function(k){localStorage.removeItem(k);});
+    .forEach(function(k){LS.removeItem(k);});
   if(ST.master){ST.master.soNext='';}
   if(opsi&&opsi.customers&&ST.master)ST.master.customers=[];
   if(opsi&&opsi.karyawan)hrData().karyawan=[];
@@ -5644,7 +5702,7 @@ function prodMulaiBersih(){
       if(String(v.konfirm).trim().toUpperCase()!=='MULAI BERSIH'){alert('Teks konfirmasi tidak cocok. Ketik persis: MULAI BERSIH');return;}
       var t=Date.now();
       purgeLokal({customers:v.customers,karyawan:v.karyawan,barang:v.barang});
-      setPurgeTs(t);localStorage.setItem('rovehub_ts',String(t));
+      setPurgeTs(t);LS.setItem('rovehub_ts',String(t));
       ST.cur=null;ST.view='board';
       if((ST.cfg||{}).live&&(ST.cfg||{}).url)pushCloud();   // dorong keadaan kosong + penanda
       render();
@@ -5778,7 +5836,7 @@ function tombstoneRingkas(o){
 function simpanLokal(){
   try{(ST.orders||[]).forEach(tombstoneRingkas);}catch(e){}
   var isi;try{isi=JSON.stringify(ST.orders);}catch(e){return false;}
-  try{localStorage.setItem(KEY,isi);ST._penuh=0;return true;}
+  try{LS.setItem(KEY,isi);ST._penuh=0;return true;}
   catch(e){
     ST._penuh=(ST._penuh||0)+1;
     if(ST._penuh<=2)try{kilat('⚠ Penyimpanan browser penuh ('+Math.round(isi.length/1024)+' KB) — perubahan tak tersimpan di perangkat ini. Lampiran gambar besar sedang dikecilkan otomatis.','#7a1f1f');}catch(e2){}
@@ -5786,9 +5844,9 @@ function simpanLokal(){
     return false;}}
 function save(){if(ST.cur){var oc=ST.orders.find(function(x){return x.id===ST.cur;});if(oc)oc._m=Date.now();}simpanLokal();cloudSave();}
 var _cloudT=null;
-function cloudBlob(ts){return JSON.stringify({orders:(ST.orders||[]).filter(function(o){return !cloudContoh(o);}),master:ST.master,leads:(ST.leads||[]).filter(function(l){return !cloudContohLead(l);}),tax:ST.tax||[],konten:ST.konten||[],hr:ST.hr||{},buy:ST.buy||[],inv:ST.inv||{},admin:adminGet(),purgeTs:purgeTs(),masterDasarTs:+ST._masterDasarTs||0,seq:{quo:+localStorage.getItem('rovehub_seq_quotation')||0,inv:+localStorage.getItem('rovehub_seq_invoice')||0,
+function cloudBlob(ts){return JSON.stringify({orders:(ST.orders||[]).filter(function(o){return !cloudContoh(o);}),master:ST.master,leads:(ST.leads||[]).filter(function(l){return !cloudContohLead(l);}),tax:ST.tax||[],konten:ST.konten||[],hr:ST.hr||{},buy:ST.buy||[],inv:ST.inv||{},admin:adminGet(),purgeTs:purgeTs(),masterDasarTs:+ST._masterDasarTs||0,seq:{quo:+LS.getItem('rovehub_seq_quotation')||0,inv:+LS.getItem('rovehub_seq_invoice')||0,
   /* RFQ dan PO dulu tak ikut — dua perangkat mengeluarkan nomor yang sama */
-  rfq:+localStorage.getItem('rovehub_seq_rfq')||0,po:+localStorage.getItem('rovehub_seq_po')||0},ts:ts});}
+  rfq:+LS.getItem('rovehub_seq_rfq')||0,po:+LS.getItem('rovehub_seq_po')||0},ts:ts});}
 /* Nomor terakhir tiap jenis dokumen. paksa=true dipakai pemulihan penuh
    (isi cloud memang yang benar); tanpa itu diambil yang lebih besar, supaya
    nomor yang sudah terpakai di perangkat ini tak dipakai ulang. */
@@ -5799,7 +5857,7 @@ function seqTarik(seq,paksa){
   Object.keys(SEQ_KUNCI).forEach(function(k){
     var v=+seq[k]||0;if(!v)return;
     var kunci=SEQ_KUNCI[k];
-    localStorage.setItem(kunci,String(paksa?v:Math.max(v,+localStorage.getItem(kunci)||0)));});}
+    LS.setItem(kunci,String(paksa?v:Math.max(v,+LS.getItem(kunci)||0)));});}
 function mergeOrders(cloud,skipCur){
   if(!cloud||!cloud.orders)return false;
   /* order dari cloud belum tentu berbentuk lengkap — dinormalkan sebelum
@@ -5835,7 +5893,7 @@ function mergeLeads(cloud){
          dihidupkan lagi, dan prospeknya hilang selamanya */
       if(!cl.deleted)delete lo.deleted;
       Object.assign(lo,cl);ubah=true;}});
-  if(ubah)localStorage.setItem(LEAD_KEY,JSON.stringify(ST.leads));
+  if(ubah)LS.setItem(LEAD_KEY,JSON.stringify(ST.leads));
   return ubah;}
 /* Mendamaikan lebih dulu, baru mendorong. Tanpa ini, potret lokal menimpa apa
    pun yang masuk ke cloud sesudah tarikan terakhir — termasuk order dan
@@ -5860,7 +5918,7 @@ function pushCloudAman(){
     if(ubah&&ST.user)render();
   }).catch(function(){
     /* perangkat yang belum pernah sinkron tak boleh mendorong master bawaannya tanpa menggabung dulu */
-    if(!(+localStorage.getItem('rovehub_ts')||0)&&!msDasarGet()){ST.cloudStatus='gagal membaca cloud — belum dikirim, dicoba lagi saat menyimpan berikutnya';try{sinkronBadge();}catch(e){}return;}
+    if(!(+LS.getItem('rovehub_ts')||0)&&!msDasarGet()){ST.cloudStatus='gagal membaca cloud — belum dikirim, dicoba lagi saat menyimpan berikutnya';try{sinkronBadge();}catch(e){}return;}
     pushCloud({tanpaMaster:true});});}   // cloud gagal dibaca: order dsb. tetap terkirim, master (akun!) tidak — 23 Okt
 /* Sesudah mendorong, benar-benar diperiksa: order yang ada di sini ada juga di
    sana? Dorongannya memakai mode no-cors — jawabannya tak bisa dibaca browser,
@@ -5898,8 +5956,8 @@ function pushPeriksa(){
   },2500);}
 /* opsi.tanpaMaster (23 Okt): cloud gagal dibaca / masternya tak bisa digabung → master perangkat ini (mungkin basi —
    mis. daftar akun dengan password lama) TIDAK ikut terkirim; ubahan master tetap ditandai belum terkirim */
-function pushCloud(opsi){var c=ST.cfg||{};var ts=Date.now(),tanpaM=!!(opsi&&opsi.tanpaMaster);localStorage.setItem('rovehub_ts',String(ts));ST.cloudStatus='mengirim ke cloud…';
-  if(tanpaM){try{localStorage.setItem('rovehub_master_ubah',String(ts+1));}catch(e){}}
+function pushCloud(opsi){var c=ST.cfg||{};var ts=Date.now(),tanpaM=!!(opsi&&opsi.tanpaMaster);LS.setItem('rovehub_ts',String(ts));ST.cloudStatus='mengirim ke cloud…';
+  if(tanpaM){try{LS.setItem('rovehub_master_ubah',String(ts+1));}catch(e){}}
   /* sidik master yang dikirim — jadi dasar gabungan berikutnya begitu cloud memuatnya */
   if(!tanpaM){try{_msMemo=(typeof WeakMap==='function')?new WeakMap():null;msSidikSet(MASTER_KIRIM_KEY,ST.master,ts);}catch(e){}finally{_msMemo=null;}}
   /* try/catch tak menangkap penolakan promise — tanpa .catch, backend yang mati
@@ -5927,7 +5985,7 @@ function cloudAutoLoad(){var c=ST.cfg||{};if(!c.dbUrl&&!kredGet())return;
     }
     var changed=mergeOrders(d,true); // merge per-order, jangan ganggu order yg lagi dibuka
     try{if(dcArsipTertunda())changed=true;}catch(e){}   // arsip keluarga yang tertunda di dua perangkat sekaligus
-    var localTs=+localStorage.getItem('rovehub_ts')||0;
+    var localTs=+LS.getItem('rovehub_ts')||0;
     /* master digabung per baris (tiga arah) — dulu diganti sekaligus bila cloud lebih baru, dan ubahan master perangkat ini
        yang belum terdorong ikut hilang; migrasi teknik ikut di dalam masterTerimaCloud */
     if(d.master){var _mg=false;try{_mg=masterTerimaCloud(d);}catch(e){}if(_mg)changed=true;
@@ -5935,11 +5993,11 @@ function cloudAutoLoad(){var c=ST.cfg||{};if(!c.dbUrl&&!kredGet())return;
     /* digabung per baris — dulu diganti sekaligus, dan prospek yang dibuat di
        perangkat lain hilang begitu perangkat ini menyimpan sesuatu */
     if(mergeLeads(d))changed=true;
-    if(d.tax&&(d.ts||0)>localTs){ST.tax=d.tax;localStorage.setItem(TAX_KEY,JSON.stringify(ST.tax));changed=true;}
-    if(d.konten&&(d.ts||0)>localTs){ST.konten=d.konten;try{konMigrasi();}catch(e){}localStorage.setItem(KON_KEY,JSON.stringify(ST.konten));changed=true;}
-    if(d.hr&&(d.ts||0)>localTs){ST.hr=d.hr;localStorage.setItem(HR_KEY,JSON.stringify(ST.hr));changed=true;}
-    if(d.buy&&(d.ts||0)>localTs){ST.buy=d.buy;localStorage.setItem(BUY_KEY,JSON.stringify(ST.buy));changed=true;}
-    if(d.inv&&(d.ts||0)>localTs){ST.inv=d.inv;localStorage.setItem(INV_KEY,JSON.stringify(ST.inv));changed=true;}
+    if(d.tax&&(d.ts||0)>localTs){ST.tax=d.tax;LS.setItem(TAX_KEY,JSON.stringify(ST.tax));changed=true;}
+    if(d.konten&&(d.ts||0)>localTs){ST.konten=d.konten;try{konMigrasi();}catch(e){}LS.setItem(KON_KEY,JSON.stringify(ST.konten));changed=true;}
+    if(d.hr&&(d.ts||0)>localTs){ST.hr=d.hr;LS.setItem(HR_KEY,JSON.stringify(ST.hr));changed=true;}
+    if(d.buy&&(d.ts||0)>localTs){ST.buy=d.buy;LS.setItem(BUY_KEY,JSON.stringify(ST.buy));changed=true;}
+    if(d.inv&&(d.ts||0)>localTs){ST.inv=d.inv;LS.setItem(INV_KEY,JSON.stringify(ST.inv));changed=true;}
     if(d.seq)seqTarik(d.seq);
     /* kunci admin (robot administrasi): versi cloud diterima utuh bila lebih baru, lalu faktanya diterapkan ke kartu */
     try{if(adminTerimaCloud(d))changed=true;}catch(e){}
@@ -5983,7 +6041,7 @@ function pakaiBackendBawaan(){
     'Ikut backend bawaan supaya datanya bertemu dengan perangkat lain?'+String.fromCharCode(10)+
     'Data di perangkat ini tak dihapus — ia justru akan dikirim ke sana.'))return;
   c.url=BACKEND_BAWAAN;c.dbUrl=BACKEND_BAWAAN+'?db=1';c.live=true;c._bawaan=true;
-  ST.cfg=c;localStorage.setItem('rovehub_cfg',JSON.stringify(c));
+  ST.cfg=c;LS.setItem('rovehub_cfg',JSON.stringify(c));
   ST.cloudStatus='pindah ke backend bawaan…';
   try{sinkronBadge();}catch(e){}
   try{pushCloudAman();}catch(e){}
@@ -6056,15 +6114,15 @@ function cloudLoad(){var c=cfgSerap();if(!c.dbUrl&&!kredGet()){alert('Kotak "Clo
     if(!d||!d.orders){ST.cloudStatus='cloud kosong / format salah';render();return;}
     ST.orders=d.orders;simpanLokal();
     if(d.master){ST.master=d.master;msDasarSet(d.master);try{migrasiTeknikJasa();}catch(e){}saveMaster();buildCollatData();}
-    if(d.leads){ST.leads=d.leads;localStorage.setItem(LEAD_KEY,JSON.stringify(ST.leads));}
-    if(d.tax){ST.tax=d.tax;localStorage.setItem(TAX_KEY,JSON.stringify(ST.tax));}
-    if(d.konten){ST.konten=d.konten;try{konMigrasi();}catch(e){}localStorage.setItem(KON_KEY,JSON.stringify(ST.konten));}
-    if(d.hr){ST.hr=d.hr;localStorage.setItem(HR_KEY,JSON.stringify(ST.hr));}
-    if(d.buy){ST.buy=d.buy;localStorage.setItem(BUY_KEY,JSON.stringify(ST.buy));}
-    if(d.inv){ST.inv=d.inv;localStorage.setItem(INV_KEY,JSON.stringify(ST.inv));}
+    if(d.leads){ST.leads=d.leads;LS.setItem(LEAD_KEY,JSON.stringify(ST.leads));}
+    if(d.tax){ST.tax=d.tax;LS.setItem(TAX_KEY,JSON.stringify(ST.tax));}
+    if(d.konten){ST.konten=d.konten;try{konMigrasi();}catch(e){}LS.setItem(KON_KEY,JSON.stringify(ST.konten));}
+    if(d.hr){ST.hr=d.hr;LS.setItem(HR_KEY,JSON.stringify(ST.hr));}
+    if(d.buy){ST.buy=d.buy;LS.setItem(BUY_KEY,JSON.stringify(ST.buy));}
+    if(d.inv){ST.inv=d.inv;LS.setItem(INV_KEY,JSON.stringify(ST.inv));}
     if(d.seq)seqTarik(d.seq,true);
     if(d.admin){ST.admin=adminRapikan(JSON.parse(JSON.stringify(d.admin)));adminSimpanLokal();}
-    if(d.ts)localStorage.setItem('rovehub_ts',String(d.ts));
+    if(d.ts)LS.setItem('rovehub_ts',String(d.ts));
     if(d.purgeTs)setPurgeTs(d.purgeTs);
     ST.cloudStatus='dimuat dari cloud '+new Date().toLocaleTimeString('id-ID');ST.cur=null;render();
   }).catch(function(e){ST.cloudStatus='GAGAL: '+((e&&e.message)||e);render();});}
@@ -7679,7 +7737,7 @@ function seed(){
     }
   });
   ST.orders=out;
-  localStorage.setItem('rovehub_mig_profit','1');   // seed sudah pakai penomoran baru
+  LS.setItem('rovehub_mig_profit','1');   // seed sudah pakai penomoran baru
   // replay trigger supaya log Discord + Trello sesuai fase (ini juga menetapkan status)
   ST.orders.forEach(o=>{const target=o.phase;o.phase=0;o.disc=[];o.trello=null;o.checks=[];for(let i=0;i<target;i++)applyTrigger(o,true);o.hist=[];});
   // baru isi detail progresif — supaya tidak ketimpa replay
@@ -7924,11 +7982,11 @@ function syncSidebar(){
     } else sm.innerHTML='';
   }
 }
-function saveMaster(){localStorage.setItem('rovehub_master',JSON.stringify(ST.master));
+function saveMaster(){LS.setItem('rovehub_master',JSON.stringify(ST.master));
   /* catat: master perangkat ini punya ubahan yang belum terdorong (dan jenisnya — hanya alat deboss, atau lainnya) */
-  try{var _lts=+localStorage.getItem('rovehub_ts')||0,_mu=+localStorage.getItem('rovehub_master_ubah')||0,_j=ST._masterJenis||'lain',
-    _lama=(_mu>_lts)?(localStorage.getItem('rovehub_master_ubah_jenis')||'lain'):_j;
-    localStorage.setItem('rovehub_master_ubah',String(Date.now()));localStorage.setItem('rovehub_master_ubah_jenis',(_lama===_j)?_j:'lain');}catch(e){}
+  try{var _lts=+LS.getItem('rovehub_ts')||0,_mu=+LS.getItem('rovehub_master_ubah')||0,_j=ST._masterJenis||'lain',
+    _lama=(_mu>_lts)?(LS.getItem('rovehub_master_ubah_jenis')||'lain'):_j;
+    LS.setItem('rovehub_master_ubah',String(Date.now()));LS.setItem('rovehub_master_ubah_jenis',(_lama===_j)?_j:'lain');}catch(e){}
   ST._masterJenis='';
   /* perubahan master harus menyeberang juga — dulu ia cuma menunggu tumpangan
      dari penyimpanan order berikutnya, jadi tab/perangkat lain bisa lama
@@ -8078,8 +8136,8 @@ var _ask=null;
    di-refresh, ketikannya tetap ada. Kuncinya judul formnya — draf "Prospek
    baru" tak akan pernah muncul di form lain. */
 const DRAF_KEY='rovehub_draf_form_v1';
-function drafSemua(){try{return JSON.parse(localStorage.getItem(DRAF_KEY)||'{}')||{};}catch(e){return {};}}
-function drafTulis(m){try{localStorage.setItem(DRAF_KEY,JSON.stringify(m));}catch(e){}}
+function drafSemua(){try{return JSON.parse(LS.getItem(DRAF_KEY)||'{}')||{};}catch(e){return {};}}
+function drafTulis(m){try{LS.setItem(DRAF_KEY,JSON.stringify(m));}catch(e){}}
 function drafKunci(o){return String((o&&o.draf)||(o&&o.judul)||'');}
 function drafAda(o){var k=drafKunci(o);if(!k)return null;var d=drafSemua()[k];
   if(!(d&&d.nilai&&Object.keys(d.nilai).length))return null;
@@ -8691,8 +8749,8 @@ function msSidik(M,ts){var k={},r={};
     else if(msObj(v)&&d<3)Object.keys(v).forEach(function(b){if(v[b]!==undefined)jalan(jalur+'.'+b,v[b],d+1);});};
   if(msObj(M))Object.keys(M).forEach(function(a){if(M[a]!==undefined)jalan(a,M[a],1);});
   return {ts:+ts||0,k:k,r:r};}
-function msSidikGet(kunci){try{var d=JSON.parse(localStorage.getItem(kunci)||'null');return (d&&d.k&&d.r)?d:null;}catch(e){return null;}}
-function msSidikSet(kunci,M,ts){try{localStorage.setItem(kunci,JSON.stringify(msSidik(M,ts)));}catch(e){try{console.warn('sidik master tak tersimpan',e);}catch(e2){}}}
+function msSidikGet(kunci){try{var d=JSON.parse(LS.getItem(kunci)||'null');return (d&&d.k&&d.r)?d:null;}catch(e){return null;}}
+function msSidikSet(kunci,M,ts){try{LS.setItem(kunci,JSON.stringify(msSidik(M,ts)));}catch(e){try{console.warn('sidik master tak tersimpan',e);}catch(e2){}}}
 function msDasarGet(){return msSidikGet(MASTER_DASAR_KEY);}
 function msDasarSet(M,ts){msSidikSet(MASTER_DASAR_KEY,M,ts);}
 var MS_BULAN={jan:0,feb:1,mar:2,apr:3,mei:4,may:4,jun:5,jul:6,agu:7,agt:7,aug:7,sep:8,okt:9,oct:9,nov:10,des:11,dec:11};
@@ -8743,7 +8801,7 @@ function masterTerimaCloud(cloud){ST._masterPerluDorong=false;
   try{_msMemo=(typeof WeakMap==='function')?new WeakMap():null;}catch(e){_msMemo=null;}
   try{
   var C=JSON.parse(JSON.stringify(cloud.master)),L=ST.master||{},cts=+cloud.ts||0,hC=msHash(C),hL0=msHash(L);
-  var mu=+localStorage.getItem('rovehub_master_ubah')||0,lts=+localStorage.getItem('rovehub_ts')||0;
+  var mu=+LS.getItem('rovehub_master_ubah')||0,lts=+LS.getItem('rovehub_ts')||0;
   /* tak ada yang berubah sejak gabungan terakhir (cloud sama, master perangkat ini sama) → tak perlu menggabung lagi */
   var Z=ST._msAkhir;if(Z&&Z.hC===hC&&Z.hL===hL0){ST._masterPerluDorong=Z.perlu;ST._masterDasarTs=Z.dts;return false;}
   var K=msSidikGet(MASTER_KIRIM_KEY),B=msDasarGet(),S=null,sTs=0;
@@ -8757,7 +8815,7 @@ function masterTerimaCloud(cloud){ST._masterPerluDorong=false;
   msDasarSet(C,cts);ST._masterDasarTs=cts;
   var ubah=msHash(G)!==hL0;
   _msMemo=null;                                    // migrasi di bawah mengubah master — cache tak boleh dipakai lagi
-  if(ubah){ST.master=G;try{migrasiTeknikJasa();}catch(e){}localStorage.setItem('rovehub_master',JSON.stringify(ST.master));try{buildCollatData();}catch(e){}}
+  if(ubah){ST.master=G;try{migrasiTeknikJasa();}catch(e){}LS.setItem('rovehub_master',JSON.stringify(ST.master));try{buildCollatData();}catch(e){}}
   var hAkhir=msHash(ST.master);
   ST._masterPerluDorong=hAkhir!==hC;
   ST._msAkhir={hC:hC,hL:hAkhir,perlu:ST._masterPerluDorong,dts:cts};
@@ -10144,7 +10202,7 @@ function vendorJasaKota(o,izin){
   return m?m.nama:'';}
 function vendorForTipe(t){var v=((ST.master&&ST.master.vendors)||[]).find(function(x){return x.tipe===t;});return v?v.nama:t;}
 function seedMaster(){ST.master={access:defAccess(),msec:defMsec(),users:defUsers(),shipping:defShipping(),jenis:defJenis(),perso:defPerso(),coll:defColl(),catalog:[],operator:defOperators(),tools:defTools(),evTpl:defEvTpl(),kardus:defKardus(),kurs:defKurs(),jasa:defJasa(),volDiv:5000,packFactor:1.05,bank:[{v:'BCA'},{v:'Mandiri'},{v:'BNI'},{v:'BRI'}],vtipe:[{v:'Kulit'},{v:'Box'},{v:'Soft Pouch'},{v:'Thank You Card'},{v:'Live Service'},{v:'Others'}],cogs:[{v:'Main Product'},{v:'Packaging'},{v:'Service'}],customers:[{nama:'United Tractors',pic:'Ida Rahmawati (Purchasing)',kontak:'+62 811-2244-3010',email:'ida.rahmawati@unitedtractors.com',alamat:'Jl. Raya Bekasi KM 22, Cakung, Jakarta Timur 13910',alamatKantor:'Gedung UT Tower, Jl. Raya Bekasi KM 22, Jakarta Timur',kota:'Jakarta',tipe:'Corporate',lokasi:'HQ'},{nama:'Innaz Communique',kontak:'',alamat:'Surabaya',kota:'Surabaya',tipe:'Corporate',lokasi:'HQ'},{nama:'Bank Jatim',kontak:'',alamat:'Surabaya',kota:'Surabaya',tipe:'Corporate',lokasi:'HQ'}],vendors:[{nama:'Radja Leather',tipe:'Kulit',cogs:'Main Product',kontak:'Cici Andarwati',hp:'+62 811 3252 305'},{nama:'CraftByHanifah',tipe:'Soft Pouch',cogs:'Packaging',kontak:'-'},{nama:'BoxMaker',tipe:'Box',cogs:'Packaging',kontak:'-'},{nama:'CardPrint',tipe:'Thank You Card',cogs:'Packaging',kontak:'-'},{nama:'Tim Deboss Bali',tipe:'Live Service',cogs:'Service',kontak:'-',kota:'Bali'},{nama:'Tim Deboss SBY',tipe:'Live Service',cogs:'Service',kontak:'-',kota:'Surabaya'},{nama:'Tim Deboss JKT',tipe:'Live Service',cogs:'Service',kontak:'-',kota:'Jakarta'},{nama:'Mercia Calligraphy',tipe:'Live Service',cogs:'Service',kontak:'Mercia Anggara'}]};saveMaster();}
-function loadMaster(){try{ST.master=JSON.parse(localStorage.getItem('rovehub_master')||'null');}catch(e){ST.master=null;} if(!ST.master||!ST.master.customers)seedMaster(); if(!ST.master.users||!ST.master.users[0]||!('username' in ST.master.users[0])){ST.master.users=defUsers();saveMaster();} if(!ST.master.shipping){ST.master.shipping=defShipping();saveMaster();} ST.master.shipping.forEach(function(s){if(s.zona&&!s.kota){s.kota=s.zona;delete s.zona;}}); if(!ST.master.jenis){ST.master.jenis=defJenis();saveMaster();} if(!ST.master.perso){ST.master.perso=defPerso();saveMaster();}
+function loadMaster(){try{ST.master=JSON.parse(LS.getItem('rovehub_master')||'null');}catch(e){ST.master=null;} if(!ST.master||!ST.master.customers)seedMaster(); if(!ST.master.users||!ST.master.users[0]||!('username' in ST.master.users[0])){ST.master.users=defUsers();saveMaster();} if(!ST.master.shipping){ST.master.shipping=defShipping();saveMaster();} ST.master.shipping.forEach(function(s){if(s.zona&&!s.kota){s.kota=s.zona;delete s.zona;}}); if(!ST.master.jenis){ST.master.jenis=defJenis();saveMaster();} if(!ST.master.perso){ST.master.perso=defPerso();saveMaster();}
    if(!ST.master.coll){ if(ST.master.collmat){ST.master.coll=[];ST.master.collmat.forEach(function(r){var ts=(r.tipe==='Box')?['Hardbox','Softbox']:[r.tipe];ts.forEach(function(t){ST.master.coll.push({type:t,kind:'Material',value:r.v});});});delete ST.master.collmat;} else ST.master.coll=defColl(); saveMaster(); }
    /* satu orang bisa banyak jabatan — data lama yang masih string dinaikkan ke daftar */
    (ST.master.users||[]).forEach(function(u){if(!Array.isArray(u.jabatans))u.jabatans=u.jabatan?[u.jabatan]:[];});
@@ -10819,7 +10877,7 @@ function perbaruiTanda(){
   setFavicon(n?gambarFavicon(n):null);
   if(naik)notifBrowser(n);}
 /* Notifikasi sistem — hanya kalau pemakainya sendiri yang menyalakan. */
-function notifBoleh(){return localStorage.getItem('rovehub_notif')==='1';}
+function notifBoleh(){return LS.getItem('rovehub_notif')==='1';}
 function notifBrowser(n){
   if(!notifBoleh()||typeof Notification==='undefined'||Notification.permission!=='granted')return;
   try{new Notification('ROVE HUB',{body:n+' tugas menunggu '+(myRoles().join(' / ')||'kamu')+'.',tag:'rovehub-tugas'});}catch(e){}}
@@ -10828,10 +10886,10 @@ function notifTombol(){
   return '<button class="btn ghost sm" style="width:100%;margin-top:6px;font-size:9.5px" onclick="notifToggle()">'+
     (on?'🔔 Notifikasi browser: nyala':'🔕 Nyalakan notifikasi browser')+'</button>';}
 function notifToggle(){
-  if(notifBoleh()){localStorage.removeItem('rovehub_notif');render();return;}
+  if(notifBoleh()){LS.removeItem('rovehub_notif');render();return;}
   if(typeof Notification==='undefined'){alert('Browser ini tak mendukung notifikasi sistem.');return;}
   Notification.requestPermission().then(function(izin){
-    if(izin==='granted'){localStorage.setItem('rovehub_notif','1');
+    if(izin==='granted'){LS.setItem('rovehub_notif','1');
       try{new Notification('ROVE HUB',{body:'Notifikasi dinyalakan. Kamu akan diberi tahu kalau ada tugas baru.'});}catch(e){}}
     else alert('Izin notifikasi ditolak browser. Nyalakan lewat ikon gembok di address bar kalau berubah pikiran.');
     render();});}
@@ -10849,17 +10907,17 @@ function loginAkunDariServer(u,d){var S=(((d||{}).master||{}).users)||[];if(!S.l
   var L=ST.master.users.filter(function(x){return x&&String(x.username||'').trim().toLowerCase()===u;});
   if(!L.length){su.forEach(function(x){ST.master.users.push(JSON.parse(JSON.stringify(x)));});}
   else{var s0=su[0];L.forEach(function(x){if(s0.pwHash)x.pwHash=s0.pwHash;else delete x.pwHash;if(s0.password!=null)x.password=s0.password;else delete x.password;x.aktif=!!s0.aktif;if(s0._m)x._m=s0._m;});}
-  try{localStorage.setItem('rovehub_master',JSON.stringify(ST.master));}catch(e){}
+  try{LS.setItem('rovehub_master',JSON.stringify(ST.master));}catch(e){}
   return true;}
 function loginTerimaCloud(d){
   if(!d||!Array.isArray(d.orders))return;
   /* "kosong" juga berarti perangkat yang belum pernah sinkron: isinya master bawaan (akun password = username) — dulu
      master server hanya dipakai bila daftar akun kosong, jadi browser baru menolak password yang sudah diganti */
-  var belumSinkron=!(+localStorage.getItem('rovehub_ts')||0)&&!msDasarGet();
+  var belumSinkron=!(+LS.getItem('rovehub_ts')||0)&&!msDasarGet();
   var kosong=!((ST.master&&ST.master.users)||[]).length||belumSinkron;
   if(!kosong&&d.master){try{masterTerimaCloud(d);}catch(e){}}   // perangkat yang sudah sinkron: digabung tiga arah seperti tarikan biasa
   if(kosong&&d.master){ST.master=d.master;try{msDasarSet(d.master,+d.ts||0);}catch(e){}try{migrasiTeknikJasa();}catch(e){}
-    localStorage.setItem('rovehub_master',JSON.stringify(ST.master));try{buildCollatData();}catch(e){}}
+    LS.setItem('rovehub_master',JSON.stringify(ST.master));try{buildCollatData();}catch(e){}}
   try{mergeOrders(d,false);simpanLokal();}catch(e){}
   try{mergeLeads(d);}catch(e){}}
 function logout(){ST.user=null;ST.userName='';ST._roles=null;kredHapus();sesiHapus('rovehub_user');sesiHapus('rovehub_username');sesiHapus('rovehub_roles');ST.cur=null;
@@ -11285,7 +11343,7 @@ function poNoBaru(dateISO){
   var d=new Date(dateISO||Date.now());if(isNaN(d))d=new Date();
   var n=poNoAngka(poNoNext());
   if(n>0){ST.master.poNext=String(n+1);try{saveMaster();}catch(e){}}
-  else{n=(+localStorage.getItem('rovehub_seq_po')||0)+1;localStorage.setItem('rovehub_seq_po',String(n));}
+  else{n=(+LS.getItem('rovehub_seq_po')||0)+1;LS.setItem('rovehub_seq_po',String(n));}
   return 'ROVE/PO'+d.getFullYear()+'/'+roman(d.getMonth()+1)+'/'+String(n).padStart(7,'0');}
 function poList(){ // satu entri per (order × vendor) yang PO-nya sudah digenerate
   var out=[],D=[];
@@ -12264,7 +12322,7 @@ function lapTerbilang(n){n=Math.round(+n||0);if(n===0)return 'nol';
     return f(Math.floor(x/1e12))+' triliun'+(x%1e12?(' '+f(x%1e12)):'');};
   return f(n).replace(/\s+/g,' ').trim();}
 function lapKwitansiNo(o,k){if(!o.pay)o.pay={};if(!o.pay.cr)o.pay.cr={};
-  if(!o.pay.cr[k]){var n=(+localStorage.getItem('rovehub_seq_cr')||0)+1;localStorage.setItem('rovehub_seq_cr',String(n));var d=new Date();
+  if(!o.pay.cr[k]){var n=(+LS.getItem('rovehub_seq_cr')||0)+1;LS.setItem('rovehub_seq_cr',String(n));var d=new Date();
     o.pay.cr[k]='CR / '+d.getFullYear()+' / '+roman(d.getMonth()+1)+' / '+String(n).padStart(4,'0');o._m=Date.now();save();}
   return o.pay.cr[k];}
 function lapKwitansi(oid,k){
@@ -12603,7 +12661,7 @@ function lapDaftarHTML(){
   return h;}
 /* dokumen dari laporan: nomor urut per jenis (sekali dibuat, tetap), tampil di overlay dokumen seperti kwitansi */
 function lapNoDok(o,jenis,prefix){if(!o.dokNo)o.dokNo={};
-  if(!o.dokNo[jenis]){var n=(+localStorage.getItem('rovehub_seq_'+jenis)||0)+1;localStorage.setItem('rovehub_seq_'+jenis,String(n));var d=new Date();
+  if(!o.dokNo[jenis]){var n=(+LS.getItem('rovehub_seq_'+jenis)||0)+1;LS.setItem('rovehub_seq_'+jenis,String(n));var d=new Date();
     o.dokNo[jenis]=prefix+' / '+d.getFullYear()+' / '+roman(d.getMonth()+1)+' / '+String(n).padStart(4,'0');o._m=Date.now();save();}
   return o.dokNo[jenis];}
 function lapDokTampil(html,hint){$('#docbody').innerHTML=html;ST._docHtml=html;ST._doc={type:'laporan'};
@@ -13798,8 +13856,8 @@ function adminRapikan(a){
   if(!Array.isArray(a.log))a.log=[];
   return a;}
 function adminGet(){if(!ST.admin||typeof ST.admin!=='object')ST.admin=adminBawaan();return adminRapikan(ST.admin);}
-function adminLoad(){var a=null;try{a=JSON.parse(localStorage.getItem(ADMIN_KEY)||'null');}catch(e){a=null;}ST.admin=adminRapikan(a||adminBawaan());return ST.admin;}
-function adminSimpanLokal(){try{localStorage.setItem(ADMIN_KEY,JSON.stringify(adminGet()));}catch(e){}}
+function adminLoad(){var a=null;try{a=JSON.parse(LS.getItem(ADMIN_KEY)||'null');}catch(e){a=null;}ST.admin=adminRapikan(a||adminBawaan());return ST.admin;}
+function adminSimpanLokal(){try{LS.setItem(ADMIN_KEY,JSON.stringify(adminGet()));}catch(e){}}
 /* app mengubah alias / putusan: ts naik supaya versi ini menang di perangkat lain dan di robot */
 function adminSimpan(){var a=adminGet();a.ts=Date.now();adminSimpanLokal();save();}
 /* versi cloud diterima utuh hanya bila lebih baru (robot baru menulis, atau perangkat lain baru memutus) */
@@ -14746,10 +14804,10 @@ function syncStatus(o){if(!o||o.status==='Cancel')return;var s=statusFase(o);if(
 /* Data lama pakai status manual — selaraskan sekali. */
 /* Profitability Checking disisipkan di indeks 2 — order lama harus digeser sekali saja. */
 function migrasiFaseProfit(){
-  if(localStorage.getItem('rovehub_mig_profit'))return 0;
+  if(LS.getItem('rovehub_mig_profit'))return 0;
   var n=0;
   (ST.orders||[]).forEach(function(o){if((o.phase||0)>=2){o.phase=(o.phase||0)+1;n++;}});
-  localStorage.setItem('rovehub_mig_profit','1');
+  LS.setItem('rovehub_mig_profit','1');
   if(n)save();
   return n;}
 /* Master yang sudah terlanjur mengimpor katalog sebagai 'Service'. Yang
@@ -17701,12 +17759,12 @@ function ringkasanRadjaKirim(id){var o=ST.orders.find(function(x){return x.id===
 const DIGEST_RADJA_KEY='rovehub_digest_radja';
 function ringkasanSeninRadja(){
   if(new Date().getDay()!==1)return 0;
-  var hari=hariIni();try{if(localStorage.getItem(DIGEST_RADJA_KEY)===hari)return 0;}catch(e){}
+  var hari=hariIni();try{if(LS.getItem(DIGEST_RADJA_KEY)===hari)return 0;}catch(e){}
   var fp=faseProduksi(),n=0;
   (ST.orders||[]).forEach(function(o){
     if(o.deleted||o.done||o.status==='Cancel'||(o.phase||0)!==fp)return;
     if(ringkasanRadjaSatu(o))n++;});
-  try{localStorage.setItem(DIGEST_RADJA_KEY,hari);}catch(e){}
+  try{LS.setItem(DIGEST_RADJA_KEY,hari);}catch(e){}
   if(n)save();return n;}
 function prodFotoAda(o){var b=(o&&o.brief)||{};return PROD_FOTO.filter(function(t){return (b[t[0]]||[]).length>0;}).length;}
 function prodTahapTeks(o){var n=prodFotoAda(o);return n?PROD_FOTO[Math.min(n,PROD_FOTO.length)-1][1]:'belum ada foto';}
@@ -19178,8 +19236,8 @@ function liveTanyaBlok(o){
 function liveNo(o,nama){
   if(!o.liveNo)o.liveNo={};
   if(o.liveNo[nama])return o.liveNo[nama];
-  var n=(+localStorage.getItem('rovehub_seq_live')||0)+1;
-  try{localStorage.setItem('rovehub_seq_live',String(n));}catch(e){}
+  var n=(+LS.getItem('rovehub_seq_live')||0)+1;
+  try{LS.setItem('rovehub_seq_live',String(n));}catch(e){}
   var d=new Date();
   o.liveNo[nama]='ROVE / LIVE / '+d.getFullYear()+' / '+String(d.getMonth()+1).padStart(2,'0')+' / '+String(n).padStart(4,'0');
   return o.liveNo[nama];}
@@ -21594,7 +21652,7 @@ function kirimHapus(id,sid){
 function showSuratJalan(id,sid){
   var o=ST.orders.find(function(x){return x.id===id;});if(!o)return;
   var D=kirimDaftarTulis(o),s=D.filter(function(x){return x.id===sid;})[0];if(!s)return;
-  if(!s.sjNo){var n=(+localStorage.getItem('rovehub_seq_sj')||0)+1;localStorage.setItem('rovehub_seq_sj',String(n));
+  if(!s.sjNo){var n=(+LS.getItem('rovehub_seq_sj')||0)+1;LS.setItem('rovehub_seq_sj',String(n));
     s.sjNo='SJ / '+new Date().getFullYear()+' / '+String(n).padStart(4,'0');
     logHist(o,'Surat jalan '+s.sjNo+' — pengiriman '+(D.indexOf(s)+1));o._m=Date.now();save();}
   var P=kirimProduk(o).filter(function(p){return (+((s.isi||{})[p.key])||0)>0;});
@@ -22709,7 +22767,7 @@ function imporEstimator(d,opsi){
     var P=d.products.filter(function(p){return (p.hq||p.au)&&p.t&&p.t.length;}).map(prodDariEst);
     ST.master.catalog=mergeKatalog(ST.master.catalog,P);
     CATALOG_LIVE=ST.master.catalog.map(function(x){return {name:x.name,t:x.t,material:x.material,img:x.img,pjg:x.pjg,lbr:x.lbr,tgi:x.tgi,berat:x.berat};});
-    try{localStorage.setItem('rovehub_catalog',JSON.stringify(CATALOG_LIVE));}catch(e){}
+    try{LS.setItem('rovehub_catalog',JSON.stringify(CATALOG_LIVE));}catch(e){}
     lap.produk=P.length;}
   /* 2. kombinasi harga collateral — inti yang selama ini hilang */
   KOMB_SECS.forEach(function(sec){
@@ -23483,9 +23541,9 @@ function panTandai(){ // kasih kursor "tangan" hanya kalau memang ada yang bisa 
   document.addEventListener('click',function(e){ // habis digeser, jangan ikut membuka kartu
     if(PANNED){e.stopPropagation();e.preventDefault();}},true);
 })();
-function loadCatalogCache(){ try{var c=JSON.parse(localStorage.getItem('rovehub_catalog')||'null'); if(c&&c.length)CATALOG_LIVE=c;}catch(e){}
-  try{var ci=JSON.parse(localStorage.getItem('rovehub_collimg')||'null'); if(ci)COLLAT_IMG=ci;}catch(e){}
-  try{var cd=JSON.parse(localStorage.getItem('rovehub_colldata')||'null'); if(cd)COLLAT_DATA=cd;}catch(e){}
+function loadCatalogCache(){ try{var c=JSON.parse(LS.getItem('rovehub_catalog')||'null'); if(c&&c.length)CATALOG_LIVE=c;}catch(e){}
+  try{var ci=JSON.parse(LS.getItem('rovehub_collimg')||'null'); if(ci)COLLAT_IMG=ci;}catch(e){}
+  try{var cd=JSON.parse(LS.getItem('rovehub_colldata')||'null'); if(cd)COLLAT_DATA=cd;}catch(e){}
   if(!COLLAT_IMG)COLLAT_IMG={box:'1GAPUFOItQ0r3aB1tHCXWkJIJYfDO8P5-',pouch:'18yMwa-5MGQfKFQGXVbC4gIwZTANWgjOk',card:'1U7Q1CL-fsbSWwcP7s6YsxkP0vEiHlJNp'}; }
 function fetchCatalog(){
   var u=estUrlData(); if(!u)return;
@@ -23495,7 +23553,7 @@ function fetchCatalog(){
     if(d&&d.products){
       CATALOG_LIVE=d.products.filter(function(p){return (p.hq||p.au)&&p.t&&p.t.length;})
         .map(prodDariEst);
-      n=CATALOG_LIVE.length; localStorage.setItem('rovehub_catalog',JSON.stringify(CATALOG_LIVE));
+      n=CATALOG_LIVE.length; LS.setItem('rovehub_catalog',JSON.stringify(CATALOG_LIVE));
     }
     if(d&&d.collateral){
       COLLAT_IMG={};var cd={};
@@ -23503,8 +23561,8 @@ function fetchCatalog(){
         var k=t.indexOf('pouch')>=0?'pouch':t.indexOf('box')>=0?'box':t.indexOf('card')>=0?'card':null;
         if(k&&id&&!COLLAT_IMG[k])COLLAT_IMG[k]=id;
         var type=c.type||'',kind=c.kind||'';if(!cd[type])cd[type]={};if(!cd[type][kind])cd[type][kind]=[];cd[type][kind].push({v:c.value,img:id});});
-      localStorage.setItem('rovehub_collimg',JSON.stringify(COLLAT_IMG));
-      localStorage.setItem('rovehub_colldata',JSON.stringify(cd));
+      LS.setItem('rovehub_collimg',JSON.stringify(COLLAT_IMG));
+      LS.setItem('rovehub_colldata',JSON.stringify(cd));
       setEstColl(collRowsFrom(cd));saveMaster();  // refresh baris estimator; baris HUB (box/manual) tetap
       buildCollatData();
     }
@@ -24995,7 +25053,7 @@ function docNo(o,type){
   const key=(type==='invoice')?'invNo':(type==='invoicePel')?'invPelNo':(type==='invoice2')?'inv2No':'quoNo';
   if(o.docs&&o.docs[key])return o.docs[key];
   const seqKey='rovehub_seq_'+((type==='invoicePel'||type==='invoice2')?'invoice':type);
-  const n=(+localStorage.getItem(seqKey)||0)+1;localStorage.setItem(seqKey,String(n));
+  const n=(+LS.getItem(seqKey)||0)+1;LS.setItem(seqKey,String(n));
   const now=new Date();const label=(type==='quotation')?'QUOTATION':'INVOICE';
   const s=(type==='quotation')
     ?('ROVE / '+now.getFullYear()+' / '+roman(now.getMonth()+1)+' / '+String(n).padStart(4,'0'))   // seperti contoh: ROVE / 2026 / VI / 0003
@@ -25143,8 +25201,8 @@ function rfqNo(o,vendor){
   if(!o.rfqNo)o.rfqNo={};
   vendor=vNama(vendor);
   if(o.rfqNo[vendor])return o.rfqNo[vendor];
-  var n=(+localStorage.getItem('rovehub_seq_rfq')||0)+1;
-  try{localStorage.setItem('rovehub_seq_rfq',String(n));}catch(e){}
+  var n=(+LS.getItem('rovehub_seq_rfq')||0)+1;
+  try{LS.setItem('rovehub_seq_rfq',String(n));}catch(e){}
   var d=new Date();
   o.rfqNo[vendor]='ROVE / RFQ / '+d.getFullYear()+' / '+String(d.getMonth()+1).padStart(2,'0')+
     ' / '+String(n).padStart(4,'0');
@@ -25737,8 +25795,8 @@ function tplGrupKurang(D,cols){
   var tek=cols.filter(function(c){return /Tek$/.test(c.k)&&/^(Personalisasi|Logo|Logo 2)$/.test(c.g);})[0],lt=cols.filter(function(c){return /Letak$/.test(c.k);})[0];
   return D.rows.some(function(r){if(cols.some(function(c){return tplWajibKosong(c,r.vals);}))return true;
     return !!(tek&&lt&&tplJasaPecah(r.vals[tek.k])&&!tplNyata(r.vals[lt.k]));});}
-function tplLipatBaca(){if(!ST._tplLipat){var m={};try{m=JSON.parse(localStorage.getItem('roveTplLipat')||'{}')||{};}catch(e){}ST._tplLipat=m;}return ST._tplLipat;}
-function tplLipatSimpan(){try{localStorage.setItem('roveTplLipat',JSON.stringify(ST._tplLipat||{}));}catch(e){}}
+function tplLipatBaca(){if(!ST._tplLipat){var m={};try{m=JSON.parse(LS.getItem('roveTplLipat')||'{}')||{};}catch(e){}ST._tplLipat=m;}return ST._tplLipat;}
+function tplLipatSimpan(){try{LS.setItem('roveTplLipat',JSON.stringify(ST._tplLipat||{}));}catch(e){}}
 function tplLipatKunci(o,l,g){return o.id+'|'+String(l.produk||'')+'|'+g;}
 function tplTerlipat(o,l,g,kurang){var v=tplLipatBaca()[tplLipatKunci(o,l,g)];return (v===true||v===false)?v:!kurang;}
 function tplLipat(id,li,g,on){var T=tplCariO(id,li);if(!T)return;var M=tplLipatBaca(),k=tplLipatKunci(T.o,T.l,g);
@@ -27077,8 +27135,10 @@ document.addEventListener('keydown',function(e){
   if(!t||t.tagName!=='INPUT')return;
   if(t.type==='checkbox'||t.type==='radio'||t.type==='button'||t.type==='submit')return;
   try{t.blur();}catch(err){}});
+LS.siapkan(function(){   /* patch207: data perangkat dibaca dulu dari IndexedDB */
 load();try{adminTerapkanFakta(false,true);}catch(e){}render();fetchCatalog();cloudAutoLoad();startCloudPoll();
 try{sinkronBadge();}catch(e){}
+try{LS.perkiraan(function(){try{if(ST.user&&ST.view==='tasks')render();}catch(e){}});}catch(e){}
 setTimeout(checkDeadlines,4000);
 setTimeout(function(){
   var n=0;
@@ -27090,6 +27150,7 @@ setTimeout(function(){
   try{n+=jalankanIngatKonten();}catch(e){}
   try{n+=spareSinkronSemua();}catch(e){}
   if(n)render();},6000);
+});
 </script>
 </body>
 </html>
