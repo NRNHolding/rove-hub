@@ -1063,7 +1063,7 @@ const KEY='rovehub_orders_v18';
 /* ================= VERSI YANG SEDANG BERJALAN =================
    Diisi otomatis oleh terbitkan.js waktu salinan ini diterbitkan; '-' berarti
    dibuka langsung dari berkas, bukan dari alamat terbitannya. */
-const VERSI='20261113-105020';
+const VERSI='20261113-122133';
 /* Berkas versi.txt di sebelah halaman ini berisi penanda yang sama. Ia
    ditanyakan tanpa cache, jadi ia jujur walau halamannya sendiri masih
    tersimpan di cache browser. */
@@ -1443,6 +1443,7 @@ const EN_RULES=[
 
 /* Kamus persis. Kunci = teks Indonesia apa adanya yang muncul di layar. */
 const EN={
+'Lihat':'View','Sambungan bermasalah':'Connection problem','belum dimuat':'not loaded yet','Kesehatan sistem':'System health','Rincian':'Details','Pulihkan…':'Restore…','Atur…':'Settings…','Cadangan':'Backup','Error':'Errors','Arsip':'Archive','perangkat ini':'this device','server':'server','Tersambung ke server':'Connected to the server','Belum tersambung ke server':'Not connected to the server','katalog belum tersambung':'catalogue not connected','butuh Code.gs 2.4':'needs Code.gs 2.4','tersimpan':'stored','order di arsip':'orders archived','diarsip sesudah':'archived after','hari tak disentuh':'days untouched','error dalam 7 hari terakhir':'errors in the last 7 days','✓ tidak ada error 7 hari terakhir':'✓ no errors in the last 7 days','belum ada — dibuat saat simpan pertama tiap hari':'none yet — made on the first save each day','aktif dengan Code.gs 2.4':'active with Code.gs 2.4','gagal memuat':'failed to load','⚙ Alat lanjutan':'⚙ Advanced tools','— sambungan server, Muat dari Discord, data contoh':'— server connection, Load from Discord, sample data','Diisi sendiri — alamat ini yang dipakai.':'Filled in manually — this address is used.','Berkas besar masuk folder Drive “ROVE HUB / order”, HUB menyimpan tautannya.':'Large files go to the Drive folder “ROVE HUB / order”; HUB keeps the link.','Link …/exec dari proyek Apps Script':'The …/exec link from the Apps Script project','; token = password Cost Estimator.':'; token = the Cost Estimator password.',
 'Catatan error perangkat':'Device error log','Muat catatan':'Load log','Kosongkan':'Clear','✓ Tak ada error tercatat.':'✓ No errors logged.',
 'Cadangan harian':'Daily backup','Lihat cadangan':'View backups','Pulihkan':'Restore','⧉ Repeat order':'⧉ Repeat order','Muat isi lengkap':'Load full order',
 '📦 arsip — klik untuk memuat':'📦 archived — click to load','Order di arsip server':'Orders in server archive',
@@ -2916,9 +2917,7 @@ function dataUriHitung(x,acc,d){acc=acc||{n:0,b:0};d=d||0;if(!x||d>12)return acc
   if(typeof x==='object')for(var k in x){if(Object.prototype.hasOwnProperty.call(x,k))dataUriHitung(x[k],acc,d+1);}return acc;}
 function mbTeks(n){n=+n||0;if(n>=1073741824)return (n/1073741824).toFixed(1).replace('.',',')+' GB';return (n/1048576).toFixed(n<1048576?2:1).replace('.',',')+' MB';}
 function penyimpananKartu(){
-  var L=lsPakai(),kuota=LS_KUOTA,pakai=L.t,est=LS.aktif?LS.est:null;
-  if(LS.aktif){kuota=(est&&est.quota)?est.quota:0;pakai=(est&&est.usage)?est.usage:L.t;}   /* patch207: IndexedDB — kapasitas dari browser */
-  var pct=kuota?Math.min(100,Math.round(pakai/kuota*100)):0,warna=pct>=85?'var(--red)':(pct>=60?'var(--warn)':'var(--ok)');
+  var U=penyimpananUkur(),L=U.L,kuota=U.kuota,pakai=U.pakai,pct=U.pct,warna=U.warna;
   var pO=L.per[KEY]||0,pL=L.per['rovehub_leads_v1']||0,pM=L.per['rovehub_master']||0,pX=Math.max(0,L.t-pO-pL-pM);
   var O=(ST.orders||[]).filter(function(o){return o&&!o.deleted;}),Ld=[];try{Ld=(leadsAll()||[]).filter(function(l){return l&&!l.deleted;});}catch(e){}
   var G=dataUriHitung(O),GL=dataUriHitung(Ld),selesai=O.filter(function(o){return !!o.done;}).length;
@@ -2937,6 +2936,62 @@ function penyimpananKartu(){
     (besar.length?('<div style="font-size:11px;font-weight:800;color:var(--ink-soft);margin:9px 0 3px">Order terbesar</div>'+besar.map(function(x){
       return '<div style="display:flex;gap:8px;align-items:center;font-size:11px;padding:2px 0;cursor:pointer" onclick="openOrder('+jsArg(x.o.id)+')"><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(x.o.customer||x.o.id)+'</span>'+
         '<span style="color:var(--muted)">'+x.g+' gambar</span><b>'+mbTeks(x.z)+'</b></div>';}).join('')):'')+'</div>';}
+/* ============ PANEL HOLDING RINGKAS (patch211, 13 Nov) ============
+   Satu baris status + satu kotak "Kesehatan sistem" (penyimpanan, cadangan, error, arsip — rincian dibuka per baris);
+   sambungan server, Muat dari Discord, dan data contoh dilipat di "Alat lanjutan". */
+function penyimpananUkur(){var L=lsPakai(),kuota=LS_KUOTA,pakai=L.t,est=LS.aktif?LS.est:null;
+  if(LS.aktif){kuota=(est&&est.quota)?est.quota:0;pakai=(est&&est.usage)?est.usage:L.t;}   /* patch207: IndexedDB — kapasitas dari browser */
+  var pct=kuota?Math.min(100,Math.round(pakai/kuota*100)):0;
+  return {L:L,kuota:kuota,pakai:pakai,est:est,pct:pct,warna:pct>=85?'var(--red)':(pct>=60?'var(--warn)':'var(--ok)')};}
+/* kotak masuk administrasi tampil di luar lipatan hanya bila ada yang perlu diputus / diterapkan */
+function holdingAdaUsulan(){try{var U=adminUsulanTerbuka().filter(function(u){return !adminPutusan(u.id);}),F=adminFaktaStatus();
+  return U.length>0||!!(F&&F.siap&&F.siap.length);}catch(e){return true;}}
+function holdingStatusBaris(){var c=ST.cfg||{},live=!!(c.live&&c.url),st=String(ST.cloudStatus||''),masalah=live&&/🔒|gagal|sibuk|menolak|tak tersambung|error/i.test(st),n=(typeof CATALOG_LIVE!=='undefined'&&CATALOG_LIVE&&CATALOG_LIVE.length)||0,tt='<span style="color:var(--muted)"> · </span>';
+  var h=(!live?'<b style="color:var(--warn)">Belum tersambung ke server</b>':(masalah?'<b style="color:var(--warn)">Sambungan bermasalah</b>':'<b>Tersambung ke server</b>'))+
+    ((live&&ST._rilis)?(tt+'<span>Code.gs</span> <b>'+esc(ST._rilis)+'</b>'):'')+
+    tt+(n?('<span>katalog</span> <b>'+n+'</b> <span>produk</span>'):'<span style="color:var(--warn)">katalog belum tersambung</span>')+
+    ((live&&ST.cloudStatus)?(tt+'<span style="color:var(--muted);font-weight:400">'+esc(ST.cloudStatus)+'</span>'):'');
+  return '<div class="rcard" data-f="holdingStatus" style="max-width:660px;padding:11px 14px"><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:12px">'+
+    '<span style="width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:3px;background:'+((live&&!masalah)?'var(--ok)':'var(--warn)')+'"></span>'+h+'</div></div>';}
+function kesBuka(k){ST._kesBuka=ST._kesBuka||{};ST._kesBuka[k]=!ST._kesBuka[k];render();}
+/* rincian = kartu lama tanpa bingkai & judulnya */
+function kesRincian(h){return String(h||'').replace(/^<div class="rcard"([^>]*?) style="max-width:660px"><h3>[\s\S]*?<\/h3>/,'<div$1>');}
+function kesehatanKartu(){
+  var B=ST._kesBuka||{},r24=rilis24(),M=ST._kesMuat=ST._kesMuat||{},U=penyimpananUkur();
+  /* daftar cadangan & catatan error dimuat sekali per sesi, supaya ringkasannya langsung terisi */
+  if(r24&&kredGet()&&ST.cfg&&ST.cfg.url){
+    if(!ST._cadangan&&!M.cad){M.cad=1;setTimeout(function(){try{cadanganMuat();}catch(e){}},0);}
+    if(!ST._galat&&!M.gal){M.gal=1;setTimeout(function(){try{galatMuat();}catch(e){}},0);}}
+  var redup=function(t){return '<span style="color:var(--muted)">'+t+'</span>';},
+      oke=function(t){return '<b style="color:var(--ok)">'+t+'</b>';},
+      merah=function(t){return '<span style="color:var(--red)">'+esc(t)+'</span>';},
+      dua4=redup('butuh Code.gs 2.4');
+  var sSimpan='<span style="display:inline-block;width:90px;height:7px;border-radius:5px;background:var(--line);overflow:hidden;vertical-align:middle;margin-right:7px"><span style="display:block;height:100%;width:'+U.pct+'%;background:'+U.warna+'"></span></span>'+
+    '<span>perangkat ini</span> <b style="color:'+U.warna+'">'+U.pct+'%</b>'+(ST._dbUkuran?(' · <span>server</span> <b>'+mbTeks(ST._dbUkuran)+'</b>'):'');
+  var d=ST._cadangan,sCad;
+  if(!r24)sCad=dua4;
+  else if(!d)sCad=redup(M.cad?'memuat…':'belum dimuat');
+  else if(!d.ok)sCad=merah(d.error||'gagal memuat');
+  else if(!(d.daftar||[]).length)sCad=redup('belum ada — dibuat saat simpan pertama tiap hari');
+  else sCad=oke('✓')+' <span>terakhir</span> <b>'+esc(String(d.daftar[0].nama||'').replace(/^rovehub_db_|\.json$/g,''))+'</b> · <b>'+d.daftar.length+'</b> <span>tersimpan</span>';
+  var g=ST._galat,sGal;
+  if(!r24)sGal=dua4;
+  else if(!g)sGal=redup(M.gal?'memuat…':'belum dimuat');
+  else if(!g.ok)sGal=merah(g.error||'gagal memuat');
+  else{var batas=Date.now()-7*86400000,baru=(g.daftar||[]).filter(function(x){return (+x.t||0)>=batas;});
+    sGal=baru.length?('<b style="color:var(--warn)">⚠ '+baru.length+'</b> <span>error dalam 7 hari terakhir</span>'):oke('✓ tidak ada error 7 hari terakhir');}
+  var nA=(ST.orders||[]).filter(function(o){return o&&!o.deleted&&o._arsip;}).length,
+      sArs=r24?('<b>'+nA+'</b> <span>order di arsip</span> · <span>diarsip sesudah</span> <b>'+(ST._arsipHari||30)+'</b> <span>hari tak disentuh</span>'):redup('aktif dengan Code.gs 2.4');
+  var tb=function(k,t){return '<button class="btn ghost sm" data-f="kesBuka_'+k+'" onclick="kesBuka('+jsArg(k)+')">'+(B[k]?'Tutup':t)+'</button>';};
+  var R=[['simpan','💾','Penyimpanan',sSimpan,tb('simpan','Rincian'),penyimpananKartu],
+         ['cad','🗂','Cadangan',sCad,r24?tb('cad','Pulihkan…'):'',cadanganKartu],
+         ['gal','⚠','Error',sGal,r24?tb('gal','Lihat'):'',galatKartu],
+         ['arsip','📦','Arsip',sArs,r24?'<button class="btn ghost sm" data-f="kesArsipAtur" onclick="arsipAtur()">Atur…</button>':'',null]];
+  return '<div class="rcard" data-f="kesehatanKartu" style="max-width:660px"><h3>Kesehatan sistem</h3>'+R.map(function(r,i){
+    return '<div data-f="kes_'+r[0]+'" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 0;font-size:12px'+(i?';border-top:1px solid var(--line)':'')+'">'+
+      '<span style="width:20px;text-align:center">'+r[1]+'</span><b style="min-width:92px">'+r[2]+'</b>'+
+      '<span style="flex:1;min-width:180px;font-size:11.5px;color:var(--ink-soft)">'+r[3]+'</span>'+r[4]+'</div>'+
+      ((B[r[0]]&&r[5])?('<div data-f="kesIsi_'+r[0]+'" style="padding:0 0 10px 30px">'+kesRincian(r[5]())+'</div>'):'');}).join('')+'</div>';}
 /* ============ SERVER 2.4 (patch209) ============ */
 function rilis24(){return parseFloat(ST._rilis||'0')>=2.4;}
 function cekRilis(){var c=ST.cfg||{};if(!c.url)return;try{fetch(c.url).then(function(r){return r.json();}).then(function(d){
@@ -10595,16 +10650,15 @@ function renderMaster(){
      /* Satu client = dua baris tabel. Tanpa pemisah, empat client terbaca
         seperti satu daftar kolom yang mengalir. Tiap client kini "berkartu":
         baris atasnya berpita warna + latar, ada jarak kosong antar client. */
-     var sep='<tr aria-hidden="true"><td colspan="'+(colsAtas.length+3)+'" style="border:none;height:16px;padding:0;background:transparent"></td></tr>';
+     var sep='<tr aria-hidden="true"><td colspan="'+(colsAtas.length+2)+'" style="border:none;height:16px;padding:0;background:transparent"></td></tr>';
      var baris=idx.map(function(i,n){var r=all[i];
        var redup=r._del?';opacity:.55':'';
        var latar=r._del?'var(--warn-bg)':'var(--bg)';
        var atas='<tr style="background:'+latar+redup+'">'+
          colsAtas.map(function(c,ci){return '<td'+(ci===0?' style="border-left:3px solid var(--brand)"':'')+'>'+kotak(c,i,r)+'</td>';}).join('')+
-         '<td>'+klienSel(i)+'</td>'+
          '<td style="font-size:9px;color:var(--muted)">'+fmtStamp(r)+'</td>'+actCell('customers',i,r)+'</tr>';
        var bawahCols=(r.tipe==='Wedding'?colsWed:[]).concat(colsBawah);
-       var bawah='<tr'+(r._del?' style="opacity:.55;background:var(--warn-bg)"':'')+'><td colspan="'+(colsAtas.length+3)+'" style="padding-top:6px;border-left:3px solid var(--brand);border-bottom:2px solid var(--brand)">'+
+       var bawah='<tr'+(r._del?' style="opacity:.55;background:var(--warn-bg)"':'')+'><td colspan="'+(colsAtas.length+2)+'" style="padding-top:6px;border-left:3px solid var(--brand);border-bottom:2px solid var(--brand)">'+
          '<div style="display:flex;flex-wrap:wrap;gap:7px 10px">'+
          bawahCols.map(function(c){
            return '<div style="flex:'+(lebarBawah[c[0]]||'1 1 130px')+';min-width:0">'+
@@ -10615,7 +10669,7 @@ function renderMaster(){
      return `<div class="rcard"><h3>Customers (${all.length})</h3>
      <div style="font-size:10.5px;color:var(--muted);margin-bottom:9px"><b>Terisi otomatis</b> tiap Sales membuat inquiry baru. <b>Alamat kirim</b> = tujuan paket; <b>Alamat client/kantor</b> = alamat penagihan/kantor. <b>Lokasi</b> memisahkan client HQ (Indonesia) dan AU (Australia).<br>Jenis <b>Wedding</b> punya kolom <b>Bride</b> &amp; <b>Groom</b> terpisah — kolom <b>Nama/akun</b> terisi otomatis “Bride &amp; Groom”.</div>
      <div style="margin-bottom:11px">${CT.map(tab).join('')}</div>
-     ${idx.length?`<div class="xscroll"><table class="rtable" style="table-layout:fixed"><thead><tr>${colsAtas.map(function(c){return '<th style="font-size:9px;white-space:normal;line-height:1.2;padding:6px 4px;overflow-wrap:anywhere">'+c[1]+'</th>';}).join('')}<th style="width:96px;font-size:9px;padding:6px 4px">Link portal</th><th style="width:86px;font-size:9px;padding:6px 4px">Diubah</th><th style="width:38px"></th></tr></thead><tbody>${baris}</tbody></table></div>`
+     ${idx.length?`<div class="xscroll"><table class="rtable" style="table-layout:fixed"><thead><tr>${colsAtas.map(function(c){return '<th style="font-size:9px;white-space:normal;line-height:1.2;padding:6px 4px;overflow-wrap:anywhere">'+c[1]+'</th>';}).join('')}<th style="width:86px;font-size:9px;padding:6px 4px">Diubah</th><th style="width:38px"></th></tr></thead><tbody>${baris}</tbody></table></div>`
        :'<div style="color:var(--muted);font-size:11px;padding:6px 0">Belum ada customer pada jenis ini.</div>'}
      <button class="btn ghost sm" style="margin-top:9px" onclick="mAdd('customers')">＋ Tambah customer${(f!=='ALL')?(' '+f):''}</button>
      ${(f==='ALL')?'<span style="font-size:9.5px;color:var(--muted);margin-left:8px">ALL menampilkan semua jenis — customer baru dari sini masuk <b>Corporate</b>. Buka tab jenisnya dulu kalau mau langsung tepat.</span>':''}
@@ -11206,55 +11260,44 @@ function renderTasks(){
   /* Direktur menjawab dua pertanyaan berbeda, jadi daftarnya juga dua. */
   const akuDirektur=(myRoles().indexOf('Direktur Utama')>=0);
   if(role==='Holding'){
+    var adaUsulan=holdingAdaUsulan(),alatBuka=!!(ST._alatBuka||!(ST.cfg&&ST.cfg.url));
     $('#main').innerHTML=`
      <div class="topbar"><h1>Panel Holding</h1><span class="demo">Admin sistem</span></div>
-     ${tabNote('Halaman khusus Holding. Di sini kamu <b>menyambungkan HUB ke Discord, Cost Estimator, dan penyimpanan cloud</b>. Pengaturan lain (akun, hak akses, database) ada di menu <b>Master data</b>.')}
-     <div class="rcard" style="max-width:660px"><h3>Kamu admin sistem — di luar alur order</h3>
-       <div style="font-size:12px;color:var(--muted);line-height:1.7">Holding tidak menerima tugas order (puncak alur order = <b>Direktur Utama</b>). Peranmu: kelola database, akses per jabatan, dan laporan/evaluasi.</div>
-       <div style="display:flex;gap:9px;margin-top:14px;flex-wrap:wrap">
-         <button class="btn" onclick="ST.view='report';ST.cur=null;render()">▤ Buka Laporan</button>
-         <button class="btn ghost" onclick="ST.view='board';ST.cur=null;render()">▦ Lihat Pipeline</button>
-       </div>
-     </div>
-${penyimpananKartu()}${cadanganKartu()}${galatKartu()}
-${muatDcSitusUji()?'':`     <div class="rcard" style="max-width:660px"><h3>Data uji — contoh order</h3>
+${holdingStatusBaris()}${kesehatanKartu()}${adaUsulan?adminInboxAman():''}
+     <details class="rcard" data-f="alatLanjut" style="max-width:660px"${alatBuka?' open':''} ontoggle="ST._alatBuka=this.open"><summary style="font-weight:800;font-size:13px;cursor:pointer">⚙ Alat lanjutan <span style="font-weight:400;color:var(--muted);font-size:11px">— sambungan server, Muat dari Discord, data contoh</span></summary>
+     <div style="margin-top:12px">
+${muatDcSitusUji()?'':`     <div class="rcard" style="max-width:none;box-shadow:none;margin:0 0 10px"><h3>Data uji — contoh order</h3>
        <div style="font-size:11.5px;color:var(--muted);margin-bottom:9px;line-height:1.6">Satu client wedding (<b>Sarah &amp; Kevin</b> — 100 pcs produk katalog (Irvine Card Wallet kalau ada di katalog), box + soft pouch + thank you card dengan logo yang sama, add-on logo, engrave 3 nama, live calligraphy) dengan data <b>persis sama</b> di ${PH.length} kartu: satu kartu per fase, tiap kartu terisi lengkap sampai fase kartunya sendiri (semua harga vendor tercatat, semua persetujuan ada) — tinggal tombol Selesai. Logo Rove asli: monogram di produk, ROVE GIFTS di kemasan. Harga vendor sengaja beda dari katalog. Ikut dimuat: <b>${CONTOH_LIVE.length} acara contoh</b> untuk menu <b>Live service</b> (client berbeda: sudah lewat &amp; fee diajukan, H-2, H-5 persiapan telat, dua acara setanggal dengan operator yang sama = bentrok, H-12 belum ada operator — tanggalnya selalu dihitung dari hari ini) dan <b>spare 5%</b> kartu contoh yang masuk Gudang otomatis. Isinya karangan; kartu contoh lama diganti, order lain tak disentuh.</div>
        <button class="btn sm" onclick="seedContohMuat()">＋ Muat contoh order — 1 client × ${PH.length} fase</button> <button class="btn ghost sm" onclick="if(confirm('Hapus semua kartu contoh Sarah & Kevin?'))seedContohHapus()">Hapus kartu contoh</button>
        <div style="font-size:11.5px;color:var(--muted);margin:12px 0 8px;line-height:1.6"><b>Contoh data keuangan</b> (angka karangan): saldo saat ini, kas &amp; bank, biaya rutin bulan ini yang sudah dibayar, dua baris manual — supaya Cashflow projection &amp; Kas &amp; bank punya gambaran sehat. Ikut dimuat bersama kartu contoh bila data keuangan masih kosong; <b>otomatis dikosongkan</b> saat HUB ditandai dipakai sungguhan (Integrasi backend).</div>
        <button class="btn sm" onclick="finContohMuat()">＋ Muat contoh keuangan</button> <button class="btn ghost sm" onclick="finKosongkanTombol()">Kosongkan data keuangan</button>
      </div>
 `}
-${adminInboxAman()}
-     <div class="rcard" style="max-width:660px"><h3>Muat dari Discord</h3>
+${adaUsulan?'':adminInboxAman()}
+     <div class="rcard" style="max-width:none;box-shadow:none;margin:0 0 10px"><h3>Muat dari Discord</h3>
        <div style="font-size:11.5px;color:var(--muted);margin-bottom:9px;line-height:1.6">Kartu order dibuat dari berkas <b>muat-discord.json</b> — hasil pembacaan ekspor channel Discord (chat, invoice, cash receipt, lembar inquiry) oleh skrip di folder Dropbox <i>HUB - Sistem &amp; integrasi / Ekspor Discord</i>. Berkas yang sama membawa pelengkap dari server Radja dan pembaruan dari konfirmasi PM. Kartu yang sudah pernah dimuat dilewati; yang mirip kartu yang ada ditandai. ${muatDcSitusUji()?'Pilih berkasnya dari folder Dropbox itu di komputer ini; hasilnya langsung tersinkron ke semua yang membuka HUB. Lampiran (foto, PDF) tetap tersimpan di Dropbox, jadi tautannya hanya terbuka di komputer yang punya folder itu. Selama masa transisi Discord → HUB, lihat laporan <b>Kemungkinan kartu dobel</b> (Laporan → Kontrol).':'Dengan mode live menyala, kartunya tersinkron ke situs yang dipakai tim.'}</div>
        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><input type="file" id="muatdcfile" accept=".json,application/json" onchange="muatDcPilihBerkas(this)" style="font-size:11px;max-width:300px">${muatDcSitusUji()?'':' <button class="btn ghost sm" onclick="muatDcContohTampil()">Lihat contoh (data karangan)</button>'}</div>
        <div id="muatdcpanel">${muatDcPanelHTML()}</div>
      </div>
-     <div class="rcard" style="max-width:660px"><h3>Integrasi backend (Discord / Trello)</h3>
+     <div class="rcard" style="max-width:none;box-shadow:none;margin:0 0 10px"><h3>Integrasi backend (Discord / Trello)</h3>
        <div style="font-size:11.5px;color:var(--muted);margin-bottom:11px;line-height:1.6">Tempel URL Apps Script Web App (yang meneruskan ke relay Discord/Trello). Saat <b>mode live</b> aktif, aksi <b>Generate PO</b> &amp; <b>trigger fase</b> dikirim ke backend. Kosong = tetap simulasi lokal.</div>
        <label class="nlbl">Apps Script Web App URL</label>
        <input class="pin" id="cfgurl" value="${esc(ST.cfg&&ST.cfg.url)}" placeholder="https://script.google.com/macros/s/.../exec" style="margin:4px 0 11px">
-       ${BACKEND_BAWAAN?`<div style="font-size:10px;color:var(--ink-soft);line-height:1.6;margin:-7px 0 11px;border-left:3px solid var(--brand);padding:6px 10px;background:var(--bg);border-radius:0 7px 7px 0">Salinan ini punya <b>backend bawaan</b>, jadi siapa pun yang membuka linknya langsung ikut sinkron tanpa menyetel apa-apa. ${(ST.cfg&&ST.cfg._bawaan)?'Kotak di atas terisi dari sana.':'Kotak di atas kamu isi sendiri, dan itu yang dipakai.'}<br>Backend ini <b>tanpa kata sandi</b> dan sekarang berisi data order sungguhan. Alamatnya ikut terbit di situs, jadi siapa pun yang mengetahuinya bisa membaca datanya — jangan bagikan alamat ini di luar tim.</div>`:''}
+       ${BACKEND_BAWAAN?`<div style="font-size:10px;color:var(--muted);margin:-7px 0 11px">${(ST.cfg&&ST.cfg._bawaan)?'Terisi otomatis dari backend bawaan.':'Diisi sendiri — alamat ini yang dipakai.'}</div>`:''}
        <label style="font-size:12px;display:flex;align-items:center;gap:8px;margin-bottom:11px"><input type="checkbox" id="cfglive" ${(ST.cfg&&ST.cfg.live)?'checked':''} style="width:auto;accent-color:var(--brand)"> Mode live (kirim ke backend)</label>
-       <label style="font-size:12px;display:flex;align-items:flex-start;gap:8px;margin-bottom:4px"><input type="checkbox" id="cfgdipakai" ${hubDipakai()?'checked':''}${muatDcSitusUji()?' disabled':''} style="width:auto;accent-color:var(--brand);margin-top:2px"> <span>HUB sudah dipakai order sungguhan<div style="font-size:10px;color:var(--muted);font-weight:400;line-height:1.55">Nyalakan sekali waktu HUB mulai mengurus order betulan. Sejak itu alat coba-coba — seperti tombol <b>mundur ke fase sebelumnya</b> — hilang, supaya order yang berjalan tak bisa dimundurkan sampai channel dan dokumennya tak cocok lagi.</div></span></label>
-       <label style="font-size:12px;display:flex;align-items:flex-start;gap:8px;margin:8px 0 10px"><input type="checkbox" id="cfgdrive" ${(ST.cfg&&ST.cfg.drive)?'checked':''} style="width:auto;accent-color:var(--brand);margin-top:2px"> <span>Unggah berkas besar (&gt; 4 MB) ke Google Drive lewat backend<div style="font-size:10px;color:var(--muted);font-weight:400;line-height:1.55">Berkas ratusan MB (artwork, video) tak muat disimpan di HUB maupun Discord (batas 10 MB). Kalau dicentang <b>dan</b> Apps Script backend sudah punya aksi <b>drive.ping / drive.sesi / drive.selesai</b> (Code.gs versi 15 Sep 2026, izin Google Drive), berkas besar yang diunggah di kotak mana pun dikirim langsung ke folder Drive "ROVE HUB / &lt;order&gt;", dibagikan "siapa saja yang punya link", dan HUB menyimpan tautannya — vendor membukanya lewat tautan itu (ikut tercantum di spesifikasi RFQ). Backend uji bawaan sudah melayani Drive (folder "ROVE HUB" di Drive akun pemilik backend); backend lain perlu Code.gs yang sama. Tanpa ini: unggah manual ke Drive lalu tempel tautannya lewat 🔗 di tiap kotak unggah. <button class="btn ghost sm" onclick="driveUji()" style="margin-top:5px">☁ Uji sambungan Drive</button></div></span></label>
+${muatDcSitusUji()?'':`       <label style="font-size:12px;display:flex;align-items:flex-start;gap:8px;margin-bottom:4px"><input type="checkbox" id="cfgdipakai" ${hubDipakai()?'checked':''} style="width:auto;accent-color:var(--brand);margin-top:2px"> <span>HUB sudah dipakai order sungguhan<div style="font-size:10px;color:var(--muted);font-weight:400;line-height:1.55">Nyalakan sekali waktu HUB mulai mengurus order betulan. Sejak itu alat coba-coba — seperti tombol <b>mundur ke fase sebelumnya</b> — hilang, supaya order yang berjalan tak bisa dimundurkan sampai channel dan dokumennya tak cocok lagi.</div></span></label>`}
+       <label style="font-size:12px;display:flex;align-items:flex-start;gap:8px;margin:8px 0 10px"><input type="checkbox" id="cfgdrive" ${(ST.cfg&&ST.cfg.drive)?'checked':''} style="width:auto;accent-color:var(--brand);margin-top:2px"> <span>Unggah berkas besar (&gt; 4 MB) ke Google Drive lewat backend <span title="Berkas ratusan MB (artwork, video) tak muat di HUB maupun Discord (batas 10 MB). Kalau dicentang, berkas besar dari kotak unggah mana pun dikirim ke folder Drive ROVE HUB / order, dibagikan ke siapa saja yang punya link, dan tautannya ikut tercantum di spesifikasi RFQ. Tanpa ini: unggah manual ke Drive lalu tempel tautannya lewat 🔗 di tiap kotak unggah." style="cursor:help;color:var(--muted)">ⓘ</span><div style="font-size:10px;color:var(--muted);font-weight:400;line-height:1.55">Berkas besar masuk folder Drive “ROVE HUB / order”, HUB menyimpan tautannya. <button class="btn ghost sm" onclick="driveUji()" style="margin-top:5px">☁ Uji sambungan Drive</button></div></span></label>
        <label class="nlbl">Katalog Cost Estimator — URL Apps Script <b>Rove Backend</b> (…/exec)</label>
        <input class="pin" id="cfgcatalog" value="${esc(ST.cfg&&ST.cfg.catalogUrl)}" placeholder="https://script.google.com/macros/s/…/exec" style="margin:4px 0 4px">
        <label class="nlbl" style="margin-top:6px;display:block">Token baca Cost Estimator</label>
        <input class="pin" id="cfgcattoken" value="${esc(ST.cfg&&ST.cfg.catalogToken)}" placeholder="password Cost Estimator (TOKEN_READ di Code.gs)" style="margin:4px 0 4px;max-width:320px">
-       <div style="font-size:10px;color:var(--ink-soft);line-height:1.6;margin:2px 0 6px;border-left:3px solid var(--brand);padding:6px 10px;background:var(--bg);border-radius:0 7px 7px 0">
-         <b>Dari mana linknya:</b> script.google.com → proyek <b>Rove Backend</b> (backend Cost Estimator) → Deploy → Manage deployments → <b>Web app URL</b> (…/exec). Link yang sama dipakai app Cost Estimator &amp; Admin-nya — ada juga di <i>1. Cost Estimator APP Indo → 4. Backend Prototype → PANDUAN DEPLOY.md</i>.<br>         <b>Token baca</b> = password Cost Estimator (baris <code>TOKEN_READ</code> di Code.gs) — bukan password admin. HUB menyusun <code>?t=TOKEN&amp;data=1</code> sendiri; boleh juga tempel URL lengkapnya. Backend uji HUB tak punya katalog — tanpa link ini pakai <b>Impor dari file JSON</b> di Master Product.</div>
+       <div style="font-size:10px;color:var(--muted);margin:2px 0 6px">Link …/exec dari proyek Apps Script <b>Rove Backend</b>; token = password Cost Estimator. <span title="Dari mana linknya: script.google.com → proyek Rove Backend → Deploy → Manage deployments → Web app URL (…/exec). Link yang sama dipakai app Cost Estimator dan Admin-nya. Token baca = password Cost Estimator (TOKEN_READ di Code.gs), bukan password admin. Tanpa link ini: Impor dari file JSON di Master Product." style="cursor:help">ⓘ</span></div>
        <div style="font-size:10px;color:${(CATALOG_LIVE&&CATALOG_LIVE.length)?'var(--ok)':'var(--warn)'};word-break:break-word">${(CATALOG_LIVE&&CATALOG_LIVE.length)?'● katalog live: '+CATALOG_LIVE.length+' produk':(ST.catStatus?('… '+esc(ST.catStatus)):'○ pakai katalog mock (belum tersambung)')}</div>
        <button class="btn ghost sm" style="margin-top:8px" onclick="syncEstMaster()">↻ Muat ulang katalog</button> <span style="font-size:9px;color:var(--muted)">tarik produk + collateral ke master HUB</span>
-       <label class="nlbl" style="margin-top:13px;display:block">Cloud DB (Worker /db URL) — simpan semua order & master</label>
-       <input class="pin" id="cfgdb" value="${esc(ST.cfg&&ST.cfg.dbUrl)}" placeholder="https://rove-discord.xxx.workers.dev/db" style="margin:4px 0 4px">
-       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:4px">
+       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:13px">
          <button class="btn ghost sm" onclick="cloudSave();var b=document.getElementById('cloudstat');if(b)b.textContent='mengirim…'">☁︎ Simpan ke cloud</button>
          <button class="btn ghost sm" onclick="cloudLoad()">⭳ Muat dari cloud</button>
          <span id="cloudstat" style="font-size:9.5px;color:var(--muted)">${esc(ST.cloudStatus||'auto-simpan tiap ada perubahan (mode live)')}</span></div>
-       <label class="nlbl" style="margin-top:13px;display:block">Portal client (URL halaman Klien.html)</label>
-       <input class="pin" id="cfgklien" value="${esc(ST.cfg&&ST.cfg.klienUrl)}" placeholder="https://rove.github.io/hub/Klien.html" style="margin:4px 0 4px">
-       <div style="font-size:10px;color:var(--muted)">Dipakai tombol <b>🔗 Buat link</b> di Master data → Customers. Halaman ini <b>hanya</b> menampilkan progres order milik client pemegang link — datanya disaring di Worker, bukan di browser client.</div>
 
 ${muatDcSitusUji()?contohBawaanPanelHTML():`       <div style="margin-top:16px;border-top:1px solid var(--line);padding-top:13px">
          <div style="font-weight:800;font-size:11.5px;margin-bottom:4px">Siap dipakai produksi?</div>
@@ -11265,7 +11308,8 @@ ${muatDcSitusUji()?contohBawaanPanelHTML():`       <div style="margin-top:16px;b
 `}
        <div style="margin-top:13px;display:flex;gap:10px;align-items:center;flex-wrap:wrap"><button class="btn" onclick="saveCfg()">Simpan</button>
          <span style="font-size:11px;font-weight:700;color:${(ST.cfg&&ST.cfg.live&&ST.cfg.url)?'var(--ok)':'var(--muted)'}">${(ST.cfg&&ST.cfg.live&&ST.cfg.url)?'● Live — terhubung ke backend':'○ Simulasi (belum live)'}</span></div>
-     </div>`;
+     </div>
+     </div></details>`;
     return;
   }
   $('#main').innerHTML=`
