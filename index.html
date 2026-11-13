@@ -1063,7 +1063,7 @@ const KEY='rovehub_orders_v18';
 /* ================= VERSI YANG SEDANG BERJALAN =================
    Diisi otomatis oleh terbitkan.js waktu salinan ini diterbitkan; '-' berarti
    dibuka langsung dari berkas, bukan dari alamat terbitannya. */
-const VERSI='20261111-153841';
+const VERSI='20261113-105020';
 /* Berkas versi.txt di sebelah halaman ini berisi penanda yang sama. Ia
    ditanyakan tanpa cache, jadi ia jujur walau halamannya sendiri masih
    tersimpan di cache browser. */
@@ -1110,9 +1110,8 @@ function versiPita(baru){
    sendiri. Diisi = siapa pun yang membuka link langsung ikut sinkron; dikosongi
    = tiap orang menempel URL-nya sendiri di Holding -> Integrasi.
 
-   HANYA untuk backend UJI (berkas data rovehub_db_UJI.json, tanpa token Discord
-   maupun Trello). Repo ini publik: siapa pun yang menemukannya bisa membaca dan
-   menulis data di sana, jadi isinya harus data karangan saja. */
+   Backend berkunci (versi 2+, login akun): data tak terbaca tanpa akun. Repo ini
+   publik, jadi yang tak boleh masuk ke sini tetap: token, rahasia, tanda tangan asli. */
 const BACKEND_BAWAAN='https://script.google.com/macros/s/AKfycbyA4XqxToQ9_BCi2IkhPXJEBp3jJxgf7reJ-SDTlFCbwbw8Pl627dNxvkfNAPMNg9qA/exec';
 /* 12 Okt 2026: backend berkunci (versi 2) memakai deployment baru — alamat bawaan lama dipindah sendiri.
    Backend di alamat lama tak lagi memegang data (berkasnya dipindah oleh versi 2.1). */
@@ -2698,17 +2697,10 @@ function sesiHapus(k){
 function modeUji(){
   try{return /\.github\.io$/i.test(location.hostname||'');}catch(e){return false;}}
 function pitaUji(){
-  /* Dulu pita merah selebar layar, menempel di bawah selamanya — mengganggu
-     justru orang yang paling sering memakainya. Kini satu baris kecil di kaki
-     sidebar: tetap terbaca, tak menutupi apa pun. */
-  if(!modeUji())return;
-  if(document.getElementById('pitauji'))return;
-  var f=document.querySelector('.side .foot');if(!f)return;
-  var d=document.createElement('div');
-  d.id='pitauji';
-  d.style.cssText='margin-top:7px;color:#e0912f;font-size:9px;line-height:1.5;font-weight:700';
-  d.textContent='⚠ Mode uji — isi dengan data karangan saja.';
-  f.appendChild(d);}
+  /* 13 Nov 2026: salinan terbit sudah dipakai sungguhan sejak 24 Sep dan
+     pindah ke nrnholding.github.io/rove-hub — catatan "Mode uji" di kaki
+     sidebar tak lagi benar, jadi tak dipasang (sisa lama dibuang). */
+  try{var e=document.getElementById('pitauji');if(e&&e.parentNode)e.parentNode.removeChild(e);}catch(x){}}
 
 /* Fase Profitability disisipkan di indeks 3. Order yang sudah tersimpan
    memakai penomoran lama — tanpa ini, order di Quotation (dulu 3) terbaca
