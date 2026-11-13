@@ -135,6 +135,8 @@
   .bk-tile .bk-tt{padding:6px 8px;font-size:10px;color:var(--muted);line-height:1.35}.bk-tile .bk-tt b{display:block;font-size:11px;color:var(--ink)}
   .bk-tile .bk-cek{position:absolute;top:5px;right:5px;background:var(--brand);color:#fff;border-radius:50%;width:19px;height:19px;font-size:10px;display:none;align-items:center;justify-content:center;font-weight:800}
   .bk-tile.on .bk-cek{display:flex}
+  .bk-tile .bk-batal{position:absolute;top:5px;left:5px;z-index:2;background:#fff;color:var(--red,#c0392b);border:1px solid var(--red,#c0392b);border-radius:12px;font-size:9.5px;font-weight:800;padding:1px 7px;display:none;cursor:pointer}
+  .bk-tile.on .bk-batal{display:inline-block}
   .kwc{display:inline-flex;align-items:center;gap:6px;border:1.5px solid var(--line);border-radius:20px;padding:4px 10px 4px 5px;cursor:pointer;background:#fff;font-size:11px;font-weight:700;font-family:inherit;color:var(--ink);margin:0 5px 5px 0}
   .kwc i{width:15px;height:15px;border-radius:50%;border:1px solid rgba(0,0,0,.15);display:inline-block;flex:0 0 15px}
   .kwc.on{border-color:var(--brand);background:#fbf4e8}
@@ -854,7 +856,6 @@ table.tpl-x{border-collapse:separate;border-spacing:0;font-size:11.5px;min-width
     <div class="nav" id="navBuy" data-view="buy"><span class="ic">⊞</span> Pembelian<small>request internal, approval &amp; pembayaran</small></div>
     <div class="nav" id="navAset" data-view="aset"><span class="ic">▣</span> Aset tetap<small>alat, kendaraan, penyusutan</small></div>
     <div class="nav" id="navTax" data-view="tax"><span class="ic">§</span> Pajak<small>tenggat setor &amp; lapor</small></div>
-    <div class="nav" data-view="new"><span class="ic">＋</span> Order baru<small>input inquiry dari client</small></div>
     <div id="userbox" style="margin-top:auto;background:var(--hub2);border:1px solid var(--hubline);border-radius:9px;padding:9px 11px;margin-bottom:8px"></div>
     <div class="foot"><div id="sinkronBadge" style="margin-bottom:7px"></div>ROVE HUB · Discord/Trello belum tersambung.</div>
   </aside>
@@ -1063,7 +1064,7 @@ const KEY='rovehub_orders_v18';
 /* ================= VERSI YANG SEDANG BERJALAN =================
    Diisi otomatis oleh terbitkan.js waktu salinan ini diterbitkan; '-' berarti
    dibuka langsung dari berkas, bukan dari alamat terbitannya. */
-const VERSI='20261113-122133';
+const VERSI='20261113-144641';
 /* Berkas versi.txt di sebelah halaman ini berisi penanda yang sama. Ia
    ditanyakan tanpa cache, jadi ia jujur walau halamannya sendiri masih
    tersimpan di cache browser. */
@@ -1443,7 +1444,7 @@ const EN_RULES=[
 
 /* Kamus persis. Kunci = teks Indonesia apa adanya yang muncul di layar. */
 const EN={
-'Lihat':'View','Sambungan bermasalah':'Connection problem','belum dimuat':'not loaded yet','Kesehatan sistem':'System health','Rincian':'Details','Pulihkan…':'Restore…','Atur…':'Settings…','Cadangan':'Backup','Error':'Errors','Arsip':'Archive','perangkat ini':'this device','server':'server','Tersambung ke server':'Connected to the server','Belum tersambung ke server':'Not connected to the server','katalog belum tersambung':'catalogue not connected','butuh Code.gs 2.4':'needs Code.gs 2.4','tersimpan':'stored','order di arsip':'orders archived','diarsip sesudah':'archived after','hari tak disentuh':'days untouched','error dalam 7 hari terakhir':'errors in the last 7 days','✓ tidak ada error 7 hari terakhir':'✓ no errors in the last 7 days','belum ada — dibuat saat simpan pertama tiap hari':'none yet — made on the first save each day','aktif dengan Code.gs 2.4':'active with Code.gs 2.4','gagal memuat':'failed to load','⚙ Alat lanjutan':'⚙ Advanced tools','— sambungan server, Muat dari Discord, data contoh':'— server connection, Load from Discord, sample data','Diisi sendiri — alamat ini yang dipakai.':'Filled in manually — this address is used.','Berkas besar masuk folder Drive “ROVE HUB / order”, HUB menyimpan tautannya.':'Large files go to the Drive folder “ROVE HUB / order”; HUB keeps the link.','Link …/exec dari proyek Apps Script':'The …/exec link from the Apps Script project','; token = password Cost Estimator.':'; token = the Cost Estimator password.',
+'✏️ Minta preview lebih awal':'✏️ Request an early preview','Minta preview lebih awal':'Request an early preview','Client ingin lihat preview dulu? Boleh untuk semua order sesudah Inquiry.':'Client wants to see a preview first? Allowed for every order after Inquiry.','Preview:':'Preview:','✓ Preview selesai':'✓ Preview done','Preview':'Preview','✕ batal':'✕ cancel','Preview diminta lebih awal':'Preview requested early','Lihat':'View','Sambungan bermasalah':'Connection problem','belum dimuat':'not loaded yet','Kesehatan sistem':'System health','Rincian':'Details','Pulihkan…':'Restore…','Atur…':'Settings…','Cadangan':'Backup','Error':'Errors','Arsip':'Archive','perangkat ini':'this device','server':'server','Tersambung ke server':'Connected to the server','Belum tersambung ke server':'Not connected to the server','katalog belum tersambung':'catalogue not connected','butuh Code.gs 2.4':'needs Code.gs 2.4','tersimpan':'stored','order di arsip':'orders archived','diarsip sesudah':'archived after','hari tak disentuh':'days untouched','error dalam 7 hari terakhir':'errors in the last 7 days','✓ tidak ada error 7 hari terakhir':'✓ no errors in the last 7 days','belum ada — dibuat saat simpan pertama tiap hari':'none yet — made on the first save each day','aktif dengan Code.gs 2.4':'active with Code.gs 2.4','gagal memuat':'failed to load','⚙ Alat lanjutan':'⚙ Advanced tools','— sambungan server, Muat dari Discord, data contoh':'— server connection, Load from Discord, sample data','Diisi sendiri — alamat ini yang dipakai.':'Filled in manually — this address is used.','Berkas besar masuk folder Drive “ROVE HUB / order”, HUB menyimpan tautannya.':'Large files go to the Drive folder “ROVE HUB / order”; HUB keeps the link.','Link …/exec dari proyek Apps Script':'The …/exec link from the Apps Script project','; token = password Cost Estimator.':'; token = the Cost Estimator password.',
 'Catatan error perangkat':'Device error log','Muat catatan':'Load log','Kosongkan':'Clear','✓ Tak ada error tercatat.':'✓ No errors logged.',
 'Cadangan harian':'Daily backup','Lihat cadangan':'View backups','Pulihkan':'Restore','⧉ Repeat order':'⧉ Repeat order','Muat isi lengkap':'Load full order',
 '📦 arsip — klik untuk memuat':'📦 archived — click to load','Order di arsip server':'Orders in server archive',
@@ -1595,7 +1596,7 @@ const EN={
 'PO REVISI':'REVISED PO','1. Konfirmasi ke Radja':'1. Confirm with Radja','2. Approval Direktur atas biaya tambahannya':'2. Director approves the extra cost','PO revisi dikonfirmasi Radja':'Revised PO confirmed by Radja','PO revisi disetujui Direktur':'Revised PO approved by the Director',
 '✎ Revisi order':'✎ Revise order','RIWAYAT REVISI':'REVISION HISTORY','Apa yang berubah':'What changed','Rinciannya':'Details','Revisi order':'Revise order','Qty berubah':'Quantity changed',
 'Sketsa boleh dikerjakan lebih dulu':'The sketch may be started early','buka panel Referensi gambar':'open the Reference images panel',
-'★ Client VIP':'★ VIP client','☆ Jadikan VIP':'☆ Make VIP','★ CLIENT VIP':'★ VIP CLIENTS','dahulukan':'handle these first','Client VIP — boleh minta sketsa lebih dulu':'VIP client — may ask for the sketch early',
+'★ Client VIP':'★ VIP client','☆ Jadikan VIP':'☆ Make VIP','★ CLIENT VIP':'★ VIP CLIENTS','dahulukan':'handle these first','Client VIP — boleh minta sketsa lebih dulu':'VIP client — may ask for the sketch early','Client VIP — didahulukan di antrean sketsa':'VIP client — first in the sketch queue',
 'Menunggu approval quotation':'Waiting on the client (quotation)','Menunggu approval sketsa':'Waiting on the client (sketch)','Menunggu DP masuk':'Waiting for the down payment','Client approve — lanjut sketch':'Client approved — continue to sketch','Client approve — lanjut invoice DP':'Client approved — continue to the DP invoice','Uang muka atau surat PO beres — lanjut sketch':'Down payment or client PO done — continue to sketch','Sketsa disetujui — lanjut spec & PO':'Sketch approved — continue to spec & PO','Sketsa disetujui — lanjut invoice':'Sketch approved — continue to invoice','DP masuk — lanjut spec & PO':'Down payment received — continue to spec & PO',
 'Ringkasan untuk Direktur':'Summary for the Director','BACA SAJA — PUTUSKAN APPROVE ATAU TOLAK':'READ ONLY — APPROVE OR REJECT','✓ Approve — lanjut quotation':'✓ Approve — continue to quotation','✕ Tolak & kembalikan':'✕ Reject & send back','Profit kotor':'Gross profit','sebelum gaji & overhead — bukan profit bersih':'before payroll & overhead — not net profit','Margin HPP':'Margin over cost','Alasan penolakan':'Reason for rejection','Yang harus diperbaiki':'What needs fixing','Menunggu approval direktur':'Waiting on the Director',
 'Pertanyaan menunggu jawabanmu':'Questions waiting on you','✍ Jawab':'✍ Answer','✎ Ubah jawaban':'✎ Edit answer','Jawabanmu':'Your answer','Menunggu jawaban':'Waiting on',
@@ -2090,8 +2091,8 @@ const EN={
 'Belum ada periode yang dipantau — periode pertama muncul setelah bulan "Mulai pantau" lewat.':'No period is being tracked yet — the first one appears once the "Track from" month has passed.',
 '＋ Order baru':'＋ New order','✕ Reset':'✕ Reset','Semua':'All','Semua bulan':'All months','Semua kanal':'All channels',
 'Klik':'Click','Klik kartu':'Click a card','kanan atas.':'top right.','Inquiry sampai Selesai':'Inquiry through Completed',
-'untuk buka detail — di dalamnya ada langkah berikutnya, pricing, pembayaran, PO, dan produksi. Order baru? Klik':
-  'to open the detail — inside are the next step, pricing, payments, PO and production. New order? Click',
+'untuk buka detail — di dalamnya ada langkah berikutnya, pricing, pembayaran, PO, dan produksi.':
+  'to open the detail — inside are the next step, pricing, payments, PO and production.',
 '💡 Semua order dari':'💡 Every order from',
 /* --- fase --- */
 'Inquiry':'Inquiry','Pricing Vendor':'Vendor Pricing','Quotation':'Quotation','Sketch':'Sketch',
@@ -3838,7 +3839,7 @@ function bolehAturVip(){var R=myRoles();
   return R.indexOf('Direktur Utama')>=0||R.indexOf('Holding')>=0;}
 
 function vipLencana(kecil){
-  return '<span title="Client VIP — boleh minta sketsa lebih dulu" style="background:var(--gold);color:#2b1d0e;'+
+  return '<span title="Client VIP — didahulukan di antrean sketsa" style="background:var(--gold);color:#2b1d0e;'+
     'border-radius:5px;padding:'+(kecil?'0 5px':'1px 7px')+';font-size:'+(kecil?'8.5px':'9px')+
     ';font-weight:800;letter-spacing:.04em;white-space:nowrap">★ VIP</span>';}
 /* Tombol kecil di kartu papan — satu bentuk untuk tiga keadaan:
@@ -3936,7 +3937,7 @@ function vipToggle(jenis,id){
                         :ST.orders.find(function(y){return y.id===id;});
   if(!x)return;
   var jadi=!isVip(x);
-  if(jadi&&!confirm('Jadikan "'+(x.nama||x.customer)+'" client VIP?\n\nMereka boleh minta sketsa lebih dulu, dan ordernya naik ke paling atas di daftar tugas semua jabatan.'))return;
+  if(jadi&&!confirm('Jadikan "'+(x.nama||x.customer)+'" client VIP?\n\nSketsanya didahulukan di antrean Creative, dan ordernya naik ke paling atas di daftar tugas semua jabatan.'))return;
   if(!jadi&&!confirm('Cabut status VIP dari "'+(x.nama||x.customer)+'"?'))return;
   x.vip=jadi;x._m=Date.now();
   if(jenis==='lead'){
@@ -8253,7 +8254,7 @@ function discordRoleBlok(){
     '</div></div>';}
 
 function defUsers(){return [{username:'holding',password:'holding',jabatan:'Holding',aktif:true},{username:'direktur',password:'direktur',jabatan:'Direktur Utama',aktif:true},{username:'gary',password:'gary',jabatan:'Sales',aktif:true},{username:'david',password:'david',jabatan:'Sales',aktif:true},{username:'cika',password:'cika',jabatan:'Sales',aktif:true},{username:'finance',password:'finance',jabatan:'Finance',aktif:true},{username:'creative',password:'creative',jabatan:'Creative',aktif:true},{username:'marketing',password:'marketing',jabatan:'Marketing',aktif:true},{username:'purchasing',password:'purchasing',jabatan:'Purchasing',aktif:true},{username:'pm',password:'pm',jabatan:'Project Manager',aktif:true},{username:'packing',password:'packing',jabatan:'Packing & Shipping',aktif:true},{username:'gudang',password:'gudang',jabatan:'Warehouse',aktif:true},{username:'event',password:'event',jabatan:'Event Management',aktif:true}];}
-const ACCESS_FEATURES=[['board','Order Management'],['tasks','Tugas'],['leads','Prospek'],['live','Live service'],['konten','Planner Konten'],['fin','Keuangan'],['report','Laporan'],['hr','Karyawan'],['inv','Gudang'],['buy','Pembelian'],['aset','Aset tetap'],['tax','Pajak'],['neworder','Order baru'],['master','Master data']];
+const ACCESS_FEATURES=[['board','Order Management'],['tasks','Tugas'],['leads','Prospek'],['live','Live service'],['konten','Planner Konten'],['fin','Keuangan'],['report','Laporan'],['hr','Karyawan'],['inv','Gudang'],['buy','Pembelian'],['aset','Aset tetap'],['tax','Pajak'],['master','Master data']];
 function defAccess(){var a={};ROLES.forEach(function(r){a[r]={board:true,tasks:true,leads:false,tax:false,konten:false,hr:false,fin:false,inv:false,buy:false,aset:false,neworder:false,live:true,report:false,master:false};});
   /* Order lahir dari prospek, bukan dari form. Holding & Direktur Utama tetap
      bisa membuat manual sebagai jalan darurat (order tak lewat prospek,
@@ -11143,7 +11144,7 @@ function taskOrders(role){
     if(R.indexOf('Direktur Utama')>=0&&ph.gate&&(o.phase===3||o.phase===5||o.phase===7||o.phase===9))return true;
     /* VIP boleh minta sketsa lebih dulu — maka Creative harus melihat
        ordernya sebelum fase Product Sketch Processing, bukan menunggu gilirannya tiba. */
-    if(isVip(o)&&(o.phase||0)<8&&R.indexOf('Creative')>=0)return true;
+    if((isVip(o)||sketchReqAktif(o))&&(o.phase||0)<8&&R.indexOf('Creative')>=0)return true;
     /* Kalau aku memegang item WAJIB yang belum tuntas, akulah yang menahan
        order ini — kartunya harus ada di daftarku, bukan cuma di blok
        kelengkapan yang mudah terlewat. */
@@ -11313,7 +11314,7 @@ ${muatDcSitusUji()?contohBawaanPanelHTML():`       <div style="margin-top:16px;b
     return;
   }
   $('#main').innerHTML=`
-   <div class="topbar"><h1>Tugas saya</h1><span class="demo">${role}</span><div class="sp"></div>${can('neworder')?`<button class="btn" onclick="openNew()">＋ Order baru</button>`:''}</div>
+   <div class="topbar"><h1>Tugas saya</h1><span class="demo">${role}</span><div class="sp"></div></div>
    ${tabNote('Hanya order yang <b>menunggu tindakan jabatanmu ('+role+')</b>. Klik kartu → kerjakan langkah yang tertulis → klik <b>✓ Selesai — lanjut fase</b>. Order akan hilang dari sini setelah berpindah ke PIC lain.')}
    ${akuDirektur?bayarAjuDirekturBlok():((myRoles().indexOf('Finance')>=0||myRoles().indexOf('Purchasing')>=0)?bayarAjuFinanceBlok():'')}${adminTugasBlok()}
    ${myRoles().indexOf('Marketing')>=0?konTugasBlok():''}${tbhTugasBlok()}${gabTugasBlok()}${inqIngatBlok()}${poSusulBlok()}
@@ -11380,6 +11381,8 @@ function kartuTugas(o){
       if(n)return '<b>'+n+' kelengkapan</b> menunggumu di order ini';
       /* Creative kebagian kartu VIP sebelum fase Product Sketch Processing; tanpa keterangan,
          kartu tanpa tugas itu membingungkan */
+      if(sketchReqAktif(o)&&myRoles().indexOf('Creative')>=0)
+        return '<b>Preview diminta lebih awal</b>'+(o.sketchReq.deadline?(' — target '+tglID(o.sketchReq.deadline)):'')+' · buka panel Referensi gambar';
       if(isVip(o)&&(o.phase||0)<6&&myRoles().indexOf('Creative')>=0)
         return '<b>Sketsa boleh dikerjakan lebih dulu</b> — buka panel Referensi gambar';
       return 'kelengkapan fase ini sudah lengkap';})()+'</span>'+
@@ -13836,7 +13839,7 @@ function gabAntreanHTML(){var K=gabKandidat(),grup={},urut=[];K.forEach(function
   if(lama.length)out+='<div class="sj" style="margin-top:6px">Riwayat</div>'+lama.map(gabGrupHTML).join('');
   return out;}
 function gabAntreanLayar(){
-  return '<div class="topbar"><h1>Order Management</h1>'+hubBadge()+'<div class="sp"></div>'+(can('neworder')?'<button class="btn" onclick="openNew()">＋ Order baru</button>':'')+'</div>'+
+  return '<div class="topbar"><h1>Order Management</h1>'+hubBadge()+'<div class="sp"></div>'+''+'</div>'+
     tabNote('<b>Antrean PO vendor.</b> PO yang belum turun dikelompokkan menurut vendor + barang + bahan — vendor kulit maupun kemasan, PO 1 maupun PO tambahan. Digabung jadi satu PO supaya kena tier harga yang lebih murah — perlu approval Direktur, harga ke client tetap, dan PO wajib turun paling lambat '+GAB_HK_BATAS+' hari kerja sebelum tanggal kirim tiap order.')+
     gabTabsHTML('antrean')+gabAntreanHTML();}
 function gabTabsHTML(aktif){if(!gabBolehLihat())return '';var n=gabHitungMenunggu(),nK=gabKandidat().length;
@@ -14851,8 +14854,8 @@ function renderBoard(){
      </div>`;
   $('#main').innerHTML=`
    <div class="topbar"><h1>Order Management</h1>${hubBadge()}
-     <div class="sp"></div>${can('neworder')?`<button class="btn" onclick="openNew()">＋ Order baru</button>`:''}</div>
-   ${tabNote('Semua order dari <b>Inquiry sampai Selesai</b>. <b>Klik kartu</b> untuk buka detail — di dalamnya ada langkah berikutnya, pricing, pembayaran, PO, dan produksi. Order baru? Klik <b>＋ Order baru</b> kanan atas.')}
+     <div class="sp"></div></div>
+   ${tabNote('Semua order dari <b>Inquiry sampai Selesai</b>. <b>Klik kartu</b> untuk buka detail — di dalamnya ada langkah berikutnya, pricing, pembayaran, PO, dan produksi.')}
    ${gabTabsHTML('papan')}${filterBar}${mejaBarHTML(cols)}
    <div class="board">${MEJA.filter(m=>!ST._bmeja||ST._bmeja===m.k).map(m=>mejaPitaHTML(m,cols,(m.k==='penjualan'?(function(){var P=papanProspek();
      if(!can('leads'))return '';
@@ -14916,7 +14919,7 @@ function renderDetail(){
           <div style="font-size:9.5px;color:var(--muted);margin-top:4px">dipegang ${esc(fasePemilik(o))}</div></div>`}</div>`;}
 
   $('#main').innerHTML=`
-   <div style="display:flex;justify-content:space-between;align-items:center"><div class="back" onclick="closeOrder()">‹ Kembali ke pipeline</div>${isVip(o)?vipLencana():''}${bolehAturVip()?vipTombol(o,'order'):''}${revisiAll(o).length?`<span style="background:var(--accent);color:#2b1d0e;border-radius:5px;padding:1px 7px;font-size:9px;font-weight:800">✎ R${revisiAll(o).length}</span>`:''}${(o.phase===0&&o.status!=='Deal')?`<button class="btn ghost sm" style="color:#d9534f" onclick="delOrder('${o.id}')">🗑 Hapus order</button>`:''}${(o.done||o.status==='Cancel')&&!o._arsip?`<button class="btn ghost sm" data-f="orderUlang" onclick="orderUlang('${o.id}')">⧉ Repeat order</button>`:''}</div>
+   <div style="display:flex;justify-content:space-between;align-items:center"><div class="back" onclick="closeOrder()">‹ Kembali ke pipeline</div>${isVip(o)?vipLencana():''}${bolehAturVip()?vipTombol(o,'order'):''}${previewKepala(o)}${revisiAll(o).length?`<span style="background:var(--accent);color:#2b1d0e;border-radius:5px;padding:1px 7px;font-size:9px;font-weight:800">✎ R${revisiAll(o).length}</span>`:''}${(o.phase===0&&o.status!=='Deal')?`<button class="btn ghost sm" style="color:#d9534f" onclick="delOrder('${o.id}')">🗑 Hapus order</button>`:''}${(o.done||o.status==='Cancel')&&!o._arsip?`<button class="btn ghost sm" data-f="orderUlang" onclick="orderUlang('${o.id}')">⧉ Repeat order</button>`:''}</div>
    <div data-f="hadirSlot">${hadirBanner(o)}</div>${arsipBanner(o)}
    <div class="dhead">
      <div><h2># ${nm}</h2>${discordMeta(o)}<div class="meta">${o.type} · ${o.product} · <b>${o.qty} pcs</b> · ${o.mat}${o.soNo?` · <span style="color:#8fd4a8;font-weight:700;cursor:pointer" onclick="soSetManual('${o.id}')" title="klik untuk ubah No. SO">SO ${esc(o.soNo)}</span> <span style="cursor:pointer;opacity:.6" onclick="soClear('${o.id}')" title="batalkan nomor SO">✕</span>`:susulanInduk(o)?'':(` · <span style="cursor:pointer;opacity:.75;border:1px dashed rgba(255,255,255,.35);border-radius:5px;padding:1px 6px;font-size:10px" onclick="soSetManual('${o.id}')" title="tetapkan No. SO manual (untuk order pertama saat transisi)">＋ No. SO</span>`)}</div>${susulanKepalaHTML(o)}</div>
@@ -16697,7 +16700,7 @@ function panelBawaan(o){
   /* Satu-satunya hak istimewa VIP yang menabrak urutan: panel Referensi
      gambar dibuka sebelum fase Product Sketch Processing, jadi preview bisa dikerjakan lebih
      dulu. Untuk client biasa panel ini tetap terkunci sampai gilirannya. */
-  if(isVip(o)&&(o.phase||0)<6){
+  if((isVip(o)&&(o.phase||0)<6)||(o.sketchReq&&(o.phase||0)<PREVIEW_FASE)){
     if(L.indexOf('ref')<0)L.push('ref');
     if(L.indexOf('brief')<0)L.push('brief');}   // sketsa butuh logo & spesifikasinya
   /* panel yang sengaja dibuka lebih awal ikut, tanpa mengubah fase */
@@ -16994,6 +16997,7 @@ function sketchSet(id){
 
 function refPanel(o){var t=refTiles(o),S=o.sketch||{};
   var ekor='<div style="border-top:1px solid var(--line);margin-top:13px;padding-top:11px">'+
+    ((o.sketchReq&&(o.phase||0)<PREVIEW_FASE)?sketchBar(o).replace('margin-top:11px;padding-top:10px','margin:0 0 10px;padding-top:0;border-top:0'):'')+
     lampiranBlok(o,'previewFiles','Preview desain yang dikirim ke client')+
     '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px">'+
       '<button class="btn '+(S.tgl?'ghost ':'')+'sm" onclick="sketchSet(\'' + o.id + '\')">'+(S.tgl?'↺ Batalkan':'✓ Catat')+'</button>'+
@@ -21396,20 +21400,29 @@ function profitPanel(o){
 function sketchPIC(){
   var U=((ST.master&&ST.master.users)||[]).filter(function(u){return u.jabatan==='Creative'&&u.aktif!==false;});
   return U.map(function(u){return u.username;});}
-/* Sketsa lebih awal = kerja desain sebelum client terikat apa pun. Yang
-   memutuskan sebuah order pantas didahulukan itu Direktur, lewat VIP. */
-function sketchBoleh(o){return isVip(o);}
+/* 13 Nov 2026 (patch212): preview lebih awal boleh untuk SEMUA order sesudah Inquiry — dulu hanya VIP.
+   Batasnya: sesudah Inquiry Processing, sebelum Product Sketch Processing (fase 8, di sana preview memang dikerjakan).
+   VIP tetap didahulukan di antrean sketsa. */
+const PREVIEW_FASE=8;
+function sketchBoleh(o){var p=(o&&o.phase)||0;return isVip(o)||(p>=1&&p<PREVIEW_FASE&&!o.done&&o.status!=='Cancel');}
+function sketchReqAktif(o){return !!(o&&o.sketchReq&&o.sketchReq.status!=='Selesai'&&((o.phase||0)<PREVIEW_FASE));}
+/* kepala order: tombol minta preview (fase 1–7) atau statusnya */
+function previewKepala(o){var p=(o&&o.phase)||0;
+  if(!o||o.done||o.status==='Cancel'||p<1||p>=PREVIEW_FASE)return '';
+  var r=o.sketchReq;
+  if(!r)return '<button class="btn ghost sm" data-f="previewMinta" style="margin-left:8px" onclick="sketchMinta('+jsArg(o.id)+')">✏️ Minta preview lebih awal</button>';
+  var sel=(r.status==='Selesai');
+  return '<span data-f="previewStatus" style="margin-left:8px;font-size:10px;font-weight:800;border-radius:20px;padding:2px 9px;background:'+(sel?'var(--ok-bg, #e7f4ec)':'var(--warn-bg)')+';color:'+(sel?'var(--ok)':'var(--warn)')+'">✏️ <span>Preview</span> '+esc(r.status||'Diminta')+(r.deadline?(' · '+tglID(r.deadline)):'')+'</span>';}
 function sketchMinta(id){
   var o=ST.orders.find(function(x){return x.id===id;});if(!o)return;
   /* permintaan yang sudah terlanjur ada tetap boleh diurus — yang ditutup
      cuma membuat permintaan baru pada order yang bukan VIP */
   if(!o.sketchReq&&!sketchBoleh(o)){
-    alert('Sketsa lebih awal cuma untuk order VIP.'+String.fromCharCode(10)+String.fromCharCode(10)+
-      'Sebelum penawaran disetujui, gambarnya belum tentu dibayar. Kalau order ini memang perlu '+
-      'didahulukan, ajukan jadi VIP dulu — yang memutuskan Direktur Utama.');
+    alert('Preview lebih awal bisa diminta sesudah Inquiry, sebelum fase Product Sketch Processing.'+String.fromCharCode(10)+String.fromCharCode(10)+
+      'Selesaikan Inquiry dulu supaya barang & spesifikasinya jelas untuk Creative.');
     return;}
   var pic=sketchPIC();
-  askForm({judul:'Minta sketch lebih awal',sub:o.customer+' · '+(o.product||''),
+  askForm({judul:'Minta preview lebih awal',sub:o.customer+' · '+(o.product||''),
     fields:[
       {k:'pic',label:'PIC sketch',type:'select',opts:pic.length?pic:['(belum ada akun Creative)'],
        hint:pic.length?'Diambil dari Users berjabatan <b>Creative</b>.':'Tambahkan akun berjabatan Creative di Master data → Users.'},
@@ -21421,38 +21434,32 @@ function sketchMinta(id){
     ok:function(v){
       o.sketchReq={pic:v.pic,deadline:v.deadline,catatan:v.catatan,minta:hariIni(),
         by:(ST.userName||ST.user||'-'),status:'Diminta'};
-      logHist(o,'Minta sketch ke '+v.pic+' — target '+v.deadline);
-      notifyOrder(o,'✏️ **Permintaan sketch** — '+o.customer+'\nPIC: '+v.pic+' · target '+v.deadline+
+      logHist(o,'Minta preview lebih awal ke '+v.pic+' — target '+v.deadline);
+      notifyOrder(o,'✏️ **Permintaan preview lebih awal** — '+o.customer+'\nPIC: '+v.pic+' · target '+v.deadline+
         (v.catatan?('\n'+v.catatan):''));
       (o.disc=o.disc||[]).push({cat:['rove','PRE-DEAL'],who:'Creative',
-        txt:'Diminta membuat sketch untuk <b>'+esc(o.customer)+'</b> — target '+esc(v.deadline)+'.'});
+        txt:'Diminta membuat preview untuk <b>'+esc(o.customer)+'</b> — target '+esc(v.deadline)+'. Unggah di panel Referensi gambar.'});
       o._m=Date.now();save();render();}});}
 function sketchSelesai(id){
   var o=ST.orders.find(function(x){return x.id===id;});if(!o||!o.sketchReq)return;
   o.sketchReq.status=(o.sketchReq.status==='Selesai')?'Diminta':'Selesai';
-  logHist(o,'Sketch '+(o.sketchReq.status==='Selesai'?'selesai':'dibuka lagi'));
+  logHist(o,'Preview lebih awal '+(o.sketchReq.status==='Selesai'?'selesai':'dibuka lagi'));
   o._m=Date.now();save();render();}
 function sketchBar(o){
   var r=o.sketchReq,bar='border-top:1px dashed var(--line);margin-top:11px;padding-top:10px;display:flex;flex-wrap:wrap;gap:9px;align-items:center';
-  /* ajakan mengajukan VIP hanya untuk Sales (dan Direktur yang memutuskan);
-     PM tak perlu melihatnya */
-  if(!r&&!sketchBoleh(o)&&!(akuSales()||bolehAturVip()))return '';
-  if(!r&&!sketchBoleh(o))return '<div style="'+bar+'">'+
-    '<span style="font-size:10.5px;color:var(--muted)">Client minta dilihat sketsanya dulu? '+
-      '<b>Sketsa sebelum fasenya cuma untuk order VIP</b> — selama penawaran belum disetujui, gambarnya belum tentu dibayar.</span>'+
-    '<span style="margin-left:auto">'+vipTombol(o,'order')+'</span></div>';
-  if(!r)return '<div style="'+bar+'">'+vipLencana(true)+
-    '<span style="font-size:10.5px;color:var(--muted)">Order VIP — sketsa boleh diminta sebelum fasenya.</span>'+
-    '<button class="btn ghost sm" style="margin-left:auto" onclick="sketchMinta(\''+o.id+'\')">✏️ Minta sketch sekarang</button></div>';
+  if(!r&&!sketchBoleh(o))return '';
+  if(!r)return '<div style="'+bar+'">'+(isVip(o)?vipLencana(true):'')+
+    '<span style="font-size:10.5px;color:var(--muted)">Client ingin lihat preview dulu? Boleh untuk semua order sesudah Inquiry.</span>'+
+    '<button class="btn ghost sm" style="margin-left:auto" onclick="sketchMinta(\''+o.id+'\')">✏️ Minta preview lebih awal</button></div>';
   var sel=(r.status==='Selesai');
   return '<div style="border-top:1px dashed var(--line);margin-top:11px;padding-top:10px">'+
     '<div style="display:flex;flex-wrap:wrap;gap:9px;align-items:center">'+
-      '<span style="font-size:11px;font-weight:800">Sketch:</span>'+
+      '<span style="font-size:11px;font-weight:800">Preview:</span>'+
       '<span style="font-size:11px;font-weight:800;color:'+(sel?'var(--ok)':'var(--warn)')+'">● '+esc(r.status)+'</span>'+
       '<span style="font-size:10px;color:var(--muted)">PIC '+esc(r.pic||'-')+' · target '+tglID(r.deadline)+' · diminta '+tglID(r.minta)+'</span>'+
       '<span style="margin-left:auto;display:flex;gap:6px">'+
         '<button class="btn ghost sm" onclick="sketchMinta(\''+o.id+'\')">✎ Ubah</button>'+
-        '<button class="btn sm" onclick="sketchSelesai(\''+o.id+'\')">'+(sel?'↺ Belum selesai':'✓ Sketch selesai')+'</button>'+
+        '<button class="btn sm" onclick="sketchSelesai(\''+o.id+'\')">'+(sel?'↺ Belum selesai':'✓ Preview selesai')+'</button>'+
       '</span></div>'+
     (r.catatan?('<div style="font-size:10px;color:var(--muted);margin-top:5px;white-space:pre-wrap">'+esc(r.catatan)+'</div>'):'')+
   '</div>';}
@@ -21648,7 +21655,7 @@ function rfqPanel(o){
       (belum?'':('<div style="border:1px dashed var(--ok);border-radius:9px;padding:9px 13px;background:var(--bg);font-size:11px;font-weight:800;color:var(--ok)">'+
         '✓ Semua harga sudah beres <span style="font-weight:400;color:var(--muted)">— tutup fase lewat tombol ✓ Selesai di bawah</span></div>'));
   }
-  return kepala+isi+sketchBar(o)+'</div></div>';}
+  return kepala+isi+(o.sketchReq?'':sketchBar(o))+'</div></div>';}
 
 /* ---- blok bergambar untuk Brief Inquiry ----
    Sebelum ditanya material/finishing, tim harus lihat dulu barangnya apa. */
@@ -21688,7 +21695,8 @@ function briefProduk(o){
       /* tombol bagi warna di kartu kecil dihapus — variannya diurus di
          kartu spec produknya (＋ Tambah varian) tepat di bawah */
       var bagi='';
-      return '<div>'+imgKotak(lineImg(l),namaBarisTampil(l)||'(tanpa nama)',det)+bagi+'</div>';}).join(''))+
+      var batal=(!spekKunci(o)&&!l._tbh&&idxAsli>=0)?('<button type="button" class="xrow" data-f="bpBatal" style="font-size:9.5px;color:var(--red,#c0392b);margin-top:3px" title="batalkan produk ini dari order" onclick="bpBatal('+jsArg(o.id)+','+idxAsli+')">✕ batal</button>'):'';
+      return '<div>'+imgKotak(lineImg(l),namaBarisTampil(l)||'(tanpa nama)',det)+bagi+batal+'</div>';}).join(''))+
     '<div style="font-size:9.5px;color:var(--muted);margin:-4px 0 11px">Gambar ikut dari Master Product / baris pricing. '+
       'Belum ada gambar? Unggah lewat 📷 di baris pricing atau di Master Product.</div>';}
 /* E — live service & add-on, dengan gambarnya. */
@@ -23812,6 +23820,7 @@ function katalogPilihBlok(o){
     '<div class="bk-gal" data-f="bkGaleri">'+C.map(function(x){var c=x.c,k=prodKat(c),on=!!dipesan[String(c.name||'').toLowerCase()];
       return '<div class="bk-tile'+(on?' on':'')+'" data-bk-kel="'+esc(k)+'" data-bk-nama="'+esc(String(c.name||'').toLowerCase())+'" data-bk-i="'+x.i+'"'+
         (aktif!=='*'&&k!==aktif?' style="display:none"':'')+' onclick="bkTambah('+id+','+x.i+')"><span class="bk-cek">✓</span>'+
+        (on?('<span class="bk-batal" data-f="bkBatal" title="batalkan produk ini dari order" onclick="if(window.event)window.event.stopPropagation();bkBatal('+id+','+jsArg(String(c.name||''))+')">✕ batal</span>'):'')+
         '<div class="bk-gb">'+(c.img?imgTag(c.img,'width:100%;height:78px;object-fit:cover',''):'<span style="font:800 18px Georgia,serif;color:#a08a6a">'+esc(String(c.name||'?').split(/\s+/).slice(0,2).map(function(w){return w.charAt(0);}).join('').toUpperCase())+'</span>')+'</div>'+
         '<div class="bk-tt"><b>'+esc(c.name||'')+'</b>'+esc(k)+'<br><span data-bk-hpp>HPP '+fmt0(catPrice(c,q0))+'</span>/pcs</div></div>';}).join('')+'</div></div>';}
 function bkBuka(id){ST._bkBuka=ST._bkBuka||{};var o=ST.orders.find(function(x){return x.id===id;});
@@ -23822,6 +23831,23 @@ function bkCari(){bkFilter();}
 function bkKel(el,k){ST._bkKel=k;[].forEach.call(document.querySelectorAll('[data-bk-chip]'),function(c){c.className='btn '+(c.getAttribute('data-bk-chip')===k?'':'ghost ')+'sm';});bkFilter();}
 function bkHargaSegarkan(id){var q=+((document.getElementById('bk_qty_'+id)||{}).value)||1,C=catalog();
   [].forEach.call(document.querySelectorAll('[data-bk-i]'),function(t){var c=C[+t.getAttribute('data-bk-i')],h=t.querySelector('[data-bk-hpp]');if(c&&h)h.textContent='HPP '+fmt0(catPrice(c,q));});}
+/* 13 Nov 2026 (patch212): produk yang terlanjur dipilih bisa dibatalkan di Brief — sebelum PO (spesifikasi belum terkunci).
+   Baris tambahan order (_tbh) tak disentuh; jasa yang menempel ikut dilepas lewat tplJasaSinkron. */
+function produkBatal(o,idx,nama){
+  if(!o||spekKunci(o))return false;
+  var L=((o.pricing||{}).lines)||[];idx=idx.filter(function(i){return L[i]&&!L[i]._tbh;}).sort(function(a,b){return b-a;});
+  if(!idx.length)return false;
+  var qty=idx.reduce(function(t,i){return t+(+L[i].qty||0);},0);
+  if(!confirm('Batalkan "'+nama+'" dari order ini?'+String.fromCharCode(10,10)+idx.length+' baris · '+qty+' pcs. Jasa yang menempel di produk ini ikut dilepas.'))return false;
+  idx.forEach(function(i){L.splice(i,1);});
+  if(o.jasaTabel){try{tplJasaSinkron(o);}catch(e){}}
+  logHist(o,'Produk dibatalkan: '+nama+' ('+qty+' pcs)');
+  o._m=Date.now();save();render();return true;}
+function bkBatal(id,nama){var o=ST.orders.find(function(x){return x.id===id;});if(!o)return;var n=String(nama||'').toLowerCase(),idx=[];
+  (((o.pricing||{}).lines)||[]).forEach(function(l,i){if(String(l.produk||'').toLowerCase()===n&&lineJenis(l)==='produk')idx.push(i);});
+  produkBatal(o,idx,nama);}
+function bpBatal(id,i){var o=ST.orders.find(function(x){return x.id===id;});if(!o)return;var l=(((o.pricing||{}).lines)||[])[i];if(!l)return;
+  produkBatal(o,[i],namaBarisTampil(l)||l.produk||'produk');}
 function bkTambah(id,i){var o=ST.orders.find(function(x){return x.id===id;});if(!o)return;var c=catalog()[i];if(!c)return;
   var q=+((document.getElementById('bk_qty_'+id)||{}).value)||(+o.qty||0);
   if(!q){alert('Isi jumlahnya dulu.');return;}
