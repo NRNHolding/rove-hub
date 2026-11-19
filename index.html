@@ -1096,7 +1096,7 @@ const KEY='rovehub_orders_v18';
 /* ================= VERSI YANG SEDANG BERJALAN =================
    Diisi otomatis oleh terbitkan.js waktu salinan ini diterbitkan; '-' berarti
    dibuka langsung dari berkas, bukan dari alamat terbitannya. */
-const VERSI='20261118-111409';
+const VERSI='20261119-111144';
 /* Berkas versi.txt di sebelah halaman ini berisi penanda yang sama. Ia
    ditanyakan tanpa cache, jadi ia jujur walau halamannya sendiri masih
    tersimpan di cache browser. */
@@ -20805,7 +20805,7 @@ const REVISI_SEBAB=[
   {k:'bahan',  t:'Ganti bahan atau spesifikasi produk',           fase:0},   // 16 Okt: diubah di Brief (Inquiry); kartu susulan → Project Costing
   {k:'jasa',   t:'Live service atau add-on ditambah / dibatalkan',fase:2},
   {k:'harga',  t:'Margin atau diskon diubah',                     fase:2},
-  {k:'tanggal',t:'Tanggal acara bergeser',                        fase:2},
+  {k:'tanggal',t:'Tanggal acara bergeser',                        fase:0},   // 19 Nov 2026 (patch216): tanggal acara & kirim diubah Sales di Brief (Inquiry)
   {k:'kirim',  t:'Alamat kirim atau penerima berubah',            fase:null},
   {k:'perso',  t:'Daftar nama atau teks personalisasi',           fase:null}];
 function bolehRevisi(){
@@ -20872,6 +20872,7 @@ function revisiOrder(id){
       ringkas.push(ke===null?'Order TETAP di fase '+PH[dari].n+' — cukup dihitung ulang di tempat.'
                             :'Order mundur ke fase '+PH[ke].n+'.');
       if(S.k==='bahan'&&ke===0)ringkas.push('Ubah spesifikasinya (bahan, warna, accessories) di Brief, lalu Selesai — di Project Costing harga vendor ditanyakan ulang.');
+      if(S.k==='tanggal'&&ke===0)ringkas.push('Ubah tanggal acara & tanggal kirim di Brief, lalu Selesai — di Project Costing deadline produksi & batas PO tiap vendor dipastikan ulang.');
       if(poRev)ringkas.push('PO sudah turun ke vendor — akan jadi PO REVISI yang butuh konfirmasi Radja dan approval Direktur.');
       if(tbhBoleh(o)&&(S.k==='qty'||S.k==='item'||S.k==='jasa'))ringkas.push('Kalau ini TAMBAHAN (bukan pengurangan), lebih tepat lewat ＋ Tambahan order di panel Produksi — order tak perlu mundur.');
       if((o.prod||{}).stage&&o.prod.stage!=='Belum mulai')
