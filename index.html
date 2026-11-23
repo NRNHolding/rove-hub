@@ -65,6 +65,11 @@
   .oc:hover{border-color:var(--accent);transform:translateY(-1px);box-shadow:var(--shadow)}
   .oc .on{font-size:11px;font-weight:800;line-height:1.3;word-break:break-word}
   .oc .om{font-size:9.5px;color:var(--muted);margin-top:4px;display:flex;justify-content:space-between}
+  /* patch219: baris kartu tak boleh saling menimpa — teks panjang turun baris, ikon & tanggal di kanan tak terdorong */
+  .oc .om{gap:6px;align-items:flex-start}
+  .oc .om>span{min-width:0;overflow-wrap:anywhere}
+  .oc .om>span:last-child{flex-shrink:0}
+  .oc .om .stbadge{white-space:normal;line-height:1.35}
   .oc .pf{font-size:7.5px;font-weight:800;padding:1px 5px;border-radius:3px;color:#fff;margin-right:4px}
   .colempty{color:#c2bbae;font-size:10px;text-align:center;padding:10px}
   /* pita meja di papan: kolom fase dikelompokkan menurut meja yang memegangnya */
@@ -1096,7 +1101,7 @@ const KEY='rovehub_orders_v18';
 /* ================= VERSI YANG SEDANG BERJALAN =================
    Diisi otomatis oleh terbitkan.js waktu salinan ini diterbitkan; '-' berarti
    dibuka langsung dari berkas, bukan dari alamat terbitannya. */
-const VERSI='20261123-094249';
+const VERSI='20261123-142222';
 /* Berkas versi.txt di sebelah halaman ini berisi penanda yang sama. Ia
    ditanyakan tanpa cache, jadi ia jujur walau halamannya sendiri masih
    tersimpan di cache browser. */
