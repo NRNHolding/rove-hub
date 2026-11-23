@@ -1096,7 +1096,7 @@ const KEY='rovehub_orders_v18';
 /* ================= VERSI YANG SEDANG BERJALAN =================
    Diisi otomatis oleh terbitkan.js waktu salinan ini diterbitkan; '-' berarti
    dibuka langsung dari berkas, bukan dari alamat terbitannya. */
-const VERSI='20261123-092632';
+const VERSI='20261123-094249';
 /* Berkas versi.txt di sebelah halaman ini berisi penanda yang sama. Ia
    ditanyakan tanpa cache, jadi ia jujur walau halamannya sendiri masih
    tersimpan di cache browser. */
@@ -4175,6 +4175,8 @@ function renderInv(){
         '<td><button class="xrow" onclick="invMvDel(\''+m.id+'\')">✕</button></td></tr>';}).join('')+
       '</tbody></table></div>'+(mv.length>60?'<div style="font-size:10px;color:var(--muted);margin-top:6px">menampilkan 60 terbaru dari '+mv.length+'</div>':'')
       :'<div style="color:var(--muted);font-size:12px">Belum ada pergerakan.</div>');
+  } else if(sub==='proyek'){
+    isi=stkGudangTab();
   } else {
     ST._opn=ST._opn||{};
     isi='<div style="font-size:11px;color:var(--muted);margin-bottom:11px">Isi kolom <b>hitungan fisik</b> untuk barang yang dihitung. Yang dikosongkan tidak diubah. Selisihnya jadi catatan penyesuaian — riwayat lama tetap utuh.</div>'+
@@ -4196,7 +4198,7 @@ function renderInv(){
     '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:13px">'+
       '<button class="btn sm" style="background:#2f7d4f;border-color:#2f7d4f" onclick="invMove(\'masuk\')">↓ Barang masuk</button>'+
       '<button class="btn sm" style="background:#b5567a;border-color:#b5567a" onclick="invMove(\'keluar\')">↑ Barang keluar / picking</button></div>'+
-    '<div style="margin-bottom:13px">'+tab('stok','Daftar stok')+tab('gerak','Riwayat pergerakan ('+d.moves.length+')')+tab('opname','Stock opname')+'</div>'+isi;}
+    '<div style="margin-bottom:13px">'+tab('stok','Daftar stok')+tab('gerak','Riwayat pergerakan ('+d.moves.length+')')+tab('opname','Stock opname')+tab('proyek','Barang order')+'</div>'+isi;}
 /* ================= PEMBELIAN INTERNAL (flow IV + VII) =================
    Request → quotation → banding vendor → approval Dirut → PO → terima → QC
    → invoice ke Finance → verifikasi → bayar. Bisa disalin ke AIS sheet E. */
@@ -4640,7 +4642,7 @@ function spareDaftar(o){
 function spareSudahMasuk(o,l){return !!spareGerak(o,spareItemId(l));}
 function spareBelum(o){return spareDaftar(o).filter(function(g){return g.spare>0&&!spareGerak(o,g.itemId);});}
 /* kartu contoh: hanya kartu QC & Packing yang menulis ke gudang, supaya satu order contoh tak masuk berkali-kali */
-function spareIkut(o){return !!o&&!o.deleted&&o.status!=='Cancel'&&contohIkut(o,[13]);}
+function spareIkut(o){return !!o&&!o.deleted&&o.status!=='Cancel'&&!stkAktif(o)&&contohIkut(o,[13]);}   /* order buku mutasi: sisa ke Gudang saat penutupan */
 function spareSinkron(o,diam){
   if(!spareIkut(o))return 0;
   var d=invData(),n=0,teks=[];
@@ -4704,6 +4706,500 @@ function spareQcBlok(o){
     '<div style="font-size:10.5px;font-weight:800;margin-bottom:2px">▩ Lebihan (spare) → Gudang, otomatis</div>'+
     '<div style="font-size:10px;color:var(--muted);line-height:1.55;margin-bottom:4px">Yang masuk Gudang = qty diterima − qty client (collateral: qty vendor − qty client, begitu dicentang ikut). Angka diterima diubah → catatan Gudang ikut berubah. Lokasi: Rak spare.</div>'+
     spareRincian(o)+'</div>';}
+/* ================= STOK PROYEK — terima, QC, retur, packing, kirim, live service (18 Nov 2026) =================
+   Tiap barang order punya buku mutasinya sendiri di o.stk.moves (satu baris = dari → ke, qty, tanggal, dokumen,
+   oleh siapa), jadi setiap pcs bisa ditelusuri: Vendor → Karantina QC → Lolos / Reject → (retur & kembali) →
+   Dikemas → Terkirim, atau Dibawa ke acara → Terpakai / Gagal / Kembali, lalu sisanya pindah ke Gudang.
+   Barang = per kode varian (produk) dan per jenis collateral, dibaca dari pricing — tak diketik ulang.
+   Hanya order yang BELUM punya catatan penerimaan lama (o.terima.tgl) yang memakai cara ini; order lama tetap
+   memakai panel QC & Packing lama (tanpa migrasi). Hasil hitungannya ditulis balik ke o.terima supaya gerbang fase,
+   kartu susulan, laporan, dan pengiriman tetap membaca angka yang sama.
+   Pengiriman TIDAK diinput dua kali: mutasi Dikemas / Terkirim dibaca dari panel Pengiriman barang. */
+const STK_POS={vendor:'Vendor',sample:'Sample',qc:'Karantina QC',siap:'Lolos QC',reject:'Reject',perbaikan:'Di vendor (retur)',
+  dikemas:'Dikemas',dibawa:'Dibawa ke acara',terkirim:'Terkirim',terpakai:'Terpakai di acara',gagal:'Gagal / rusak di acara',
+  gudang:'Pindah ke Gudang',pool:'Stok bersama Gudang',potong:'Tidak kembali (potong tagihan)',musnah:'Dimusnahkan',selisih:'Selisih hitung'};
+const STK_SIMPAN=['sample','qc','siap','reject','perbaikan','dikemas','dibawa'];   // posisi yang masih memegang barang
+const STK_JENIS={terima:'Terima dari vendor',sample:'Terima sample',qc:'QC',retur:'Retur / tindak lanjut reject',balik:'Kembali dari retur',
+  kirim:'Pengiriman',live:'Bawa ke acara',rekap:'Rekap sesudah acara',lkembali:'Kembali dari acara',tutup:'Sisa ke Gudang',koreksi:'Koreksi'};
+function stkAktif(o){if(!o||o.deleted)return false;if(o.stk)return true;if(o._arsip||o.done||o.status==='Cancel')return false;if((o.phase||0)>13)return false;   /* patch218: order yang sudah lewat QC & Packing tetap cara lama */
+  return !((o.terima||{}).tgl);}
+function stkGet(o){if(!o.stk)o.stk={v:1};var s=o.stk;
+  ['moves','log','extra'].forEach(function(k){if(!Array.isArray(s[k]))s[k]=[];});
+  ['perso','docN','retur','rekap'].forEach(function(k){if(!s[k]||typeof s[k]!=='object'||Array.isArray(s[k]))s[k]={};});
+  return s;}
+function stkBoleh(){var R=myRoles();if(!R.length)return true;
+  return ['Packing & Shipping','Warehouse','Project Manager','Event Management','Holding','Direktur Utama'].some(function(r){return R.indexOf(r)>=0;});}
+function stkSlug(s){return String(s||'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,40)||'x';}
+function stkNo(o,pfx){var s=stkGet(o);s.docN[pfx]=(+s.docN[pfx]||0)+1;return pfx+'-'+String(s.docN[pfx]).padStart(3,'0');}
+function stkSiapa(){return ST.userName||ST.user||'-';}
+function stkRnd(){return Math.random().toString(36).slice(2,8);}
+function stkOrder(id){return (ST.orders||[]).find(function(x){return x.id===id;})||null;}
+function stkInt(v){return Math.max(0,Math.round(+v||0));}
+
+/* ---------- master barang per order ---------- */
+function stkItems(o){
+  var out=[],ada={},TB=[];
+  try{TB=terimaBaris(o);}catch(e){}
+  TB.forEach(function(p){
+    if(ada[p.key])return;ada[p.key]=1;
+    var sama=TB.filter(function(y){return y.key===p.key;});
+    var qC=sama.reduce(function(a,y){return a+(+y.qty||0);},0),qP=sama.reduce(function(a,y){return a+(+y.qtyPO||0);},0);
+    var K=[];try{K=tplKodeDaftar(o,p.nama,p.tbh||'');}catch(e){}
+    if(K.length>=2)K.forEach(function(x){out.push({id:p.key+'|'+x.kode,key:p.key,kode:x.kode,jenis:'produk',nama:p.nama,ket:x.ket||'',
+      client:+x.q||0,po:null,grupClient:qC,grupPO:qP,label:p.label||''});});
+    else out.push({id:p.key+'|-',key:p.key,kode:'',jenis:'produk',nama:p.nama,ket:(K[0]&&K[0].ket)||'',client:qC,po:qP,grupClient:qC,grupPO:qP,label:p.label||''});});
+  /* collateral: per jenis (box, pouch, card, …) — kuncinya sama dengan centang "ikut" lama */
+  var C={},M={};try{M=susulPindah(o);}catch(e){}
+  ((((o||{}).pricing||{}).lines)||[]).forEach(function(l){
+    if(!l||l.svcFee||lineJenis(l)!=='coll')return;var k=l.coll||l.produk||'';if(!k)return;
+    try{if(lineDipindah(o,l,M))return;}catch(e){}
+    var c=C[k]||(C[k]={client:0,po:0,nama:l.produk||''});c.client+=(+l.qty||0);c.po+=lineQtyPO(l);});
+  var CD=[];try{CD=collDipilih(o);}catch(e){}
+  CD.forEach(function(c){if(!C[c.k])C[c.k]={client:0,po:0,nama:c.nama};});
+  Object.keys(C).forEach(function(k){var c=C[k],t=PACK_TIPE.find(function(x){return x[0]===k;}),nm=t?t[1]:(c.nama||k);
+    out.push({id:'c:'+k+'|-',key:'c:'+k,coll:k,kode:'',jenis:'coll',nama:nm,ket:(c.nama&&c.nama!==nm)?c.nama:'',client:c.client,po:c.po,grupClient:c.client,grupPO:c.po});});
+  /* barang lain yang dicatat tangan (mis. sample sebelum pricing ada) */
+  (((o||{}).stk||{}).extra||[]).forEach(function(x){if(!out.some(function(y){return y.id===x.id;}))out.push(Object.assign({key:x.id,kode:'',jenis:'lain',client:0,po:0,grupClient:0,grupPO:0},x));});
+  out.forEach(function(it){it.perso=stkPerso(o,it);it.label2=it.nama+(it.kode?(' · '+it.kode):'')+(it.ket?(' · '+it.ket):'')+(it.label?(' ('+it.label+')'):'');});
+  return out;}
+/* Personalisasi (berlogo / bernama client) atau polos. Polos boleh masuk stok bersama; personalisasi terkunci di client-nya. */
+function stkPersoBawaan(o,it){
+  if(it.jenis==='coll')return true;                 // box / pouch / card biasanya berlogo client
+  return (((o||{}).svc)||[]).length>0;              // ada add-on workshop (inisial, nama, logo) = personalisasi
+}
+function stkPerso(o,it){var P=((o||{}).stk||{}).perso||{};return Object.prototype.hasOwnProperty.call(P,it.id)?!!P[it.id]:stkPersoBawaan(o,it);}
+function stkPersoSet(id,itemId,v){var o=stkOrder(id);if(!o||!stkBoleh())return;var s=stkGet(o),it=stkItems(o).find(function(x){return x.id===itemId;});if(!it)return;
+  var lama=it.perso;s.perso[itemId]=!!v;
+  stkLog(o,'ubah sifat barang',it.label2,(lama?'personalisasi':'polos')+' → '+(v?'personalisasi':'polos'));
+  o._m=Date.now();save();render();}
+
+/* ---------- mutasi & saldo ---------- */
+function stkMovesAll(o){var s=(o&&o.stk)||{};return (s.moves||[]).concat(stkKirimMoves(o));}
+function stkHitung(moves,itemId){
+  var IN={},OUT={},terima=0,lolos=0,poolBawa=0,poolBalik=0,hppPool=0;
+  moves.forEach(function(m){if(m.item!==itemId)return;var q=+m.qty||0;
+    OUT[m.dari]=(OUT[m.dari]||0)+q;IN[m.ke]=(IN[m.ke]||0)+q;
+    if(m.jenis==='terima')terima+=q;
+    if(m.dari==='qc'&&m.ke==='siap')lolos+=q;
+    if(m.dari==='pool'&&m.ke==='dibawa'){poolBawa+=q;hppPool+=q*(+m.hpp||0);}
+    if(m.dari==='dibawa'&&m.ke==='pool')poolBalik+=q;});
+  var sal={};STK_SIMPAN.forEach(function(p){sal[p]=(IN[p]||0)-(OUT[p]||0);});
+  var g=function(p){return IN[p]||0;};
+  return {sal:sal,IN:IN,OUT:OUT,terima:terima,lolos:lolos,reject:g('reject'),terkirim:g('terkirim'),terpakai:g('terpakai'),gagal:g('gagal'),
+    gudang:g('gudang')+g('pool')-poolBalik,potong:g('potong'),musnah:g('musnah'),selisih:g('selisih'),sample:g('sample'),
+    poolBawa:poolBawa,poolBalik:poolBalik,hppPool:poolBawa?hppPool/poolBawa:0,
+    diRove:sal.sample+sal.qc+sal.siap+sal.reject+sal.dikemas};}
+function stkRingkas(o){var A=stkMovesAll(o),R={};stkItems(o).forEach(function(it){R[it.id]=stkHitung(A,it.id);});return R;}
+function stkTambah(o,m){var s=stkGet(o);m.id='S'+stkRnd();m.t=nowStr();m.by=m.by||stkSiapa();if(!m.tgl)m.tgl=hariIni();s.moves.push(m);return m;}
+function stkLog(o,aksi,apa,rinci){var s=stkGet(o);s.log.push({t:nowStr(),ts:Date.now(),by:stkSiapa(),aksi:aksi,apa:apa||'',rinci:rinci||''});
+  logHist(o,'▩ Stok: '+aksi+(apa?(' — '+apa):'')+(rinci?(' ('+rinci+')'):''));}
+
+/* Pengiriman dibaca dari panel Pengiriman barang: kiriman yang sudah berangkat = Terkirim, yang belum = Dikemas.
+   Collateral ikut keluar sebanding dengan produk yang dikirim. */
+function stkKirimMoves(o){
+  var out=[];if(!o||!o.stk)return out;
+  var D=[];try{D=kirimDaftar(o);}catch(e){return out;}if(!D.length)return out;
+  var items=stkItems(o),prod=items.filter(function(i){return i.jenis==='produk';}),coll=items.filter(function(i){return i.jenis==='coll';});
+  var avail={};prod.forEach(function(it){avail[it.id]=stkHitung(o.stk.moves,it.id).sal.siap;});
+  var totC=prod.reduce(function(a,i){return a+(+i.client||0);},0),cum=0,prev={};
+  D.forEach(function(s,si){
+    var brk=false;try{brk=kirimBerangkat(s);}catch(e){}
+    var ke=brk?'terkirim':'dikemas',no=s.sjNo||(s.resi?('Resi '+s.resi):('Kiriman '+(si+1))),tgl=s.tgl||'',jumlah=0;
+    var tuj=(s.tujuan&&s.tujuan!=='Client')?('ke '+s.tujuan):'ke client';
+    var push=function(it,q){if(!(q>0))return;out.push({id:'K'+si+'_'+it.id,auto:true,jenis:'kirim',no:no,tgl:tgl,item:it.id,qty:q,dari:'siap',ke:ke,
+      ket:tuj+(s.resi?(' · resi '+s.resi):'')+(brk?'':' · belum berangkat'),by:'Pengiriman barang'});};
+    Object.keys(s.isi||{}).forEach(function(key){
+      var q=+((s.isi||{})[key])||0;if(q<=0)return;
+      var nama=tplKunciPecah(key).nama||String(key).replace(/^l:/,'');
+      var cand=prod.filter(function(i){return i.nama===nama;});if(!cand.length)return;
+      jumlah+=q;
+      var K=((s.isiKode||{})[key])||{},adaK=Object.keys(K).some(function(k){return (+K[k]||0)>0;});
+      if(adaK){Object.keys(K).forEach(function(kode){var qq=+K[kode]||0;if(!qq)return;var it=cand.find(function(i){return i.kode===kode;})||cand[0];push(it,qq);avail[it.id]-=qq;});}
+      else{var sisa=q;cand.forEach(function(it,ci){if(sisa<=0)return;var take=(ci===cand.length-1)?sisa:Math.min(sisa,Math.max(0,avail[it.id]));if(take<=0)return;push(it,take);avail[it.id]-=take;sisa-=take;});}});
+    cum+=jumlah;
+    if(totC>0)coll.forEach(function(it){var target=Math.min(+it.client||0,Math.round((+it.client||0)*Math.min(1,cum/totC)));var q=target-(prev[it.id]||0);if(q>0){push(it,q);prev[it.id]=target;}});});
+  return out;}
+
+/* Hasil buku mutasi → o.terima (angka yang dibaca gerbang fase, kartu susulan, laporan, kirim per kode) */
+function stkSinkronTerima(o){
+  if(!o||!o.stk)return;
+  var T=terimaGet(o),R=stkRingkas(o),byKey={};
+  stkItems(o).forEach(function(it){var t=R[it.id];if(!t)return;
+    if(it.jenis==='coll'){T.coll[it.coll]=t.terima>0;return;}
+    if(it.jenis!=='produk')return;
+    byKey[it.key]=(byKey[it.key]||0)+t.terima;
+    if(it.kode){if(!T.kode)T.kode={};var K=T.kode[it.key]||(T.kode[it.key]={});
+      if(t.terima>0)K[it.kode]={q:t.terima,qc:Math.min(t.terima,t.lolos)};else delete K[it.kode];}});
+  Object.keys(byKey).forEach(function(k){if(byKey[k]>0)T.produk[k]=byKey[k];else delete T.produk[k];});
+  var tg=(o.stk.moves||[]).filter(function(m){return m.jenis==='terima';}).map(function(m){return m.tgl||'';}).sort();
+  T.tgl=tg.length?tg[tg.length-1]:'';if(T.tgl)T.oleh=stkSiapa();
+  try{if(terimaPas(o)&&!T._lengkapLog){T._lengkapLog=true;logHist(o,'✓ Barang dari vendor diterima lengkap di Rove');}}catch(e){}
+  try{tbhSegar(o);}catch(e){}}
+function stkSimpan(o){try{stkSinkronTerima(o);}catch(e){console.warn('stkSinkronTerima',e);}o._m=Date.now();save();render();}
+
+/* ---------- selisih kiriman vendor → tagihan (hutang) vendor ----------
+   Diterima lebih dari PO langsung menambah tagihan. Kurang dari PO baru memotong tagihan sesudah penerimaan ditandai
+   selesai (kekurangan bisa masih menyusul). Retur "tidak kembali" selalu memotong. */
+function stkLineKey(l){if(!l)return '';var j=lineJenis(l);if(j==='coll')return 'c:'+(l.coll||l.produk||'');if(j==='produk')return 'l:'+(l.produk||'')+(l._tbh?('#'+l._tbh):'');return '';}
+function stkSelisihKey(o,key){
+  if(!o||!o.stk)return 0;
+  var R=stkRingkas(o),its=stkItems(o).filter(function(i){return i.key===key;});if(!its.length)return 0;
+  var net=its.reduce(function(a,i){var t=R[i.id];return a+(t?(t.terima-t.potong):0);},0),po=its[0].grupPO||0;
+  if(!(stkGet(o).moves.some(function(m){return m.jenis==='terima'&&its.some(function(i){return i.id===m.item;});})))return 0;
+  var d=net-po;if(d>0||o.stk.final)return d;
+  /* belum final: kekurangan bisa masih menyusul — yang dipotong hanya retur "tidak kembali" */
+  return -its.reduce(function(a,i){var t=R[i.id];return a+(t?t.potong:0);},0);}
+function stkAdjNilai(o,l){
+  if(!o||!o.stk||!stkAktif(o))return 0;
+  var key=stkLineKey(l);if(!key)return 0;
+  var L=(((o.pricing||{}).lines)||[]).filter(function(x){return x&&!x.svcFee&&stkLineKey(x)===key&&(+x.qty||0)>0;});
+  if(!L.length||L[0]!==l)return 0;                  // dipasang sekali, di baris pertama kuncinya
+  return stkSelisihKey(o,key)*lineHppVendor(l);}
+
+/* ---------- stok bersama (Gudang) ---------- */
+function stkPoolId(it){return 'PL_'+stkSlug(it.nama+'_'+(it.ket||it.kode||''));}
+function stkPoolStok(it){var id=stkPoolId(it);return invItem(id)?invStok(id):0;}
+function stkPoolHpp(id){var q=0,n=0;invData().moves.forEach(function(m){if(m.item===id&&m.tipe==='masuk'&&(+m.hpp||0)>0){q+=(+m.qty||0);n+=(+m.qty||0)*(+m.hpp||0);}});return q?Math.round(n/q):0;}
+function stkHppItem(o,it){var key=it.key,l=(((o.pricing||{}).lines)||[]).find(function(x){return x&&!x.svcFee&&stkLineKey(x)===key;});return l?lineHppVendor(l):0;}
+function stkGudangItem(o,it,sample){
+  var d=invData(),polos=!it.perso,id=polos?(stkPoolId(it)+(sample?'_S':'')):('PX_'+stkSlug(o.id)+'_'+stkSlug(it.id)+(sample?'_S':''));
+  var x=invItem(id);
+  if(!x){x={id:id,nama:it.nama+((it.kode||it.ket)?(' — '+[it.kode,it.ket].filter(Boolean).join(' · ')):'')+(polos?'':(' · '+(o.customer||o.id))),
+    kat:sample?'Sample':(it.jenis==='coll'?'Collateral':'Produk jadi'),sat:'pcs',lokasi:sample?'Rak sample':'Rak spare',min:0,
+    catatan:polos?'stok polos bersama — boleh dipakai order lain':('personalisasi '+(o.customer||o.id)+' — terkunci untuk client ini'),polos:polos,kunci:polos?'':o.id};
+    d.items.push(x);}
+  return x;}
+function stkGudangGerak(itemId,tipe,q,ket,o,hpp){invData().moves.push({id:'M'+stkRnd(),item:itemId,tipe:tipe,qty:q,tgl:hariIni(),ket:ket,ref:'stk:'+o.id,by:stkSiapa(),t:nowStr(),hpp:hpp||0});}
+/* beban barang dari stok bersama yang terpakai di order ini (keputusan: dibebankan ke order pemakai) */
+function stkBebanRinci(o){var out=[];if(!o||!o.stk)return out;var R=stkRingkas(o);
+  stkItems(o).forEach(function(it){var t=R[it.id];if(!t||!t.poolBawa)return;var pakai=stkPoolTerpakai(o,it,t);if(pakai>0)out.push({it:it,q:pakai,hpp:Math.round(t.hppPool),nilai:Math.round(pakai*t.hppPool)});});
+  return out;}
+function stkBeban(o){return stkBebanRinci(o).reduce(function(a,x){return a+x.nilai;},0);}
+function stkPoolTerpakai(o,it,t){t=t||stkRingkas(o)[it.id];if(!t)return 0;
+  var bawaSendiri=(o.stk.moves||[]).filter(function(m){return m.item===it.id&&m.dari==='siap'&&m.ke==='dibawa';}).reduce(function(a,m){return a+(+m.qty||0);},0);
+  return Math.min(t.poolBawa,Math.max(0,(t.terpakai+t.gagal)-bawaSendiri));}
+
+/* ---------- form: terima, sample, QC, reject, retur kembali ---------- */
+function stkCekBoleh(){if(stkBoleh())return true;alert('Pencatatan stok hanya untuk Packing & Shipping, Warehouse, PM, Event Management, Direktur, atau Holding.');return false;}
+function stkLabelItem(it,t,tambah){return it.label2+(tambah?(' ('+tambah+')'):'');}
+function stkTerima(id){
+  var o=stkOrder(id);if(!o||!stkCekBoleh())return;var I=stkItems(o).filter(function(i){return i.jenis!=='lain';}),R=stkRingkas(o);
+  if(!I.length){alert('Belum ada barang di pricing order ini.');return;}
+  askForm({judul:'⇩ Terima barang dari vendor',sub:(o.customer||o.id)+' — boleh bertahap; isi yang datang hari ini saja',tanpaDraf:true,
+    fields:[{k:'tgl',label:'Tanggal diterima',type:'date',val:hariIni(),req:true},
+      {k:'sj',label:'No. surat jalan vendor',type:'text',ph:'mis. SJ-RDJ-0451'}]
+      .concat(I.map(function(it,i){var t=R[it.id];var po=it.po!=null?it.po:'';
+        return {k:'q'+i,label:it.label2,type:'number',val:'',ph:'0',hint:(po!==''?('PO '+po+' · '):(it.grupPO?('PO produk '+it.grupPO+' · '):''))+'client '+(it.client||0)+' · sudah diterima '+(t?t.terima:0)};}))
+      .concat([{k:'ket',label:'Catatan',type:'text',ph:'mis. dus 3 penyok'}]),
+    cek:function(v){return I.some(function(it,i){return (+v['q'+i]||0)>0;})?'':'Isi minimal satu jumlah barang.';},
+    ok:function(v){var no=stkNo(o,'TRM'),n=0;
+      I.forEach(function(it,i){var q=stkInt(v['q'+i]);if(!q)return;n+=q;
+        stkTambah(o,{jenis:'terima',no:no,tgl:v.tgl,item:it.id,qty:q,dari:'vendor',ke:'qc',ket:[v.sj?('SJ '+v.sj):'',v.ket].filter(Boolean).join(' · ')});});
+      stkLog(o,'terima barang '+no,n+' pcs',v.sj?('SJ '+v.sj):'');stkSimpan(o);
+      kilat('⇩ '+no+' tercatat — '+n+' pcs masuk karantina QC');}});}
+function stkSample(id){
+  var o=stkOrder(id);if(!o||!stkCekBoleh())return;var I=stkItems(o);
+  askForm({judul:'🧪 Terima sample',sub:(o.customer||o.id),tanpaDraf:true,
+    fields:[{k:'item',label:'Barang',type:'select',val:I.length?I[0].id:'__baru',opts:I.map(function(i){return {v:i.id,l:i.label2};}).concat([{v:'__baru',l:'＋ barang lain (ketik di bawah)'}])},
+      {k:'nama',label:'Nama barang (kalau barang lain)',type:'text',ph:'mis. Sample kulit Pueblo coklat'},
+      {k:'qty',label:'Jumlah',type:'number',val:1,req:true},{k:'tgl',label:'Tanggal',type:'date',val:hariIni()},
+      {k:'ket',label:'Catatan',type:'text',ph:'mis. sample warna untuk approval client'}],
+    cek:function(v){if(v.item==='__baru'&&!v.nama)return 'Isi nama barangnya.';return (+v.qty||0)>0?'':'Jumlah harus lebih dari 0.';},
+    ok:function(v){var s=stkGet(o),itemId=v.item;
+      if(itemId==='__baru'){itemId='X:'+stkSlug(v.nama);if(!s.extra.some(function(x){return x.id===itemId;}))s.extra.push({id:itemId,nama:v.nama});}
+      var no=stkNo(o,'SMP');stkTambah(o,{jenis:'sample',no:no,tgl:v.tgl,item:itemId,qty:stkInt(v.qty),dari:'vendor',ke:'sample',ket:v.ket||''});
+      stkLog(o,'terima sample '+no,stkInt(v.qty)+' pcs');stkSimpan(o);}});}
+function stkQC(id){
+  var o=stkOrder(id);if(!o||!stkCekBoleh())return;var R=stkRingkas(o),I=stkItems(o).filter(function(i){return R[i.id].sal.qc>0;});
+  if(!I.length){alert('Tak ada barang di karantina QC. Catat penerimaan dulu.');return;}
+  var F=[{k:'tgl',label:'Tanggal QC',type:'date',val:hariIni(),req:true}];
+  I.forEach(function(it,i){var q=R[it.id].sal.qc;
+    F.push({k:'l'+i,label:it.label2+' — lolos',type:'number',val:q,hint:'di karantina: '+q+' pcs'});
+    F.push({k:'r'+i,label:it.label2+' — reject',type:'number',val:0});});
+  F.push({k:'alasan',label:'Alasan reject',type:'text',ph:'mis. jahitan lepas, deboss miring'});
+  askForm({judul:'✓ Hasil QC',sub:(o.customer||o.id)+' — yang tak diisi tetap di karantina',tanpaDraf:true,fields:F,
+    cek:function(v){var e='';I.forEach(function(it,i){var q=R[it.id].sal.qc;if(stkInt(v['l'+i])+stkInt(v['r'+i])>q)e=e||(it.label2+': lolos + reject melebihi '+q+' pcs di karantina.');});
+      if(!e&&I.some(function(it,i){return stkInt(v['r'+i])>0;})&&!v.alasan)e='Tulis alasan reject.';return e;},
+    ok:function(v){var no=stkNo(o,'QC'),L=0,J=0;
+      I.forEach(function(it,i){var l=stkInt(v['l'+i]),r=stkInt(v['r'+i]);
+        if(l){stkTambah(o,{jenis:'qc',no:no,tgl:v.tgl,item:it.id,qty:l,dari:'qc',ke:'siap',ket:'lolos QC'});L+=l;}
+        if(r){stkTambah(o,{jenis:'qc',no:no,tgl:v.tgl,item:it.id,qty:r,dari:'qc',ke:'reject',ket:v.alasan||''});J+=r;}});
+      stkLog(o,'QC '+no,'lolos '+L+', reject '+J,v.alasan||'');stkSimpan(o);}});}
+const STK_TINDAK=[{v:'perbaikan',l:'Retur ke vendor — diperbaiki (barang yang sama kembali)'},{v:'ganti',l:'Retur ke vendor — diganti baru'},
+  {v:'potong',l:'Tidak kembali — dicatat untuk potong tagihan (Finance)'},{v:'musnah',l:'Dimusnahkan (tanpa potong tagihan)'},{v:'sample',l:'Disimpan sebagai sample'}];
+function stkReject(id){
+  var o=stkOrder(id);if(!o||!stkCekBoleh())return;var R=stkRingkas(o),I=stkItems(o).filter(function(i){return R[i.id].sal.reject>0;});
+  if(!I.length){alert('Tak ada barang reject.');return;}
+  askForm({judul:'↩ Tindak lanjut reject',sub:(o.customer||o.id),tanpaDraf:true,
+    fields:[{k:'jenis',label:'Tindakan',type:'select',val:'perbaikan',opts:STK_TINDAK},
+      {k:'tgl',label:'Tanggal',type:'date',val:hariIni(),req:true},
+      {k:'janji',label:'Janji kembali dari vendor (retur)',type:'date',val:''}]
+      .concat(I.map(function(it,i){return {k:'q'+i,label:it.label2,type:'number',val:R[it.id].sal.reject,hint:'reject saat ini: '+R[it.id].sal.reject+' pcs'};}))
+      .concat([{k:'ket',label:'Catatan / alasan',type:'text',ph:'mis. dikirim balik ke Radja via kurir internal'}]),
+    cek:function(v){var e='';I.forEach(function(it,i){if(stkInt(v['q'+i])>R[it.id].sal.reject)e=e||(it.label2+': melebihi jumlah reject.');});
+      return e||(I.some(function(it,i){return stkInt(v['q'+i])>0;})?'':'Isi minimal satu jumlah.');},
+    ok:function(v){var retur=(v.jenis==='perbaikan'||v.jenis==='ganti'),no=stkNo(o,retur?'RTR':'RJT'),n=0,s=stkGet(o);
+      var ke={perbaikan:'perbaikan',ganti:'perbaikan',potong:'potong',musnah:'musnah',sample:'sample'}[v.jenis];
+      I.forEach(function(it,i){var q=stkInt(v['q'+i]);if(!q)return;n+=q;
+        stkTambah(o,{jenis:'retur',no:no,ref:retur?no:'',tgl:v.tgl,item:it.id,qty:q,dari:'reject',ke:ke,ket:(STK_TINDAK.find(function(x){return x.v===v.jenis;})||{}).l+(v.ket?(' · '+v.ket):'')});});
+      if(retur)s.retur[no]={jenis:v.jenis,janji:v.janji||'',tgl:v.tgl,ket:v.ket||''};
+      stkLog(o,(retur?'retur '+no:'reject '+no),n+' pcs',(STK_TINDAK.find(function(x){return x.v===v.jenis;})||{}).l);stkSimpan(o);}});}
+function stkReturTerbuka(o){var A=(((o||{}).stk||{}).moves)||[],M={};
+  A.forEach(function(m){if(!m.ref)return;var k=m.ref+'|'+m.item;
+    if(m.dari==='reject'&&m.ke==='perbaikan')M[k]=(M[k]||0)+(+m.qty||0);
+    if(m.dari==='perbaikan'&&m.ke==='qc')M[k]=(M[k]||0)-(+m.qty||0);
+    if(m.dari==='perbaikan'&&m.ke==='potong')M[k]=(M[k]||0)-(+m.qty||0);});
+  var out={};Object.keys(M).forEach(function(k){if(M[k]>0){var p=k.split('|'),no=p[0],item=p.slice(1).join('|');(out[no]=out[no]||{})[item]=M[k];}});return out;}
+function stkReturTelat(o){var B=stkReturTerbuka(o),R=((o.stk||{}).retur)||{};return Object.keys(B).filter(function(no){var j=(R[no]||{}).janji;var d=j?dLeft(j):null;return d!==null&&d<0;});}
+function stkBalik(id,noPilih){
+  var o=stkOrder(id);if(!o||!stkCekBoleh())return;var B=stkReturTerbuka(o),nos=Object.keys(B);
+  if(!nos.length){alert('Tak ada retur yang masih di vendor.');return;}
+  if(!noPilih&&nos.length>1){askForm({judul:'Pilih retur yang kembali',sub:o.customer||o.id,tanpaDraf:true,
+      fields:[{k:'no',label:'Dokumen retur',type:'select',val:nos[0],opts:nos.map(function(n){var r=(o.stk.retur||{})[n]||{};return {v:n,l:n+' · '+(r.jenis==='ganti'?'ganti baru':'perbaikan')+(r.janji?(' · janji '+tglID(r.janji)):'')};})}],
+      ok:function(v){setTimeout(function(){stkBalik(id,v.no);},50);}});return;}
+  var no=noPilih||nos[0],P=B[no],I=stkItems(o).filter(function(i){return P[i.id]>0;});
+  askForm({judul:'⇩ Terima kembali dari retur '+no,sub:'Masuk karantina QC lagi — wajib di-QC ulang',tanpaDraf:true,
+    fields:[{k:'tgl',label:'Tanggal diterima',type:'date',val:hariIni(),req:true},{k:'sj',label:'No. surat jalan vendor',type:'text'}]
+      .concat(I.map(function(it,i){return {k:'q'+i,label:it.label2,type:'number',val:P[it.id],hint:'masih di vendor: '+P[it.id]+' pcs'};}))
+      .concat([{k:'tidak',label:'Sisa yang tak akan kembali',type:'checkbox',cbLabel:'Sisanya diputuskan tidak kembali — dicatat untuk potong tagihan (Finance)'}]),
+    cek:function(v){var e='';I.forEach(function(it,i){if(stkInt(v['q'+i])>P[it.id])e=e||(it.label2+': melebihi yang masih di vendor.');});return e;},
+    ok:function(v){var n=0,p=0,nb=stkNo(o,'TRM');
+      I.forEach(function(it,i){var q=stkInt(v['q'+i]);
+        if(q){stkTambah(o,{jenis:'balik',no:nb,ref:no,tgl:v.tgl,item:it.id,qty:q,dari:'perbaikan',ke:'qc',ket:'kembali dari '+no+(v.sj?(' · SJ '+v.sj):'')});n+=q;}
+        var sisa=P[it.id]-q;if(v.tidak&&sisa>0){stkTambah(o,{jenis:'retur',no:no,ref:no,tgl:v.tgl,item:it.id,qty:sisa,dari:'perbaikan',ke:'potong',ket:'tidak kembali — dicatat untuk potong tagihan'});p+=sisa;}});
+      stkLog(o,'kembali dari retur '+no+' ('+nb+')',n+' pcs ke karantina QC',p?(p+' pcs tidak kembali'):'');stkSimpan(o);}});}
+function stkFinal(id){var o=stkOrder(id);if(!o||!stkCekBoleh())return;var s=stkGet(o),jadi=!s.final;
+  if(jadi&&!confirm('Tandai penerimaan dari vendor SELESAI?\n\nKekurangan terhadap PO dicatat sebagai selisih untuk Finance (tagihan vendor tidak berubah otomatis). Bisa dibuka lagi kalau ternyata masih ada kiriman.'))return;
+  s.final=jadi;stkLog(o,jadi?'penerimaan ditandai selesai':'penerimaan dibuka lagi');stkSimpan(o);}
+
+/* ---------- ubah & hapus mutasi (dengan log perubahan) ---------- */
+function stkBisaUbah(m){return m&&!m.auto&&['terima','sample','qc','retur','balik','rekap'].indexOf(m.jenis)>=0&&m.dari!=='pool'&&m.ke!=='pool';}
+function stkUbah(id,mid){
+  var o=stkOrder(id);if(!o||!stkCekBoleh())return;var s=stkGet(o),m=s.moves.find(function(x){return x.id===mid;});if(!stkBisaUbah(m)){alert('Mutasi ini tak bisa diubah langsung (otomatis dari Pengiriman / stok bersama Gudang).');return;}
+  var it=stkItems(o).find(function(i){return i.id===m.item;})||{label2:m.item};
+  askForm({judul:'✎ Ubah mutasi '+(m.no||''),sub:it.label2+' · '+STK_POS[m.dari]+' → '+STK_POS[m.ke],tanpaDraf:true,
+    fields:[{k:'qty',label:'Jumlah',type:'number',val:m.qty,req:true},{k:'tgl',label:'Tanggal',type:'date',val:m.tgl},
+      {k:'ket',label:'Keterangan',type:'text',val:m.ket||''},{k:'alasan',label:'Alasan perubahan',type:'text',req:true,ph:'mis. salah hitung, seharusnya 58'}],
+    ok:function(v){var dulu=m.qty+' pcs · '+tglID(m.tgl)+(m.ket?(' · '+m.ket):'');
+      m.qty=stkInt(v.qty);m.tgl=v.tgl||m.tgl;m.ket=v.ket;m.diubah=(m.diubah||0)+1;
+      stkLog(o,'ubah mutasi '+(m.no||''),it.label2,dulu+' → '+m.qty+' pcs · '+tglID(m.tgl)+' — '+v.alasan);stkSimpan(o);}});}
+function stkHapus(id,mid){
+  var o=stkOrder(id);if(!o||!stkCekBoleh())return;var s=stkGet(o),k=s.moves.findIndex(function(x){return x.id===mid;}),m=s.moves[k];
+  if(!stkBisaUbah(m)){alert('Mutasi ini tak bisa dihapus langsung.');return;}
+  var alasan=prompt('Hapus mutasi '+(m.no||'')+' ('+m.qty+' pcs, '+STK_POS[m.dari]+' → '+STK_POS[m.ke]+')?\n\nTulis alasannya:');if(!alasan)return;
+  var it=stkItems(o).find(function(i){return i.id===m.item;})||{label2:m.item};
+  s.moves.splice(k,1);stkLog(o,'hapus mutasi '+(m.no||''),it.label2,m.qty+' pcs '+STK_POS[m.dari]+' → '+STK_POS[m.ke]+' — '+alasan);stkSimpan(o);}
+
+/* ---------- live service: satu angka "dibawa" per barang ----------
+   Diambil dari stok order ini dulu (lolos QC), kekurangannya dari stok POLOS bersama di Gudang.
+   Barang personalisasi tak pernah mengambil stok bersama. Sesudah acara: rekap terpakai & gagal (Event
+   Management), lalu barang yang kembali dihitung fisik di Rove. Yang terpakai dari stok bersama dibebankan
+   ke order ini (HPP rata-rata stok bersama). */
+function stkBawa(id){
+  var o=stkOrder(id);if(!o||!stkCekBoleh())return;var R=stkRingkas(o),I=stkItems(o).filter(function(i){return i.jenis!=='lain';});
+  if(!I.length){alert('Belum ada barang di order ini.');return;}
+  askForm({judul:'🎪 Barang dibawa ke acara',sub:(o.customer||o.id)+(o.eventDate?(' · '+tglID(o.eventDate)):'')+' — isi jumlah total yang dibawa',tanpaDraf:true,
+    fields:[{k:'tgl',label:'Tanggal berangkat',type:'date',val:hariIni(),req:true}]
+      .concat(I.map(function(it,i){var sendiri=Math.max(0,R[it.id].sal.siap),pool=it.perso?0:stkPoolStok(it);
+        return {k:'q'+i,label:it.label2,type:'number',val:'',ph:'0',hint:'tersedia: '+sendiri+' dari order ini'+(it.perso?' · personalisasi (tanpa stok bersama)':(' + '+pool+' stok polos bersama'))};}))
+      .concat([{k:'ket',label:'Catatan',type:'text',ph:'mis. dibawa tim Bagus, mobil kantor'}]),
+    cek:function(v){var e='';I.forEach(function(it,i){var q=stkInt(v['q'+i]),maks=Math.max(0,R[it.id].sal.siap)+(it.perso?0:stkPoolStok(it));
+        if(q>maks)e=e||(it.label2+': hanya tersedia '+maks+' pcs'+(it.perso?' (barang personalisasi tak bisa mengambil stok bersama)':'')+'.');});
+      return e||(I.some(function(it,i){return stkInt(v['q'+i])>0;})?'':'Isi minimal satu jumlah.');},
+    ok:function(v){var no=stkNo(o,'LIV'),tot=0,dariPool=0;
+      I.forEach(function(it,i){var q=stkInt(v['q'+i]);if(!q)return;tot+=q;
+        var sendiri=Math.min(q,Math.max(0,R[it.id].sal.siap)),pool=q-sendiri;
+        if(sendiri)stkTambah(o,{jenis:'live',no:no,tgl:v.tgl,item:it.id,qty:sendiri,dari:'siap',ke:'dibawa',ket:v.ket||''});
+        if(pool>0){var pid=stkPoolId(it),h=stkPoolHpp(pid);
+          stkTambah(o,{jenis:'live',no:no,tgl:v.tgl,item:it.id,qty:pool,dari:'pool',ke:'dibawa',hpp:h,ket:'dari stok polos bersama'+(v.ket?(' · '+v.ket):'')});
+          stkGudangGerak(pid,'keluar',pool,'Dibawa ke live service — '+(o.customer||o.id),o,h);dariPool+=pool;}});
+      if(dariPool)saveInv();
+      stkLog(o,'bawa ke acara '+no,tot+' pcs',dariPool?(dariPool+' pcs dari stok bersama'):'');stkSimpan(o);}});}
+function stkRekap(id){
+  var o=stkOrder(id);if(!o||!stkCekBoleh())return;var R=stkRingkas(o),I=stkItems(o).filter(function(i){return R[i.id].sal.dibawa>0;});
+  if(!I.length){alert('Tak ada barang yang sedang di acara.');return;}
+  var F=[{k:'tgl',label:'Tanggal acara',type:'date',val:o.eventDate||hariIni(),req:true}];
+  I.forEach(function(it,i){var b=R[it.id].sal.dibawa;
+    F.push({k:'p'+i,label:it.label2+' — terpakai',type:'number',val:'',ph:'0',hint:'dibawa: '+b+' pcs · yang tak diisi dianggap kembali'});
+    F.push({k:'g'+i,label:it.label2+' — gagal / rusak',type:'number',val:0});});
+  F.push({k:'alasan',label:'Alasan gagal / rusak',type:'text',ph:'mis. foil tak menempel, salah eja nama'});
+  askForm({judul:'📝 Rekap sesudah acara',sub:(o.customer||o.id)+' — kembali dihitung otomatis',tanpaDraf:true,fields:F,
+    cek:function(v){var e='';I.forEach(function(it,i){if(stkInt(v['p'+i])+stkInt(v['g'+i])>R[it.id].sal.dibawa)e=e||(it.label2+': terpakai + gagal melebihi yang dibawa.');});
+      if(!e&&I.some(function(it,i){return stkInt(v['g'+i])>0;})&&!v.alasan)e='Tulis alasan gagal / rusak.';return e;},
+    ok:function(v){var no=stkNo(o,'RKP'),P=0,G=0,K=0,s=stkGet(o);
+      I.forEach(function(it,i){var p=stkInt(v['p'+i]),g=stkInt(v['g'+i]);
+        if(p){stkTambah(o,{jenis:'rekap',no:no,tgl:v.tgl,item:it.id,qty:p,dari:'dibawa',ke:'terpakai',ket:'terpakai di acara'});P+=p;}
+        if(g){stkTambah(o,{jenis:'rekap',no:no,tgl:v.tgl,item:it.id,qty:g,dari:'dibawa',ke:'gagal',ket:v.alasan||''});G+=g;}
+        K+=R[it.id].sal.dibawa-p-g;});
+      s.rekap.tgl=v.tgl;s.rekap.by=stkSiapa();s.rekap.no=no;
+      stkLog(o,'rekap acara '+no,'terpakai '+P+', gagal '+G+', harus kembali '+K);stkSimpan(o);
+      if(K>0)kilat('📝 '+no+' — '+K+' pcs harus kembali; konfirmasi hitungan fisiknya saat tiba di Rove');}});}
+function stkTerimaAcara(id){
+  var o=stkOrder(id);if(!o||!stkCekBoleh())return;var R=stkRingkas(o),I=stkItems(o).filter(function(i){return R[i.id].sal.dibawa>0;});
+  if(!I.length){alert('Tak ada barang yang menunggu kembali dari acara.');return;}
+  if(!(((o.stk||{}).rekap||{}).tgl)&&!confirm('Rekap sesudah acara (terpakai & gagal) belum diisi.\n\nLanjut? Semua yang belum direkap akan dianggap harus kembali.'))return;
+  askForm({judul:'⇩ Barang kembali dari acara — hitung fisik',sub:(o.customer||o.id),tanpaDraf:true,
+    fields:[{k:'tgl',label:'Tanggal diterima di Rove',type:'date',val:hariIni(),req:true}]
+      .concat(I.map(function(it,i){return {k:'f'+i,label:it.label2,type:'number',val:R[it.id].sal.dibawa,hint:'seharusnya kembali: '+R[it.id].sal.dibawa+' pcs'};}))
+      .concat([{k:'ket',label:'Catatan selisih',type:'text',ph:'wajib kalau hitungan fisik beda'}]),
+    cek:function(v){var e='',beda=false;I.forEach(function(it,i){var f=stkInt(v['f'+i]),h=R[it.id].sal.dibawa;if(f>h)e=e||(it.label2+': fisik melebihi yang seharusnya kembali — cek rekap acaranya dulu.');if(f!==h)beda=true;});
+      if(!e&&beda&&!v.ket)e='Ada selisih — tulis catatannya.';return e;},
+    ok:function(v){var no=stkNo(o,'KMB'),S=0,P=0,X=0,adaInv=false;
+      I.forEach(function(it,i){var t=R[it.id],h=t.sal.dibawa,f=stkInt(v['f'+i]);
+        var poolSisa=Math.max(0,t.poolBawa-stkPoolTerpakai(o,it,t)-t.poolBalik),kePool=Math.min(poolSisa,f),keSendiri=f-kePool;
+        if(keSendiri){stkTambah(o,{jenis:'lkembali',no:no,tgl:v.tgl,item:it.id,qty:keSendiri,dari:'dibawa',ke:'siap',ket:'kembali dari acara'});S+=keSendiri;}
+        if(kePool){var pid=stkPoolId(it),h2=Math.round(t.hppPool);stkTambah(o,{jenis:'lkembali',no:no,tgl:v.tgl,item:it.id,qty:kePool,dari:'dibawa',ke:'pool',hpp:h2,ket:'kembali ke stok polos bersama'});
+          stkGudangItem(o,it);stkGudangGerak(pid,'masuk',kePool,'Kembali dari live service — '+(o.customer||o.id),o,h2);adaInv=true;P+=kePool;}
+        if(h-f>0){stkTambah(o,{jenis:'lkembali',no:no,tgl:v.tgl,item:it.id,qty:h-f,dari:'dibawa',ke:'selisih',ket:v.ket||'selisih hitung'});X+=h-f;}});
+      if(adaInv)saveInv();
+      stkGet(o).acaraBeres={tgl:v.tgl,by:stkSiapa(),no:no};
+      stkLog(o,'barang kembali dari acara '+no,(S+P)+' pcs'+(P?(' ('+P+' ke stok bersama)'):''),X?('⚠ selisih '+X+' pcs: '+v.ket):'');stkSimpan(o);}});}
+function stkAdaDiAcara(o){if(!o||!o.stk)return false;var R=stkRingkas(o);return Object.keys(R).some(function(k){return R[k].sal.dibawa>0;});}
+function stkAdaBawa(o){return !!(o&&o.stk&&(o.stk.moves||[]).some(function(m){return m.ke==='dibawa';}));}
+/* pengingat H+3 sesudah acara: barang masih tercatat "dibawa" */
+function stkTunggakAcara(o){if(!o||o.deleted||o.status==='Cancel'||!stkAdaDiAcara(o))return null;var d=dLeft(o.eventDate||'');if(d===null||d>-3)return null;return -d;}
+function stkIngatH3(){var live=!!((ST.cfg||{}).live&&(ST.cfg||{}).url),n=0,h=hariIni();
+  (ST.orders||[]).forEach(function(o){var hari=stkTunggakAcara(o);if(hari===null)return;var s=stkGet(o);if(s.ingatTgl===h)return;
+    s.ingatTgl=h;n++;
+    var pesan='🎪 '+picMention('Event Management')+' — barang live service **'+(o.customer||o.id)+'** belum direkap / belum dikonfirmasi kembali ('+hari+' hari sesudah acara).'+
+      '\nIsi rekap terpakai & gagal, lalu hitung fisik barang yang kembali di HUB.';
+    try{var u=orderTautan(o);if(u)pesan+='\n'+u;}catch(e){}
+    if(live)try{pushBackend('notify',dcPayload(o,pesan));}catch(e){}
+    logHist(o,'Pengingat H+3: barang live service belum direkap ('+hari+' hari sesudah acara)');o._m=Date.now();});
+  if(n)save();return n;}
+function stkTugasBlok(){var R=myRoles();if(!['Event Management','Packing & Shipping','Warehouse','Project Manager','Holding'].some(function(r){return R.indexOf(r)>=0;}))return '';
+  var L=[];(ST.orders||[]).forEach(function(o){var h=stkTunggakAcara(o);if(h!==null)L.push({o:o,h:h,t:'Barang live service belum direkap / dikonfirmasi kembali — '+h+' hari sesudah acara'});
+    try{if(o.stk&&!o.deleted&&o.status!=='Cancel')stkReturTelat(o).forEach(function(no){L.push({o:o,h:0,t:'Retur '+no+' lewat janji kembali dari vendor'});});}catch(e){}});
+  if(!L.length)return '';
+  return '<div class="card actcard" data-f="stkTugas" style="margin-bottom:14px"><div class="ch"><span class="ico" style="background:var(--red)">▩</span>'+
+    '<div><div class="t">Stok barang order</div><div class="s">BARANG DI ACARA &amp; RETUR VENDOR YANG BELUM BERES</div></div>'+
+    '<span style="margin-left:auto;font-size:11px;font-weight:800;color:var(--red)">'+L.length+' perlu ditindak</span></div><div class="body">'+
+    L.map(function(x){return '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;border-top:1px solid var(--line);padding:8px 0">'+
+      '<div style="flex:1;min-width:200px;cursor:pointer" onclick="openOrder('+jsArg(x.o.id)+')"><b style="font-size:11.5px">'+esc(x.o.customer||x.o.id)+'</b>'+
+      '<div style="font-size:10px;color:var(--red);font-weight:700">'+esc(x.t)+'</div></div><button class="btn ghost sm" onclick="openOrder('+jsArg(x.o.id)+')">Buka</button></div>';}).join('')+'</div></div>';}
+
+/* ---------- penutupan: sisa ke Gudang ---------- */
+function stkSisa(o){var R=stkRingkas(o),out=[];stkItems(o).forEach(function(it){var t=R[it.id];if(!t)return;if(t.sal.siap>0||t.sal.sample>0)out.push({it:it,siap:Math.max(0,t.sal.siap),sample:Math.max(0,t.sal.sample)});});return out;}
+function stkMasalah(o){if(!o||!o.stk)return [];var R=stkRingkas(o),M=[];
+  stkItems(o).forEach(function(it){var t=R[it.id];if(!t)return;var s=t.sal;
+    if(s.qc>0)M.push(it.label2+': '+s.qc+' pcs belum di-QC');
+    if(s.reject>0)M.push(it.label2+': '+s.reject+' pcs reject belum ditindaklanjuti');
+    if(s.perbaikan>0)M.push(it.label2+': '+s.perbaikan+' pcs masih di vendor (retur)');
+    if(s.dibawa>0)M.push(it.label2+': '+s.dibawa+' pcs masih tercatat di acara');
+    if(s.dikemas>0)M.push(it.label2+': '+s.dikemas+' pcs dikemas tapi belum berangkat');
+    if(s.siap<0)M.push(it.label2+': keluar '+(-s.siap)+' pcs melebihi yang lolos QC');});
+  return M;}
+function stkTutupBeres(o){if(!o||!o.stk)return true;return !stkMasalah(o).length&&!stkSisa(o).length;}
+function stkReturBeres(o){if(!o||!o.stk)return true;return !Object.keys(stkReturTerbuka(o)).length;}
+function stkKeGudang(id){
+  var o=stkOrder(id);if(!o||!stkCekBoleh())return;var S=stkSisa(o),M=stkMasalah(o);
+  if(!S.length){alert('Tak ada sisa barang di order ini.');return;}
+  if(M.length&&!confirm('Masih ada yang belum beres:\n\n• '+M.join('\n• ')+'\n\nTetap pindahkan sisa yang sudah lolos QC ke Gudang?'))return;
+  var ring=S.map(function(x){return '• '+x.it.label2+': '+(x.siap?(x.siap+' pcs'):'')+(x.sample?((x.siap?' + ':'')+x.sample+' sample'):'')+' → '+(x.it.perso?'Gudang (terkunci untuk '+(o.customer||'client ini')+')':'stok polos bersama');}).join('\n');
+  if(!confirm('Pindahkan sisa barang ke Gudang?\n\n'+ring))return;
+  var no=stkNo(o,'TTP');
+  S.forEach(function(x){var it=x.it,h=stkHppItem(o,it);
+    if(x.siap){var g=stkGudangItem(o,it,false);stkTambah(o,{jenis:'tutup',no:no,item:it.id,qty:x.siap,dari:'siap',ke:'gudang',hpp:h,ket:g.nama});
+      stkGudangGerak(g.id,'masuk',x.siap,'Sisa order — '+(o.customer||o.id),o,h);}
+    if(x.sample){var gs=stkGudangItem(o,it,true);stkTambah(o,{jenis:'tutup',no:no,item:it.id,qty:x.sample,dari:'sample',ke:'gudang',ket:gs.nama+' (sample)'});
+      stkGudangGerak(gs.id,'masuk',x.sample,'Sample order — '+(o.customer||o.id),o,0);}});
+  saveInv();stkLog(o,'sisa ke Gudang '+no,S.reduce(function(a,x){return a+x.siap+x.sample;},0)+' pcs');stkSimpan(o);}
+/* "spare kembali" & "lebihan qty" di Laporan penutupan terisi sendiri dari buku mutasi */
+function stkTutupTeks(o){var S=stkSisa(o),G=(o.stk.moves||[]).filter(function(m){return m.jenis==='tutup';});
+  if(S.length)return 'belum — '+S.map(function(x){return x.it.label2+' '+(x.siap+x.sample);}).join(', ');
+  return G.length?('✓ '+G.reduce(function(a,m){return a+(+m.qty||0);},0)+' pcs sudah di Gudang'):'✓ tak ada sisa';}
+
+/* ---------- tampilan ---------- */
+function stkAngka(n,warna){return n?('<b style="color:'+(warna||'var(--ink)')+'">'+n+'</b>'):'<span style="color:var(--line)">·</span>';}
+function stkPanel(o){
+  if(!stkAktif(o))return '';
+  var s=(o.stk)||{},R=stkRingkas(o),I=stkItems(o),boleh=stkBoleh(),id=jsArg(o.id),M=stkMasalah(o),B=stkReturTerbuka(o),nB=Object.keys(B).length;
+  var awal=((o.phase||0)<12)&&!((s.moves||[]).length);
+  if(awal)return '<div class="card actcard" data-f="stkPanel" style="margin-top:14px"><div class="ch"><span class="ico" style="background:#5b7a3a">▩</span>'+
+    '<div><div class="t">Barang order</div><div class="s">TERIMA · QC · RETUR · KIRIM · LIVE — BUKU MUTASI PER BARANG</div></div>'+
+    (boleh?'<button class="btn ghost sm" style="margin-left:auto" onclick="stkSample('+id+')">🧪 Catat sample diterima</button>':'')+'</div>'+
+    '<div class="body" style="font-size:10.5px;color:var(--muted)">Barang produksi dicatat di sini mulai fase Produksi. Sample yang datang lebih dulu boleh dicatat sekarang.</div></div>';
+  var tot=function(f){return I.reduce(function(a,it){var t=R[it.id];return a+(t?f(t):0);},0);};
+  var btn=function(f,t,on,gaya){return on?('<button class="btn '+(gaya||'ghost')+' sm" onclick="'+f+'('+id+')">'+t+'</button>'):'';};
+  var adaQC=tot(function(t){return t.sal.qc;})>0,adaRj=tot(function(t){return t.sal.reject;})>0,adaSiap=tot(function(t){return t.sal.siap;})>0;
+  var live=adaLive(o),diAcara=stkAdaDiAcara(o),sisa=stkSisa(o);
+  var aksi=boleh?('<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:11px">'+
+    btn('stkTerima','⇩ Terima barang',true,'')+btn('stkQC','✓ Catat QC',adaQC,adaQC?'':'ghost')+btn('stkReject','↩ Tindak lanjut reject',adaRj)+
+    btn('stkBalik','⇩ Terima kembali retur ('+nB+')',nB>0)+btn('stkSample','🧪 Sample',true)+
+    (live?(btn('stkBawa','🎪 Bawa ke acara',adaSiap||I.some(function(it){return !it.perso&&stkPoolStok(it)>0;}))+btn('stkRekap','📝 Rekap acara',diAcara)+btn('stkTerimaAcara','⇩ Kembali dari acara',diAcara)):'')+
+    btn('stkFinal',s.final?'↺ Buka lagi penerimaan':'✓ Penerimaan vendor selesai',tot(function(t){return t.terima;})>0)+
+    btn('stkKeGudang','▩ Sisa ke Gudang',sisa.length>0&&(o.phase||0)>=18)+'</div>'):'';
+  var th='<th class="num" style="width:58px">';
+  var rows=I.map(function(it){var t=R[it.id],S=t.sal,buka=!!(ST._stkBuka||{})[o.id+'|'+it.id];
+    var keluarLebih=S.siap<0;
+    return '<tr style="cursor:pointer" onclick="stkBukaItem('+id+','+jsArg(it.id)+')"><td><b>'+esc(it.nama)+'</b>'+(it.kode?(' <span class="chip" style="font-size:9px">'+esc(it.kode)+'</span>'):'')+(it.label?(' <span style="font-size:9px;font-weight:800;color:var(--brand-dark)">'+esc(it.label)+'</span>'):'')+
+        (it.ket?('<div style="font-size:9.5px;color:var(--muted)">'+esc(it.ket)+'</div>'):'')+
+        '<div style="font-size:9px;margin-top:2px"><span onclick="event.stopPropagation();'+(boleh?('stkPersoSet('+id+','+jsArg(it.id)+','+(!it.perso)+')'):'')+'" title="klik untuk mengubah" style="border-radius:20px;padding:0 6px;font-weight:800;'+(it.perso?'background:var(--warn-bg);color:var(--brand-dark)':'background:var(--ok-bg);color:var(--ok)')+'">'+(it.perso?'personalisasi':'polos')+'</span> '+
+        '<span style="color:var(--muted)">client '+(it.client||0)+(it.po!=null?(' · PO '+it.po):'')+'</span> '+(buka?'▾':'▸')+'</div></td>'+
+      '<td data-l="Diterima" class="num">'+stkAngka(t.terima)+'</td><td data-l="QC" class="num">'+stkAngka(S.qc,'var(--warn)')+'</td><td data-l="Lolos (siap)" class="num">'+stkAngka(S.siap,keluarLebih?'var(--red)':'var(--ok)')+'</td>'+
+      '<td data-l="Reject" class="num">'+stkAngka(S.reject,'var(--red)')+'</td><td data-l="Di vendor" class="num">'+stkAngka(S.perbaikan,'var(--warn)')+'</td>'+
+      '<td data-l="Dikemas" class="num">'+stkAngka(S.dikemas)+'</td><td data-l="Terkirim" class="num">'+stkAngka(t.terkirim)+'</td>'+
+      (live?('<td data-l="Di acara" class="num">'+stkAngka(S.dibawa,'var(--warn)')+'</td><td data-l="Terpakai" class="num">'+stkAngka(t.terpakai)+(t.gagal?('<div style="font-size:9px;color:var(--red)">gagal '+t.gagal+'</div>'):'')+'</td>'):'')+
+      '<td data-l="Sample" class="num">'+stkAngka(S.sample)+'</td><td data-l="Ke Gudang" class="num">'+stkAngka(t.gudang)+'</td></tr>'+
+      (buka?('<tr><td colspan="'+(live?12:10)+'" style="background:var(--bg)">'+stkKartuHTML(o,it)+'</td></tr>'):'');}).join('');
+  var lebih=I.map(function(it){var t=R[it.id];return t?(t.terkirim+t.terpakai-(+it.client||0)):0;}).reduce(function(a,b){return a+Math.max(0,b);},0);
+  var hut=(((o.pricing||{}).lines)||[]).map(function(l){var n=0;try{n=stkAdjNilai(o,l);}catch(e){}return n?{l:l,n:n,q:stkSelisihKey(o,stkLineKey(l))}:null;}).filter(Boolean);
+  var beban=stkBebanRinci(o),log=(s.log||[]).slice(-8).reverse();
+  return '<div class="card actcard" data-f="stkPanel" style="margin-top:14px"><div class="ch"><span class="ico" style="background:#5b7a3a">▩</span>'+
+    '<div><div class="t">Barang order — terima, QC, retur, kirim'+(live?', live':'')+'</div><div class="s">BUKU MUTASI PER BARANG · KLIK BARIS UNTUK KARTU STOK</div></div>'+
+    '<span data-f="stkStatus" style="margin-left:auto;font-size:11px;font-weight:800;color:'+(M.length?'var(--warn)':'var(--ok)')+'">'+(M.length?(M.length+' belum beres'):'✓ beres')+'</span></div><div class="body">'+
+    aksi+
+    '<div class="xscroll"><table class="rtable mstack"><thead><tr><th style="min-width:170px">Barang</th>'+th+'Diterima</th>'+th+'QC</th>'+th+'Lolos (siap)</th>'+th+'Reject</th>'+th+'Di vendor</th>'+th+'Dikemas</th>'+th+'Terkirim</th>'+
+      (live?(th+'Di acara</th>'+th+'Terpakai</th>'):'')+th+'Sample</th>'+th+'Ke Gudang</th></tr></thead><tbody>'+rows+'</tbody></table></div>'+
+    (M.length?('<div data-f="stkMasalah" style="margin-top:9px;font-size:10.5px;color:var(--warn);line-height:1.6">'+M.map(function(x){return '⚠ '+esc(x);}).join('<br>')+'</div>'):'')+
+    (nB?('<div style="margin-top:9px;font-size:10.5px;line-height:1.6"><b>Retur di vendor:</b> '+Object.keys(B).map(function(no){var r=(s.retur||{})[no]||{},q=Object.keys(B[no]).reduce(function(a,k){return a+B[no][k];},0),tl=r.janji?dLeft(r.janji):null;
+      return esc(no)+' · '+q+' pcs · '+(r.jenis==='ganti'?'ganti baru':'perbaikan')+(r.janji?(' · janji '+tglID(r.janji)+(tl!==null&&tl<0?' <b style="color:var(--red)">telat '+(-tl)+' hari</b>':'')):'');}).join(' &nbsp;|&nbsp; ')+'</div>'):'')+
+    (lebih>0?('<div data-f="stkLebih" style="margin-top:9px;font-size:10.5px;color:var(--brand-dark);font-weight:700">💰 Terkirim + terpakai melebihi qty client '+lebih+' pcs — kemungkinan tagihan tambahan ke client.</div>'):'')+
+    (hut.length?('<div data-f="stkHutang" style="margin-top:9px;font-size:10.5px;line-height:1.6"><b>Selisih kiriman vendor</b> (catatan untuk Finance — tagihan di Pembayaran vendor tidak berubah otomatis): '+hut.map(function(x){return esc(x.l.produk||x.l.coll||'')+' '+(x.q>0?'+':'')+x.q+' pcs = <b>'+(x.n>0?'+':'−')+fmt0(Math.abs(x.n))+'</b>';}).join(' · ')+(s.final?'':' <span style="color:var(--muted)">· kekurangan baru dihitung sesudah "Penerimaan vendor selesai"</span>')+'</div>'):'')+
+    (beban.length?('<div data-f="stkBeban" style="margin-top:9px;font-size:10.5px;line-height:1.6"><b>Beban stok bersama</b> (masuk biaya lain order ini): '+beban.map(function(x){return esc(x.it.label2)+' '+x.q+' pcs × '+fmt0(x.hpp)+' = <b>'+fmt0(x.nilai)+'</b>';}).join(' · ')+'</div>'):'')+
+    (live&&stkAdaBawa(o)?('<div style="margin-top:9px;font-size:10.5px;color:var(--muted)">Live service: '+(((s.rekap||{}).tgl)?('rekap '+tglID(s.rekap.tgl)+' oleh '+esc(s.rekap.by||'-')):'<b style="color:var(--warn)">belum direkap</b>')+' · '+((s.acaraBeres)?('kembali dihitung '+tglID(s.acaraBeres.tgl)):(diAcara?'<b style="color:var(--warn)">barang belum dikonfirmasi kembali</b>':''))+'</div>'):'')+
+    '<details style="margin-top:11px"'+(ST._stkLog===o.id?' open':'')+'><summary style="font-size:11px;font-weight:800;cursor:pointer" onclick="ST._stkLog=(ST._stkLog===\''+o.id+'\'?null:\''+o.id+'\')">Log perubahan ('+(s.log||[]).length+')</summary>'+
+      (log.length?('<div style="font-size:10px;line-height:1.7;margin-top:5px">'+log.map(function(l){return '<div><span style="color:var(--muted)">'+esc(l.t)+' · '+esc(l.by)+'</span> — <b>'+esc(l.aksi)+'</b>'+(l.apa?(' · '+esc(l.apa)):'')+(l.rinci?(' <span style="color:var(--muted)">('+esc(l.rinci)+')</span>'):'')+'</div>';}).join('')+
+        ((s.log||[]).length>8?'<div style="color:var(--muted)">… '+((s.log||[]).length-8)+' lebih lama di Riwayat order</div>':'')+'</div>'):'<div style="font-size:10px;color:var(--muted);margin-top:5px">belum ada</div>')+'</details>'+
+    '</div></div>';}
+function stkBukaItem(id,itemId){ST._stkBuka=ST._stkBuka||{};var k=id+'|'+itemId;ST._stkBuka[k]=!ST._stkBuka[k];render();}
+/* kartu stok satu barang: semua mutasinya urut tanggal, dengan saldo "masih di Rove" berjalan */
+function stkKartuHTML(o,it){
+  var A=stkMovesAll(o).filter(function(m){return m.item===it.id;}).slice().sort(function(a,b){return String(a.tgl||'').localeCompare(String(b.tgl||''));});
+  if(!A.length)return '<div style="font-size:10.5px;color:var(--muted);padding:4px">Belum ada mutasi.</div>';
+  var rove={sample:1,qc:1,siap:1,reject:1,dikemas:1},saldo=0,boleh=stkBoleh(),id=jsArg(o.id);
+  return '<div style="font-size:10.5px;font-weight:800;margin:4px 0 6px">Kartu stok — '+esc(it.label2)+'</div><div class="xscroll"><table class="rtable" style="font-size:10.5px"><thead><tr><th style="width:84px">Tanggal</th><th style="width:80px">Dokumen</th><th>Mutasi</th><th class="num" style="width:50px">Qty</th><th class="num" style="width:62px">Di Rove</th><th>Keterangan</th><th style="width:70px"></th></tr></thead><tbody>'+
+    A.map(function(m){var d=(rove[m.ke]?1:0)-(rove[m.dari]?1:0);saldo+=d*(+m.qty||0);
+      return '<tr><td>'+tglID(m.tgl)+'</td><td>'+esc(m.no||'-')+'</td><td>'+esc(STK_POS[m.dari]||m.dari)+' → <b>'+esc(STK_POS[m.ke]||m.ke)+'</b>'+(m.diubah?' <span title="pernah diubah — lihat log" style="color:var(--warn)">✎</span>':'')+'</td>'+
+        '<td class="num"><b>'+m.qty+'</b></td><td class="num">'+saldo+'</td><td style="color:var(--muted)">'+esc(m.ket||'')+(m.by?(' · '+esc(m.by)):'')+'</td>'+
+        '<td>'+((boleh&&stkBisaUbah(m))?('<button class="xrow" title="ubah" onclick="event.stopPropagation();stkUbah('+id+','+jsArg(m.id)+')">✎</button> <button class="xrow" title="hapus" onclick="event.stopPropagation();stkHapus('+id+','+jsArg(m.id)+')">✕</button>'):(m.auto?'<span style="font-size:9px;color:var(--muted)">dari Pengiriman</span>':'<span style="font-size:9px;color:var(--muted)">🔒</span>'))+'</td></tr>';}).join('')+
+    '</tbody></table></div>';}
+/* blok di menu Live service — satu angka "dibawa" per barang, lalu rekap & konfirmasi kembali */
+function stkLiveBlok(o){
+  var R=stkRingkas(o),I=stkItems(o).filter(function(it){var t=R[it.id];return t&&(t.sal.dibawa>0||t.terpakai||t.gagal||t.poolBawa||(o.stk.moves||[]).some(function(m){return m.item===it.id&&m.ke==='dibawa';}));}),id=jsArg(o.id),boleh=stkBoleh(),di=stkAdaDiAcara(o);
+  return '<div data-f="stkLive" style="border-top:1px dashed var(--line);margin-top:11px;padding-top:10px">'+
+    '<div style="display:flex;flex-wrap:wrap;gap:6px 9px;align-items:center;margin-bottom:'+(I.length?'8px':'0')+'">'+
+      '<span style="font-size:11px;font-weight:800">Barang dibawa ke acara</span><span style="font-size:10px;color:var(--muted)">dari stok order ini, kekurangannya dari stok polos bersama</span>'+
+      (boleh?('<span style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap"><button class="btn ghost sm" onclick="stkBawa('+id+')">🎪 Bawa</button>'+(di?('<button class="btn ghost sm" onclick="stkRekap('+id+')">📝 Rekap</button><button class="btn ghost sm" onclick="stkTerimaAcara('+id+')">⇩ Kembali</button>'):'')+'</span>'):'')+'</div>'+
+    (I.length?('<div class="xscroll"><table class="rtable"><thead><tr><th>Barang</th><th class="num" style="width:70px">Dibawa</th><th class="num" style="width:70px">Terpakai</th><th class="num" style="width:70px">Gagal</th><th class="num" style="width:80px">Di acara</th><th class="num" style="width:70px">Kembali</th></tr></thead><tbody>'+
+      I.map(function(it){var t=R[it.id],bawa=(o.stk.moves||[]).filter(function(m){return m.item===it.id&&m.ke==='dibawa';}).reduce(function(a,m){return a+(+m.qty||0);},0),
+        kembali=(o.stk.moves||[]).filter(function(m){return m.item===it.id&&m.dari==='dibawa'&&(m.ke==='siap'||m.ke==='pool');}).reduce(function(a,m){return a+(+m.qty||0);},0);
+        return '<tr><td><b>'+esc(it.label2)+'</b>'+(t.poolBawa?('<div style="font-size:9px;color:var(--muted)">'+t.poolBawa+' dari stok bersama</div>'):'')+'</td><td class="num">'+bawa+'</td><td class="num">'+t.terpakai+'</td><td class="num" style="color:var(--red)">'+(t.gagal||'')+'</td>'+
+          '<td class="num" style="font-weight:800;color:'+(t.sal.dibawa?'var(--warn)':'var(--ok)')+'">'+(t.sal.dibawa||'✓')+'</td><td class="num">'+kembali+(t.selisih?(' <span style="color:var(--red)">−'+t.selisih+'</span>'):'')+'</td></tr>';}).join('')+'</tbody></table></div>'):'')+
+    (stkTunggakAcara(o)!==null?'<div style="font-size:10.5px;color:var(--red);font-weight:700;margin-top:6px">⏰ Sudah lewat H+3 sesudah acara — rekap &amp; hitung fisik barang kembali.</div>':'')+'</div>';}
+
+/* ---------- Gudang → tab Barang order: semua barang order yang masih berjalan ---------- */
+function stkGudangTab(){
+  var O=(ST.orders||[]).filter(function(o){return o&&!o.deleted&&o.stk&&o.status!=='Cancel';});
+  if(!O.length)return '<div style="color:var(--muted);font-size:12px">Belum ada order yang memakai buku mutasi barang.</div>';
+  var rows=[];O.forEach(function(o){var R=stkRingkas(o);stkItems(o).forEach(function(it){var t=R[it.id];if(!t)return;if(!t.terima&&!t.sal.sample&&!t.poolBawa)return;
+    rows.push('<tr style="cursor:pointer" onclick="openOrder('+jsArg(o.id)+')"><td><b>'+esc(o.customer||o.id)+'</b><div style="font-size:9px;color:var(--muted)">'+esc(PH[o.phase]?PH[o.phase].n:'')+'</div></td>'+
+      '<td>'+esc(it.label2)+'<div style="font-size:9px;color:'+(it.perso?'var(--brand-dark)':'var(--ok)')+'">'+(it.perso?'personalisasi':'polos')+'</div></td>'+
+      '<td class="num">'+t.terima+'</td><td class="num">'+stkAngka(t.sal.qc,'var(--warn)')+'</td><td class="num">'+stkAngka(t.sal.siap,'var(--ok)')+'</td><td class="num">'+stkAngka(t.sal.reject+t.sal.perbaikan,'var(--red)')+'</td>'+
+      '<td class="num">'+stkAngka(t.terkirim+t.terpakai)+'</td><td class="num">'+stkAngka(t.sal.dibawa,'var(--warn)')+'</td><td class="num"><b>'+t.diRove+'</b></td></tr>');});});
+  return '<div style="font-size:11px;color:var(--muted);margin-bottom:11px">Barang yang masih dipegang per order — dari buku mutasi tiap order. Klik baris untuk membuka ordernya (kartu stok per barang ada di panel <b>Barang order</b>). Sisanya pindah ke Daftar stok saat order ditutup.</div>'+
+    '<div class="xscroll"><table class="rtable"><thead><tr><th>Order</th><th>Barang</th><th class="num">Diterima</th><th class="num">QC</th><th class="num">Siap</th><th class="num">Reject / retur</th><th class="num">Keluar</th><th class="num">Di acara</th><th class="num">Di Rove</th></tr></thead><tbody>'+rows.join('')+'</tbody></table></div>';}
+
 /* ---- ambil / kembalikan stok untuk live service ---- */
 function lsAmbil(id){
   var o=ST.orders.find(function(x){return x.id===id;});if(!o)return;
@@ -4746,6 +5242,7 @@ function lsKembali(id,i){
       logHist(o,'Stok live service kembali: '+r.nama+' '+q+' '+r.sat);
       o._m=Date.now();save();render();}});}
 function lsStokBlok(o){
+  if(stkAktif(o))return stkLiveBlok(o);   /* order buku mutasi barang (18 Nov) */
   var R=o.lsStok||[];
   return '<div style="border-top:1px dashed var(--line);margin-top:11px;padding-top:10px">'+
     '<div style="display:flex;flex-wrap:wrap;gap:9px;align-items:center;margin-bottom:'+(R.length?'8px':'0')+'">'+
@@ -11396,7 +11893,7 @@ ${muatDcSitusUji()?contohBawaanPanelHTML():`       <div style="margin-top:16px;b
    <div class="topbar"><h1>Tugas saya</h1><span class="demo">${role}</span><div class="sp"></div></div>
    ${tabNote('Hanya order yang <b>menunggu tindakan jabatanmu ('+role+')</b>. Klik kartu → kerjakan langkah yang tertulis → klik <b>✓ Selesai — lanjut fase</b>. Order akan hilang dari sini setelah berpindah ke PIC lain.')}
    ${akuDirektur?bayarAjuDirekturBlok():((myRoles().indexOf('Finance')>=0||myRoles().indexOf('Purchasing')>=0)?bayarAjuFinanceBlok():'')}${adminTugasBlok()}
-   ${myRoles().indexOf('Marketing')>=0?konTugasBlok():''}${tbhTugasBlok()}${gabTugasBlok()}${inqIngatBlok()}${poSusulBlok()}
+   ${myRoles().indexOf('Marketing')>=0?konTugasBlok():''}${tbhTugasBlok()}${gabTugasBlok()}${inqIngatBlok()}${poSusulBlok()}${stkTugasBlok()}
    <div style="font-size:12px;color:var(--muted);margin-bottom:14px">${(function(){
      if(tasks.length)return tasks.length+' order menunggu tindakanmu.';
      /* pesan lama buta: mengaku kosong padahal blok kelengkapan di bawah berisi */
@@ -15553,6 +16050,7 @@ const PH_CHECK=[
  ],
   [ // 19 Pembayaran vendor 3
   {auto:function(o){return bvLunasSemua(o);}, k:'vendorLunas', t:'Lunasi semua vendor — fase ini mengunci sampai semuanya lunas', en:'Settle all vendors — this phase locks until every vendor is paid', guna:'supaya tak ada order ditutup dengan utang vendor', gunaEn:'so no order closes with vendor debt outstanding', pic:'Finance', w:true},
+  {auto:function(o){return stkReturBeres(o);}, k:'stkRetur', t:'Semua retur barang ke vendor sudah kembali atau diputuskan tidak kembali (panel Barang order)', en:'Every return to a vendor is back or written off', guna:'supaya tak ada barang tertinggal di vendor saat order ditutup', gunaEn:'so no goods are left at the vendor when the order closes', pic:'PM', w:true},
  ],
   [ // 20 Laporan penutupan
   {auto:function(o){return tutupLengkap(o);}, k:'tutupLengkap', t:'Laporan penutupan: live service sesuai/tidak, lebihan qty kembali, dokumentasi, biaya lain yang timbul, royalti Rove AU (order AU)', en:'Closing report: live service outcome, spare returned, documentation, extra costs, Rove AU royalty (AU orders)', guna:'supaya order benar-benar ditutup rapi sebelum konfirmasi selesai', gunaEn:'so the order is properly closed before final confirmation', pic:'PM', w:true},
@@ -15949,7 +16447,7 @@ function jasaHargaIsi(o){
 /* kunci item bisa dipakai dua fase (kirim: quotation di fase 4, invoice di
    fase 6) — entri berawalan '<fase>.' menang atas entri umum */
 function chkPanelDari(fase,k){return CHK_PANEL[fase+'.'+k]||CHK_PANEL[k];}
-const CHK_PANEL={jualJasa:'_master',operator:'rfq',opFix:'liveOps','18.alamat':'kirimTujuan',logoLetak:'brief',fileKet:'brief',
+const CHK_PANEL={jualJasa:'_master',stkRetur:'stk',operator:'rfq',opFix:'liveOps','18.alamat':'kirimTujuan',logoLetak:'brief',fileKet:'brief',
   brief:'brief', bahanWarna:'brief', bahanDetail:'brief', ukuranProduk:'brief', kontak:'brief', acara:'brief', kota:'brief', hpWo:'brief', ref:'brief',
   rfq:'rfq', kulit:'rfq', harga:'rfq', konfKatalog:'rfq', liveTanya:'rfq',
   hpp:'profit', margin:'profit', ongkir:'profit', biayaLain:'profit', arahanQuo:'profit',
@@ -16438,7 +16936,8 @@ function panelDef(o){
    {k:'vpo',t:'PO vendor lain',s:'collateral & jasa',h:function(){return (o.phase>=10&&!batal)?vpoPanel(o):'';}},
    {k:'bv1',t:'Pembayaran vendor 1',s:'termin pertama ke vendor',h:function(){return (o.phase>=11&&!batal)?bayarVendorPanel(o,1):'';}},
    {k:'prod',t:'Produksi Radja',s:'tahap & progres',h:function(){return (o.phase>=12&&!batal)?prodPanel(o):'';}},
-   {k:'qc',t:'QC & Packing',s:'kelengkapan barang diterima Rove',h:function(){return (o.phase>=13&&!batal)?qcPanel(o):'';}},
+   {k:'qc',t:'QC & Packing',s:'kelengkapan barang diterima Rove',h:function(){return (o.phase>=13&&!batal&&!stkAktif(o))?qcPanel(o):'';}},
+   {k:'stk',t:'Barang order',s:'terima, QC, retur, kirim, live — mutasi per barang',h:function(){return !batal?stkPanel(o):'';}},
    {k:'dokProduk',t:'Dokumentasi produk',s:'foto produk jadi & kemasan — arsip, konten, client',h:function(){return (o.phase>=14&&!batal)?dokProdukPanel(o):'';}},
    {k:'bv2',t:'Pembayaran vendor 2',s:'termin kedua ke vendor',h:function(){return (o.phase>=15&&!batal)?bayarVendorPanel(o,2):'';}},
    {k:'pel',t:'Invoice pelunasan',s:'ringkasan & generate',h:function(){return (o.phase>=16&&!batal)?pelPanel(o):'';}},
@@ -16802,6 +17301,8 @@ function bukaAwalBlokTugas(){
 function panelBawaan(o){
   if(o.done||(o.phase||0)>=PH.length)return [];       // selesai: semua diringkas
   var L=(PH_PANEL[o.phase||0]||[]).slice();
+  /* buku mutasi barang (18 Nov): menggantikan QC & Packing lama dan tetap terbuka sampai penutupan (retur, kirim, live, sisa) */
+  try{if(stkAktif(o)&&(o.phase||0)>=10){var iq=L.indexOf('qc');if(iq>=0)L[iq]='stk';else if(L.indexOf('stk')<0)L.push('stk');}}catch(e){}
   /* patch217: First Payment — pilih jalurnya dulu (DP atau PO resmi client), baru bagiannya tampil */
   if((o.phase||0)===7){var J=jalurDP(o);L=L.filter(function(k){return J==='dp'?k!=='poclient':(J==='po'?(k!=='pay'&&k!=='bukti'):(k==='chk'));});L.splice(1,0,'jalurDP');}
   /* Satu-satunya hak istimewa VIP yang menabrak urutan: panel Referensi
@@ -17844,7 +18345,8 @@ function royaltiBlok(o){
     '</div>';}
 function tutupLengkap(o){
   var T=(o&&o.tutup)||{};
-  if(adaLive(o)&&(!T.liveSesuai||!T.spareKembali))return false;
+  if(adaLive(o)&&(!T.liveSesuai||(!T.spareKembali&&!(o&&o.stk))))return false;
+  if(o&&o.stk&&stkAktif(o)&&!stkTutupBeres(o))return false;   /* buku mutasi: acara direkap, retur beres, sisa sudah di Gudang */
   if(orderAU(o)&&!((+((T.au||{}).nilai)||0)>0))return false;   // order AU: nilai invoice Rove AU untuk royalti
   if(!(((o.brief||{}).dokumentasiFiles)||[]).length)return false;
   return true;}
@@ -17901,8 +18403,9 @@ function tutupPanel(o){
       '<div class="g2" style="gap:10px;margin-bottom:10px">'+
         '<label class="nlbl">Live service berjalan sesuai rencana?'+sel('liveSesuai',['Sesuai','Tidak sesuai'])+'</label>'+
         '<label class="nlbl">Catatan live service'+inp('liveCatatan','mis. kaligrafi 100 pcs selesai jam 21.00; 1 operator terlambat')+'</label>'+
+        (o.stk?('<label class="nlbl">Barang live service & sisa order<div data-f="stkTutup" style="font-size:11.5px;font-weight:700;margin-top:6px">'+esc(stkTutupTeks(o))+'</div><div style="font-size:9.5px;color:var(--muted)">otomatis dari panel Barang order</div></label></div>'):(
         '<label class="nlbl">Lebihan qty live service sudah kembali ke Rove?'+sel('spareKembali',['Sudah kembali','Belum kembali','Tidak ada lebihan'])+'</label>'+
-        '<label class="nlbl">Qty lebihan yang kembali'+inp('spareQty',spareSaranTeks(o)||'mis. 5 pcs')+'</label></div>')
+        '<label class="nlbl">Qty lebihan yang kembali'+inp('spareQty',spareSaranTeks(o)||'mis. 5 pcs')+'</label></div>')))
       :'<div style="font-size:10.5px;color:var(--muted);margin-bottom:10px">Order tanpa live service — bagian live service tidak berlaku.</div>')+
     '<div class="sj">'+N()+'Dokumentasi</div>'+lampiranBlok(o,'dokumentasiFiles','Foto / video dokumentasi (acara, serah terima, hasil)')+
     '<div class="sj" style="margin-top:12px">'+N()+'Biaya lain yang timbul</div>'+
@@ -20325,6 +20828,7 @@ function biayaTotal(o){
      untungnya dengan yang mulus. */
   t+=+(((o&&o.retur)||{}).biaya)||0;
   try{t+=tutupBiayaTotal(o);}catch(e){}   // biaya yang timbul saat penutupan (tak ditagih ke client)
+  try{t+=stkBeban(o);}catch(e){}   // barang stok bersama yang terpakai di live service order ini (18 Nov)
   return t;}
 /* yang DITAGIH ke client: biaya di luar HPP yang dicatat tim (ongkir alat,
    akomodasi, sample…) — dilebur ke harga produk utama di quotation & invoice,
@@ -27766,6 +28270,7 @@ setTimeout(function(){
   try{n+=jalankanIngatBayar();}catch(e){}
   try{n+=jalankanIngatKonten();}catch(e){}
   try{n+=spareSinkronSemua();}catch(e){}
+  try{n+=stkIngatH3();}catch(e){}
   if(n)render();},6000);
 });
 </script>
