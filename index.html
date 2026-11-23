@@ -1101,7 +1101,7 @@ const KEY='rovehub_orders_v18';
 /* ================= VERSI YANG SEDANG BERJALAN =================
    Diisi otomatis oleh terbitkan.js waktu salinan ini diterbitkan; '-' berarti
    dibuka langsung dari berkas, bukan dari alamat terbitannya. */
-const VERSI='20261123-144755';
+const VERSI='20261123-165103';
 /* Berkas versi.txt di sebelah halaman ini berisi penanda yang sama. Ia
    ditanyakan tanpa cache, jadi ia jujur walau halamannya sendiri masih
    tersimpan di cache browser. */
@@ -23962,12 +23962,13 @@ function nonProdukForm(cb,pilihId){
     ok:function(v){nonProdukForm(cb,v.item||I[0].id);}});return;}
   var it=(pilihId&&itemLainCari(pilihId))||I[0],k=itemLainKomb(it),sec=KOMB_SECS.find(function(x){return x[0]===k;});
   var fields=[{k:'item',label:'Item',type:'select',opts:[{v:it.id,l:it.nama}],val:it.id}];
-  if(sec)sec[3].forEach(function(f){var V=nonProdukNilaiOpsi(k,f);fields.push({k:'f_'+f,label:KOMB_LABEL[f]||f,type:'select',opts:V.length?V:['-'],val:V[0]||'-'});});
+  /* pilih dari master atau ketik sendiri (custom) — kosong = pilihan pertama */
+  if(sec)sec[3].forEach(function(f){var V=nonProdukNilaiOpsi(k,f);fields.push({k:'f_'+f,label:(KOMB_LABEL[f]||f)+' — pilih / ketik custom',type:'text',dl:V,val:'',ph:V.length?(V[0]+' (bawaan) · klik untuk pilihan'):'ketik sendiri'});});
   fields.push({k:'qty',label:'Jumlah ('+(it.satuan||'pcs')+')',type:'number',req:true,ph:'mis. 150'});
   askForm({judul:'＋ '+it.nama+' / non-produk',sub:'Harga dari '+((NONPROD_SUMBER.find(function(x){return x[0]===it.sumberHarga;})||[,''])[1]||'master')+' — bisa diubah di pricing.',fields:fields,
     ok:function(v){var x=itemLainCari(v.item)||it,kk=itemLainKomb(x),sc=KOMB_SECS.find(function(y){return y[0]===kk;});
       var q=Math.max(0,+v.qty||0);if(!q){alert('Isi jumlahnya dulu.');return;}
-      var P=null;if(sc){P={};sc[3].forEach(function(f){var val=v['f_'+f];P[f]=(val&&val!=='-')?val:'';});}
+      var P=null;if(sc){P={};sc[3].forEach(function(f){var val=String(v['f_'+f]==null?'':v['f_'+f]).trim();if(!val)val=nonProdukNilaiOpsi(kk,f)[0]||'';P[f]=(val&&val!=='-')?val:'';});}
       var l={produk:x.nama,bahan:P?(P.material||''):'',sumber:itemLainVendor(x),qty:q,hpp:0,jual:0,detail:'',imgs:[],fixed:false,nonProduk:x.id,coll:kk?NONPROD_COLL[kk]:'lain'};
       if(P)l.kombPilih=P;
       nonProdukHarga(l,MARGIN_BAWAAN);cb(l);}});}
