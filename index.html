@@ -1101,7 +1101,7 @@ const KEY='rovehub_orders_v18';
 /* ================= VERSI YANG SEDANG BERJALAN =================
    Diisi otomatis oleh terbitkan.js waktu salinan ini diterbitkan; '-' berarti
    dibuka langsung dari berkas, bukan dari alamat terbitannya. */
-const VERSI='20261123-165103';
+const VERSI='20261124-151103';
 /* Berkas versi.txt di sebelah halaman ini berisi penanda yang sama. Ia
    ditanyakan tanpa cache, jadi ia jujur walau halamannya sendiri masih
    tersimpan di cache browser. */
@@ -3638,6 +3638,8 @@ function leadAdd(){
       {k:'tglAcara',label:I.Wedding.tgl,no:6,setengah:true,type:'date',jika:K('Wedding'),hint:I.Wedding.tglHint},
       {k:'tglKirimC',label:I.Corporate.tgl,no:6,setengah:true,type:'date',jika:K('Corporate'),hint:I.Corporate.tglHint},
       {k:'tglKirimO',label:I.Custom.tgl,no:6,setengah:true,type:'date',jika:K('Custom'),hint:I.Custom.tglHint},
+      /* 24 Nov (patch222): client belum punya tanggal — PM menetapkan tanggal kirim dari jawaban vendor */
+      {k:'tglIkut',label:'Belum ada tanggal?',type:'checkbox',cbLabel:'Client ikut waktu tercepat dari tim produksi',jika:ada},
       {k:'channel',label:'Datang dari mana',no:7,setengah:true,type:'select',val:'',jika:ada,
        opts:[{v:'',l:'— pilih —'}].concat(LEAD_CH.map(function(c){return {v:c,l:c};}))},
       {k:'jenis',label:'Jenis order — cara menentukan harga',no:8,type:'kartu',kecil:true,req:true,val:'',jika:ada,
@@ -3668,7 +3670,7 @@ function leadAdd(){
       var idBaru='L'+Math.random().toString(36).slice(2,7);leadsAll().unshift({id:idBaru,nama:oto?leadJudulOto(kat,d):t(v.nama),namaOto:oto,kontak:hp,
         channel:t(v.channel),produk:t(v.produk),qty:Math.max(0,+v.qty||0),estimasi:+v.estimasi||0,status:'Baru',
         masuk:new Date().toISOString().slice(0,10),jenis:v.jenis||'',kategori:kat,
-        tglAcara:v.tglAcara||'',tglKirim:t(pilih(v.tglKirim,v.tglKirimC||v.tglKirim,v.tglKirimO||v.tglKirim)),
+        tglAcara:v.tglAcara||'',tglKirim:t(pilih(v.tglKirim,v.tglKirimC||v.tglKirim,v.tglKirimO||v.tglKirim)),tglIkut:!!v.tglIkut,
         brideNama:d.brideNama,groomNama:d.groomNama,clientUtama:cu,picNama:(kat==='Corporate')?t(v.picNama):'',
         kontakOleh:lw?'WO / EO / perantara':'Client sendiri',
         /* lewat perantara: nomor yang tadi diketik itu milik WO / EO */
@@ -3831,6 +3833,7 @@ function kirimKeInquiry(id){
   /* yang sudah disebut client waktu prospek — jangan ditanya dua kali */
   if(l.tglAcara){o.eventDate=l.tglAcara;o.brief.tglAcara=l.tglAcara;}
   if(l.tglKirim)o.brief.tglKirim=l.tglKirim;
+  if(l.tglIkut&&!l.tglKirim)o.tglIkut=true;
   if(l.woNama)o.brief.woNama=l.woNama;
   if(l.woHp)o.brief.woHp=l.woHp;
   if(l.woPic)o.brief.woPic=l.woPic;
@@ -15793,7 +15796,7 @@ const PH_CHECK=[
    pic:'Sales', w:true},
   {auto:function(o){return nonProdukSpekLengkap(o);}, jika:'nonProduk', k:'specNon', t:'Lengkapi spesifikasi & jumlah tiap item non-produk (kertas, coating, finishing, potongan, ukuran)', en:'Complete the spec and quantity of every non-product item (paper, coating, finishing, cut, size)', guna:'supaya vendor kartu bisa memberi harga & mencetak tanpa menebak', gunaEn:'so the card vendor can quote and print without guessing', pic:'Sales', w:true},
   {auto:function(o){return !!(o.phone&&String(o.phone).trim());}, k:'kontak', t:'Catat nama PIC client beserta nomor HP-nya', en:'Record the client PIC and their phone number', guna:'supaya semua komunikasi order punya tujuan yang jelas', gunaEn:'so every message about this order has somewhere to go',                 pic:'Sales', w:true},
-  {auto:function(o){var b=o.brief||{};return !!o.eventDate&&!!b.tglKirim;},
+  {auto:function(o){var b=o.brief||{};return (!!o.eventDate&&!!b.tglKirim)||(!!o.tglIkut&&(!adaLive(o)||!!o.eventDate));},
    k:'acara', t:'Tanyakan tanggal acara dan tanggal kirim yang diminta', en:'Ask for the event date and the requested ship date', guna:'supaya seluruh hitung mundur produksi punya acuan', gunaEn:'so the whole production countdown has a reference', pic:'Sales', w:true},
   {auto:function(o){var b=o.brief||{};return !!String(b.venue||o.venue||'').trim();},
    k:'kota', t:'Isi kota dan venue acara', en:'Fill in the event city and venue', guna:'supaya tarif ongkir ketemu dan operator live tak salah kota', gunaEn:'so the shipping rate can be found and live operators go to the right city',              pic:'Sales', w:true},
@@ -15876,6 +15879,7 @@ const PH_CHECK=[
   /* biayaList, bukan o.pricing.biayaLain — nama itu tak pernah ditulis siapa
      pun, jadi itemnya merah selamanya sementara biayanya sudah tercatat */
   {auto:function(o){return vendorNonTglLengkap(o);}, jika:'nonProduk', k:'tglVendor', t:'Tanyakan deadline produksi & batas PO ke vendor item (mis. CardPrint)', en:'Ask the item vendor (e.g. CardPrint) for the production deadline and the latest PO date', guna:'supaya tanggal janji ke client bukan tebakan', gunaEn:'so the date promised to the client is not a guess', pic:'PM', w:true},
+  {auto:function(o){return !!(o.brief||{}).tglKirim;}, jika:'tglIkut', k:'tglRove', t:'Tentukan tanggal kirim yang Rove sanggupi (client ikut waktu tercepat tim produksi)', en:'Set the delivery date Rove can commit to (client follows the fastest production time)', guna:'supaya quotation punya tanggal kirim yang bisa dipegang client', gunaEn:'so the quotation carries a delivery date the client can rely on', pic:'PM', w:true},
   {auto:function(o){
      var ada=0;try{ada=(((o.pricing||{}).biaya)||[]).length;}catch(e){}
      return ada>0||!!(o.pricing||{}).biayaLainNol;},
@@ -15949,6 +15953,7 @@ const PH_CHECK=[
    k:'faktur', t:'Terbitkan faktur pajak, isi nomor & tanggalnya', en:'Issue the tax invoice and fill in its number and date', guna:'supaya client bisa mengkreditkan pajaknya', gunaEn:'so the client can claim the tax back',                                pic:'Finance', w:true, jika:'ppn'}
  ],
  [ // 7 Menunggu DP masuk
+  {auto:function(o){return !!o.tglRoveUlang;}, jika:'tglRoveTelat', k:'tglRoveUlang', t:'DP lewat batas — hitung ulang tanggal kirim dari Rove', en:'Down payment came after the deadline — recalculate the Rove delivery date', guna:'tanggal kirim di quotation hanya berlaku bila DP masuk sebelum batas PO vendor', gunaEn:'the quoted delivery date only holds if the down payment arrived before the vendor PO deadline', pic:'PM', w:true},
   {auto:function(o){return dpTerpenuhi(o);},
    k:'dpMasuk', t:'Catat DP yang masuk — atau surat PO resmi client yang sudah disetujui Direktur', en:'Record the incoming down payment and reconcile it against the bank', guna:'supaya produksi tak jalan tanpa uang muka', gunaEn:'so production does not start without money in', pic:'Sales', w:true}
  ],
@@ -16074,6 +16079,8 @@ function chkBerlaku(o,it){
   /* order tanpa produk kulit (greeting card saja, 6 Okt): langkah khusus kulit / Radja tak berlaku */
   if(it.jika==='adaKulit')return !orderNonProduk(o);
   if(it.jika==='nonProduk')return orderNonProduk(o);
+  if(it.jika==='tglIkut')return !!o.tglIkut;
+  if(it.jika==='tglRoveTelat')return tglRoveTelat(o);
   if(it.jika==='collKulit')return ['box','pouch','card'].some(function(k){return (o.coll||{})[k];})&&!orderNonProduk(o);
   if(it.jika==='perPcs')return persoPerPcs(o);
   if(it.jika==='custom')return String(o.type||'Custom')!=='Katalog';   // order Katalog acuannya foto katalog
@@ -16358,7 +16365,7 @@ function chkSumber(fase,k){return CHK_SUMBER[fase+'.'+k]||'';}
    ada di panel yang sama. Yang tak terdaftar di sini tetap memakai tebakan
    itu; menambah barisnya di sini yang membuatnya tepat. */
 const CHK_FIELD={
-  kontak:'picNama', acara:'tglAcara,tglKirim', kota:'venue', hpWo:'woHp',
+  kontak:'picNama', acara:'tglAcara,tglKirim', tglRove:'tglRove', tglRoveUlang:'tglRove', kota:'venue', hpWo:'woHp',
   ref:'fileKlien', fileKet:'fileKlien', terjemah:'mainMat_*,mainMat',
   /* logo & letaknya kini menempel di jasanya (slot svcF_..., kolom letak
      per baris) — slot logoFiles/persoFiles lama hanya tampil untuk warisan */
@@ -16461,7 +16468,7 @@ const CHK_PANEL={jualJasa:'_master',stkRetur:'stk',operator:'rfq',opFix:'liveOps
   kirimData:'quo', alamatKantor:'quo', ppn:'quo',
   /* item yang ditambahkan belakangan — tanpa didaftarkan di sini, klik-lompat
      dan tombol "Minta isikan" diam saja di baris itu */
-  terjemah:'brief', deadlineProd:'profit', tglPOMax:'profit', accJual:'profit', specNon:'brief', tglVendor:'profit',
+  terjemah:'brief', tglRove:'profit', tglRoveUlang:'profit', deadlineProd:'profit', tglPOMax:'profit', accJual:'profit', specNon:'brief', tglVendor:'profit',
   dirAcc:'ringkas', quoAcc:'quoJawab', sketsaAcc:'sketsaJawab', dpMasuk:'pay',
   poRevRadja:'po', poRevDir:'po',
   logoCl:'brief', logoPch:'brief', logoBox:'brief', logoCard:'brief',
@@ -19865,7 +19872,7 @@ function konfPesan(o,vendor,baris){
     /* "masih ada?" dijawab ya/tidak dan tak menolong. Jenis kulit bukan
        artikel, dan artikel bukan warna — yang perlu diketahui daftarnya. */
     '2. **Jenis material dan warna apa saja yang ready** untuk project ini?',
-    '3. **Paling lambat kapan PO harus turun** supaya barangnya sampai sebelum '+rfqPatokan(o)+'?',
+    tglIkutAktif(o)?'3. **Paling cepat selesai tanggal berapa** bila PO turun minggu ini, dan paling lambat kapan PO harus turun? (client mengikuti waktu tercepat dari tim produksi)':('3. **Paling lambat kapan PO harus turun** supaya barangnya sampai sebelum '+rfqPatokan(o)+'?'),
     '','Kalau ada yang berubah, mohon diberi tahu angka barunya. Terima kasih 🙏');
   return P.join(String.fromCharCode(10));}
 function konfTanya(id,vendor){
@@ -20557,6 +20564,7 @@ function rfqPesanGabung(o,l){
                   :'2. **Jenis material dan warna apa saja yang ready** untuk project ini.',
       /* tanggal milik vendor ini sendiri, bukan tanggal client — vendor
          menghitung mundur dari tanggal yang diberikan kepadanya */
+      tglIkutAktif(o)?'3. **Paling cepat selesai tanggal berapa** bila PO turun minggu ini, dan paling lambat kapan PO harus turun? (client mengikuti waktu tercepat dari tim produksi)':
       (T&&T.lewat)
         ? '3. **Paling lambat kapan PO harus turun**, dan apakah tanggal di atas masih mungkin dikejar.'
         : ('3. **Paling lambat kapan PO harus turun** supaya barangnya sampai sebelum '+
@@ -20716,6 +20724,7 @@ function rfqSpekBarisAsli(o,l){
      barangnya dibutuhkan. Dulu yang dikirim cuma satu baris "Deadline" yang
      isinya deadline produksi — padahal deadline produksi justru lahir dari
      jawaban ini. Yang dikirim sekarang tanggal milik client. */
+  if(tglIkutAktif(o))tambah('Tanggal','client mengikuti waktu tercepat dari tim produksi');
   tambah('Tanggal acara client',tglID(o.eventDate||b.tglAcara));
   tambah('Tanggal kirim diminta client',tglID(b.tglKirim));
   if(o.po&&o.po.deadline)tambah('Deadline produksi yang sudah disepakati',tglID(o.po.deadline));
@@ -22037,6 +22046,7 @@ function profitPanel(o){
      Margin %. lineJual() sudah menghitung dari margin untuk ditampilkan;
      pembekuannya dipindah ke tombol "Kunci harga jual", yaitu keputusan orang. */
   var awas='';try{awas=jasaLepasSpanduk(o)+tanpaVendorSpanduk(o);}catch(e){}
+  try{awas=tglRoveBlok(o)+awas;}catch(e){}
   /* keadaan harga jual dinyatakan, bukan disimpulkan sendiri dari angka */
   var Lk=(((o.pricing||{}).lines)||[]).filter(function(l){return (l.qty||0)>0;});
   var kunci=Lk.filter(lineJualManual).length;
@@ -23938,6 +23948,46 @@ function vtglPOSimpan(o,l,v){if(!v||!l||!l.sumber)return;
   if(v.tglPOMaxV){vendorTglGet(o,l.sumber).tglPOMax=v.tglPOMaxV;logHist(o,l.sumber+': PO paling lambat turun '+tglID(v.tglPOMaxV));}
   if(v.deadlineV){if(keVendorProduksi(l)){o.po=o.po||{};o.po.deadline=v.deadlineV;}else vendorTglGet(o,l.sumber).deadline=v.deadlineV;
     logHist(o,l.sumber+': deadline produksi '+tglID(v.deadlineV));}}
+/* ===== patch222 (24 Nov 2026): client ikut waktu tercepat dari tim produksi =====
+   Tanggal kirim tak datang dari client: vendor ditanya paling cepat selesai,
+   PM menetapkan tanggal kirim (vendor terlama + 3 hari QC & packing), dan
+   quotation menyebutnya bersyarat DP masuk sebelum batas PO vendor. */
+var TGLROVE_JEDA=3;
+function tglIkutAktif(o){return !!(o&&o.tglIkut)&&!(briefGet(o).tglKirim);}
+function tglIkutSet(id,on){var o=ST.orders.find(function(x){return x.id===id;});if(!o)return;
+  if(on)o.tglIkut=true;else{delete o.tglIkut;delete o.tglRoveBatas;delete o.tglRoveUlang;}
+  logHist(o,on?'Client ikut waktu tercepat dari tim produksi':'Tanggal kirim kembali dari client');o._m=Date.now();save();render();}
+function tglIkutCentang(o){var on=!!o.tglIkut;
+  return '<label data-f="tglIkut" style="display:flex;gap:7px;align-items:flex-start;font-size:10.5px;margin:-4px 0 11px;cursor:pointer;line-height:1.45">'+
+    '<input type="checkbox" '+(on?'checked':'')+' style="width:auto;margin-top:2px;accent-color:var(--brand)" onchange="tglIkutSet('+jsArg(o.id)+',this.checked)">'+
+    '<span><b>Client ikut waktu tercepat dari tim produksi</b> — belum ada tanggal pasti; PM menetapkan tanggal kirim sesudah vendor menjawab'+
+    ((on&&adaLive(o)&&!o.eventDate)?'<br><span style="color:var(--red,#c0392b);font-weight:700">Live service: tanggal acara tetap wajib diisi (jadwal operator).</span>':'')+'</span></label>';}
+function tglRoveSaran(o){var D=[],batas=[],kulit='';
+  (((o.pricing||{}).lines)||[]).forEach(function(l){if(!kulit&&l&&(+l.qty||0)>0&&!l.svcFee&&lineKulit(l))kulit=l.sumber||'Radja Leather';});
+  var p=o.po||{};if(kulit&&p.deadline)D.push([kulit,p.deadline]);if(kulit&&p.tglPOMax)batas.push(p.tglPOMax);
+  vendorNonDaftar(o).forEach(function(v){if(v===kulit)return;var T=(o.vendorTgl||{})[v]||{};if(T.deadline)D.push([v,T.deadline]);if(T.tglPOMax)batas.push(T.tglPOMax);});
+  var akhir=D.reduce(function(m,x){return x[1]>m?x[1]:m;},'');batas.sort();
+  return {D:D,akhir:akhir,saran:akhir?tglPlusDari(akhir,TGLROVE_JEDA):'',batas:batas[0]||''};}
+function tglRoveTelat(o){if(!o||!o.tglIkut||!o.tglRoveBatas)return false;
+  var t=dpTerpenuhi(o)?(((o.pay||{}).dpDate)||''):hariIni();return !!t&&t>o.tglRoveBatas;}
+function tglRoveSet(id,v){var o=ST.orders.find(function(x){return x.id===id;});if(!o||!v)return;
+  var b=briefGet(o);b.tglKirim=v;
+  if(tglRoveTelat(o))o.tglRoveUlang=hariIni();else{var S=tglRoveSaran(o);o.tglRoveBatas=S.batas||'';}
+  logHist(o,'Tanggal kirim dari Rove: '+tglID(v));o._m=Date.now();save();render();}
+function tglRoveBlok(o){if(!o.tglIkut)return '';
+  var b=briefGet(o),S=tglRoveSaran(o),id=jsArg(o.id),telat=tglRoveTelat(o)&&!o.tglRoveUlang;
+  var r=function(k,v){return '<div style="display:grid;grid-template-columns:120px minmax(0,1fr);gap:8px;padding:3px 0;border-top:1px dashed var(--line)"><span style="color:var(--muted);font-weight:700">'+k+'</span><span>'+v+'</span></div>';};
+  var h='<div data-f="tglRove" style="border:1.5px solid '+(telat?'var(--red,#c0392b)':(b.tglKirim?'var(--line)':'var(--brand)'))+';border-radius:10px;padding:9px 11px;margin-bottom:11px;font-size:10.5px;line-height:1.5;background:var(--panel)">'+
+    '<div style="font-weight:800;font-size:11.5px;margin-bottom:4px">📅 Tanggal kirim dari Rove <span style="font-weight:400;color:var(--muted)">· client ikut waktu tercepat dari tim produksi</span></div>';
+  if(!S.D.length)h+='<div style="color:var(--warn)">Menunggu deadline produksi dari vendor — catat jawaban vendor dulu (tombol ② di Project Costing).</div>';
+  else h+=r('Vendor',S.D.map(function(x){return esc(x[0])+' selesai <b>'+tglID(x[1])+'</b>';}).join(' · '))+
+    r('+ QC &amp; packing',TGLROVE_JEDA+' hari')+
+    r('Saran kirim','<b>'+tglID(S.saran)+'</b> '+(b.tglKirim===S.saran?'<span style="color:var(--ok);font-weight:800">✓ dipakai</span>':'<button class="btn" style="font-size:10px;padding:2px 9px" onclick="tglRoveSet('+id+','+jsArg(S.saran)+')">Pakai saran</button>'));
+  h+=r('Tanggal kirim','<input type="date" class="pin" value="'+esc(b.tglKirim||'')+'" style="width:150px" onchange="tglRoveSet('+id+',this.value)"> '+(b.tglKirim?'<span style="color:var(--ok);font-weight:800">✓ '+tglID(b.tglKirim)+'</span>':'<span style="color:var(--muted)">belum ditetapkan</span>'));
+  var bt=o.tglRoveBatas||S.batas;if(bt)h+=r('Berlaku bila','DP / PO client masuk paling lambat <b>'+tglID(bt)+'</b> (batas PO vendor)');
+  if(telat)h+='<div style="color:var(--red,#c0392b);font-weight:700;margin-top:5px">DP lewat '+tglID(o.tglRoveBatas)+' — tanyakan ulang vendor, lalu tetapkan tanggal kirim baru.</div>';
+  else if(o.tglRoveUlang)h+='<div style="color:var(--ok);margin-top:5px">✓ Dihitung ulang '+tglID(o.tglRoveUlang)+' sesudah DP lewat batas.</div>';
+  return h+'</div>';}
 function vendorNonTglLengkap(o){var V=vendorNonDaftar(o);return V.length>0&&V.every(function(v){var T=vendorTglGet(o,v);return !!T.deadline&&!!T.tglPOMax;});}
 /* harga baris non-produk: dari Kombinasi harga (atribut terpilih) atau harga sendiri item master */
 /* tetapJual: harga jual yang sudah ada tak disentuh (mis. di fase Penentuan harga jual) */
@@ -25523,8 +25573,9 @@ function briefPanel(o){
       ord('addrKantor','Alamat client / kantor','alamat penagihan / kantor'),170)+
     grid(ord('addr','Alamat kirim','alamat lengkap tujuan paket','grid-column:1/-1'),300)+
     grid(tgl('tglAcara','Tanggal acara')+
-      tgl('tglKirim','Tanggal kirim diminta')+
+      tgl('tglKirim',o.tglIkut?'Tanggal kirim (dari Rove)':'Tanggal kirim diminta')+
       txt('venue','Venue / kota tujuan','nama gedung atau kota'),170)+
+      tglIkutCentang(o)+
     /* Kolom identitas client sebenarnya — isinya mengikuti kategori. Tak satu
        pun wajib: order lewat WO/EO sering belum tahu namanya waktu Inquiry. */
     (function(){var K=katKolom(o);if(!K.length)return '';
@@ -26126,7 +26177,7 @@ function genDoc(id,type){
    <div class="dsec">${isInv?'Invoice':'Order'} Information</div>
    <table class="dinfotbl">${info(isInv?'Invoice Number':'Quotation Number',no)}${(isInv&&(o.docs||{}).quoNo)?info('Quotation Number',o.docs.quoNo):''}${info(isInv?'Invoice Date':'Quotation Date',tglDoc)}${info(isInv?'Due Date':'Quotation Due Date',tglDue)}</table>
    <div class="dsec">Client Information</div>
-   <table class="dinfotbl">${info('Name',o.customer)}${info('Address',clientAlamatKantor(o)||o.addr)}${info('Phone',o.phone)}${info('Email',clientEmail(o))}${info('Venue & City',briefGet(o).venue||o.venue)}${info('Event Date',o.eventDate?tglDMY(o.eventDate):'-')}${T.kena?info('NPWP',pajakGet(o).npwp||((custMaster(o)||{}).npwp)||'-'):''}</table>
+   <table class="dinfotbl">${info('Name',o.customer)}${info('Address',clientAlamatKantor(o)||o.addr)}${info('Phone',o.phone)}${info('Email',clientEmail(o))}${info('Venue & City',briefGet(o).venue||o.venue)}${info('Event Date',o.eventDate?tglDMY(o.eventDate):'-')}${(!isInv&&o.tglIkut&&briefGet(o).tglKirim)?info('Estimated Delivery',tglDMY(briefGet(o).tglKirim)+(o.tglRoveBatas?(' — if the down payment is received by '+tglDMY(o.tglRoveBatas)):'')):''}${T.kena?info('NPWP',pajakGet(o).npwp||((custMaster(o)||{}).npwp)||'-'):''}</table>
    <div class="dsec">Project & Shipping Information</div>
    ${tabelOpsi}${totalPasti}
    ${isInv?billingHTML:''}
