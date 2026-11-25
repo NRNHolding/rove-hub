@@ -429,6 +429,8 @@
   .dtable{width:100%;border-collapse:collapse;font-size:11px;margin-bottom:6px}
   .dtable th{background:#f3efe8;text-align:left;padding:7px 9px;font-size:10px;text-transform:uppercase;border-bottom:1px solid #ddd}
   .dtable td{padding:7px 9px;border-bottom:1px solid #eee}
+  .dhapus{float:right;margin:-2px -6px 0 8px;width:20px;height:20px;line-height:18px;text-align:center;border:1px solid #e3c9c6;border-radius:50%;color:#c0392b;background:#fff;font-size:11px;font-weight:800;cursor:pointer;user-select:none}
+  .dhapus:hover{background:#c0392b;color:#fff;border-color:#c0392b}
   .dtable .num{text-align:right;white-space:nowrap}   /* "Rp" jangan tertinggal sendiri di baris atas */
   /* lebar kolom angka dipatok supaya sisanya jatuh ke nama produk */
   .dtable th.wno{width:30px}.dtable th.wharga{width:96px}.dtable th.wqty{width:44px}.dtable th.wjml{width:112px}
@@ -484,6 +486,7 @@
        Halaman berikutnya sudah dijamin @page. */
     #docbody{padding:6mm 6mm 0}
     #docov .toolbar{display:none}
+    #docbody .dhapus{display:none!important}
     #docbody .dsec,#docbody h2,#docbody h3{break-after:avoid}
     #docbody tr,#docbody img,#docbody .dtot,#docbody .dsign{break-inside:avoid}
     #docbody thead{display:table-header-group}
@@ -1101,7 +1104,7 @@ const KEY='rovehub_orders_v18';
 /* ================= VERSI YANG SEDANG BERJALAN =================
    Diisi otomatis oleh terbitkan.js waktu salinan ini diterbitkan; '-' berarti
    dibuka langsung dari berkas, bukan dari alamat terbitannya. */
-const VERSI='20261125-095041';
+const VERSI='20261125-101634';
 /* Berkas versi.txt di sebelah halaman ini berisi penanda yang sama. Ia
    ditanyakan tanpa cache, jadi ia jujur walau halamannya sendiri masih
    tersimpan di cache browser. */
@@ -15527,7 +15530,8 @@ function renderDetail(){
 function kartuRingkas(o){
   var aktif=!(o.status==='Cancel'||o.done||(o.phase||0)>=PH.length);
   /* 17 Nov 2026 (patch213): kotak Kelengkapan di bawah dihapus — daftarnya dibuka di panel samping (semua item) */
-  var kiri=peringatanBlok(o)+ringkasSebelumBlok(o)+panelStack(o,true)+(aktif?bukaAwalBlok(o):'')+
+  var kiri=peringatanBlok(o)+ringkasSebelumBlok(o)+panelStack(o,true)+   /* patch224: "Bisa kamu isi lebih awal" tak lagi tampil di order */
+    
     '<div id="kr_disc">'+discordPanel(o)+'</div><div id="kr_riw">'+histPanel(o)+'</div>';
   return '<div class="kr"><div class="kr-kiri">'+kiri+'</div><aside class="kr-kanan" data-f="krKanan">'+sisiKartu(o,aktif)+'</aside></div>'+(aktif?pitaBawah(o):'');}
 function krKurang(o){var f=o.phase||0;try{return chkItems(f,o).filter(function(it){return it.w&&!chkAuto(o,f,it.k);});}catch(e){return [];}}
@@ -16603,7 +16607,7 @@ function chkPanel(o,opsi){
         : '<span style="font-size:10px;color:var(--muted)">Tak ada jabatan lain yang perlu ditagih di fase ini.</span>')+'</div>';
   if(opsi.sisi)return '<div class="kr-semua" data-f="krSemuaDaftar">'+rows+kaki+'</div>';
   var lipat=opsi.lipat&&!((ST._chkBuka||{})[o.id]);
-  return selesaiBar+bukaAwalBlok(o)+
+  return selesaiBar+
     '<div class="card actcard" id="kr_chk" style="margin-top:14px"><div class="ch"'+(opsi.lipat?(' style="cursor:pointer" onclick="krChkLipat('+jsArg(o.id)+')"'):'')+'>'+
     '<span class="ico" style="background:'+(sisaWajib?'var(--warn)':'var(--ok)')+'">☑</span>'+
     '<div><div class="t">Kelengkapan '+esc(PH[f].n)+'</div>'+
@@ -26334,7 +26338,7 @@ function rfqDocHTML(o,vendor){
       '<table class="dinfotbl">'+R.map(function(r){return info(r[0],r[1]);}).join('')+'</table>';}).join('');
   var tanya=rfqDocTanya(o,L).map(function(r,n){
     return '<tr><td class="num">'+(n+1)+'</td><td>'+esc(r[0])+'</td>'+
-      '<td style="border-bottom:1px solid #bbb;min-width:150px;color:#999">'+esc(r[1])+'</td></tr>';}).join('');
+      '<td style="border-bottom:1px solid #bbb;min-width:150px;color:#999">'+esc(r[1])+'<span class="dhapus" contenteditable="false" title="Hapus pertanyaan ini" onclick="dokHapusTanya(this)">✕</span></td></tr>';}).join('');
   /* Gambar lewat imgTag seperti dokumen lain — tautan Drive tak bisa dipanggil
      langsung dari halaman, jadi yang dicetak penampung yang diisi loadImages(). */
   var G=[],ada={};
@@ -26483,6 +26487,9 @@ function waSend(){
 }
 /* Judul tab dipakai browser sebagai teks header cetak. Dikosongkan supaya
    tak ada tulisan "Client - QUOTATION ..." nyempil di atas halaman PDF. */
+/* patch224: pertanyaan yang tak perlu dihapus dari lembar sebelum dicetak; nomor diurutkan ulang */
+function dokHapusTanya(el){var tr=el&&el.closest?el.closest('tr'):null;if(!tr)return;var tb=tr.parentNode;tb.removeChild(tr);
+  Array.prototype.forEach.call(tb.querySelectorAll('tr'),function(r,i){var c=r.querySelector('td');if(c)c.textContent=String(i+1);});}
 function printDoc(){var t=document.title;document.title=' ';
   window.print();setTimeout(function(){document.title=t;},800);}
 function closeDoc(){$('#docov').classList.remove('show');try{$('#docov').classList.remove('lap-dok');}catch(e){}
