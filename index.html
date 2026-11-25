@@ -486,7 +486,7 @@
        Halaman berikutnya sudah dijamin @page. */
     #docbody{padding:6mm 6mm 0}
     #docov .toolbar{display:none}
-    #docbody .dhapus{display:none!important}
+    #docbody .dhapus,#docbody .dhapus-ket{display:none!important}
     #docbody .dsec,#docbody h2,#docbody h3{break-after:avoid}
     #docbody tr,#docbody img,#docbody .dtot,#docbody .dsign{break-inside:avoid}
     #docbody thead{display:table-header-group}
@@ -1104,7 +1104,7 @@ const KEY='rovehub_orders_v18';
 /* ================= VERSI YANG SEDANG BERJALAN =================
    Diisi otomatis oleh terbitkan.js waktu salinan ini diterbitkan; '-' berarti
    dibuka langsung dari berkas, bukan dari alamat terbitannya. */
-const VERSI='20261125-110351';
+const VERSI='20261125-114528';
 /* Berkas versi.txt di sebelah halaman ini berisi penanda yang sama. Ia
    ditanyakan tanpa cache, jadi ia jujur walau halamannya sendiri masih
    tersimpan di cache browser. */
@@ -26284,7 +26284,9 @@ function rfqDocSpek(o,l){
   return R;}
 /* Pertanyaan mengikuti pekerjaan yang diminta di lembar ini. Kalau satu
    vendor memegang beberapa jenis sekaligus, yang dipakai bentuk umumnya. */
-function rfqDocTanya(o,L){
+function rfqDocTanya(o,L,vendor){var H=(vendor&&(o.rfqTanyaHapus||{})[vendor])||[];
+  return rfqDocTanyaSemua(o,L).filter(function(r){return H.indexOf(r[0])<0;});}
+function rfqDocTanyaSemua(o,L){
   var jenis=L.map(rfqJenisBaris);
   var semua=function(j){return jenis.length&&jenis.every(function(x){return x===j;});};
   if(semua('live'))return [
@@ -26336,8 +26338,8 @@ function rfqDocHTML(o,vendor){
     var R=rfqDocSpek(o,l);if(!R.length)return '';
     return (L.length>1?'<div class="dsec">Spesifikasi — '+esc(namaBarisTampil(l))+'</div>':'<div class="dsec">Spesifikasi</div>')+
       '<table class="dinfotbl">'+R.map(function(r){return info(r[0],r[1]);}).join('')+'</table>';}).join('');
-  var tanya=rfqDocTanya(o,L).map(function(r,n){
-    return '<tr><td class="num">'+(n+1)+'</td><td>'+esc(r[0])+'</td>'+
+  var tanya=rfqDocTanya(o,L,vendor).map(function(r,n){
+    return '<tr data-q="'+esc(r[0])+'"><td class="num">'+(n+1)+'</td><td>'+esc(r[0])+'</td>'+
       '<td style="border-bottom:1px solid #bbb;min-width:150px;color:#999">'+esc(r[1])+'<span class="dhapus" contenteditable="false" title="Hapus pertanyaan ini" onclick="dokHapusTanya(this)">✕</span></td></tr>';}).join('');
   /* Gambar lewat imgTag seperti dokumen lain — tautan Drive tak bisa dipanggil
      langsung dari halaman, jadi yang dicetak penampung yang diisi loadImages(). */
@@ -26366,6 +26368,7 @@ function rfqDocHTML(o,vendor){
    spek+gbr+
    '<div class="dsec">Mohon dijawab</div>'+
    '<table class="dtable"><thead><tr><th class="num wno">No</th><th>Pertanyaan</th><th class="wperso">Jawaban</th></tr></thead><tbody>'+tanya+'</tbody></table>'+
+   (function(){var n=((o.rfqTanyaHapus||{})[vendor]||[]).length;return n?('<div class="dhapus-ket" contenteditable="false" style="font-size:10px;color:#888;margin-top:6px">'+n+' pertanyaan disembunyikan untuk '+esc(vendor)+' · <a href="#" onclick="rfqTanyaPulih('+jsArg(o.id)+','+jsArg(vendor)+');return false">↺ tampilkan lagi</a></div>'):'';})()+
    '<div class="dsign">Hormat kami,<div class="nm">Purchasing · ROVE Favors and Gifts</div></div>'+
    /* nama channel TIDAK dicetak: isinya nama client, tanggal acara, dan qty */
    '';}
@@ -26386,9 +26389,9 @@ function rfqSerahTeks(o,vendor,untuk){
     var vt=varianTeks(l,o);if(vt)P.push(vt);});
   if(untuk==='vendor'){
     var adaAddonT=L.some(function(l){return rfqJenisBaris(l)==='addon';});
-    P.push('','Spesifikasi lengkapnya (gambar, ukuran, teknik) kami kirim menyusul sebagai PDF.',
-      'Mohon dibalas: harga per pcs, minimum order, dan paling lambat kapan PO harus turun'+
-      (adaAddonT?' — untuk add-on: paling lambat kapan informasi (data / desain) harus kami kirim.':'.'));
+    var Q=rfqDocTanya(o,L,vendor);
+    P.push('','Spesifikasi lengkapnya (gambar, ukuran, teknik) kami kirim menyusul sebagai PDF.');
+    if(Q.length){P.push('','**Mohon dibalas**');Q.forEach(function(r,n){P.push((n+1)+'. '+r[0]);});}
     return P.join(String.fromCharCode(10));}
   var v=vendorData(vendor)||{},cara=vendorChannel(vendor)?('channel #'+vendorChannel(vendor))
     :((v.hp&&v.hp!=='-')?('WhatsApp '+v.hp):'—');
@@ -26449,7 +26452,7 @@ function genRfqDoc(id,vendor){
   if(baru)logHist(o,'📄 Dokumen permintaan harga dibuat untuk '+vendor+' ('+o.rfqNo[vendor]+')');
   if(!o.rfqDoc)o.rfqDoc={};
   o.rfqDoc[vendor]=new Date().toLocaleDateString('id-ID',{day:'2-digit',month:'long',year:'numeric'});
-  ST._doc={type:'rfq',no:o.rfqNo[vendor],grand:0};
+  ST._doc={type:'rfq',no:o.rfqNo[vendor],grand:0,oid:o.id,vendor:vendor};
   o._m=Date.now();save();trDOM(document.getElementById('docbody'));
   document.getElementById('docov').classList.add('show');
   try{loadImages();}catch(e){}}
@@ -26488,8 +26491,12 @@ function waSend(){
 /* Judul tab dipakai browser sebagai teks header cetak. Dikosongkan supaya
    tak ada tulisan "Client - QUOTATION ..." nyempil di atas halaman PDF. */
 /* patch224: pertanyaan yang tak perlu dihapus dari lembar sebelum dicetak; nomor diurutkan ulang */
-function dokHapusTanya(el){var tr=el&&el.closest?el.closest('tr'):null;if(!tr)return;var tb=tr.parentNode;tb.removeChild(tr);
+function dokHapusTanya(el){var tr=el&&el.closest?el.closest('tr'):null;if(!tr)return;var tb=tr.parentNode;var q=tr.getAttribute('data-q')||'';tb.removeChild(tr);
+  /* patch226: disimpan per order & vendor — dibuka lagi tetap hilang, pesan Discord ikut */
+  var d=ST._doc||{};if(d.type==='rfq'&&q&&d.oid){var o=ST.orders.find(function(x){return x.id===d.oid;});if(o){o.rfqTanyaHapus=o.rfqTanyaHapus||{};var A=o.rfqTanyaHapus[d.vendor]=o.rfqTanyaHapus[d.vendor]||[];if(A.indexOf(q)<0)A.push(q);
+    logHist(o,'Permintaan harga '+d.vendor+': pertanyaan dihapus — '+q);o._m=Date.now();save();}}
   Array.prototype.forEach.call(tb.querySelectorAll('tr'),function(r,i){var c=r.querySelector('td');if(c)c.textContent=String(i+1);});}
+function rfqTanyaPulih(id,vendor){var o=ST.orders.find(function(x){return x.id===id;});if(!o)return;if(o.rfqTanyaHapus)delete o.rfqTanyaHapus[vendor];o._m=Date.now();save();genRfqDoc(id,vendor);}
 function printDoc(){var t=document.title;document.title=' ';
   window.print();setTimeout(function(){document.title=t;},800);}
 function closeDoc(){$('#docov').classList.remove('show');try{$('#docov').classList.remove('lap-dok');}catch(e){}
