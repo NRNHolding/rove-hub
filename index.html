@@ -1104,7 +1104,7 @@ const KEY='rovehub_orders_v18';
 /* ================= VERSI YANG SEDANG BERJALAN =================
    Diisi otomatis oleh terbitkan.js waktu salinan ini diterbitkan; '-' berarti
    dibuka langsung dari berkas, bukan dari alamat terbitannya. */
-const VERSI='20261125-101634';
+const VERSI='20261125-110351';
 /* Berkas versi.txt di sebelah halaman ini berisi penanda yang sama. Ia
    ditanyakan tanpa cache, jadi ia jujur walau halamannya sendiri masih
    tersimpan di cache browser. */
@@ -11939,7 +11939,7 @@ ${muatDcSitusUji()?contohBawaanPanelHTML():`       <div style="margin-top:16px;b
            '<span style="font-size:9.5px;color:var(--muted);font-weight:700">'+esc(ph.btn||'')+'</span>'+
          '</div>'+
          perFase[f].map(kartuTugas).join('');}).join('');})()}
-   ${tanyaBlokTugas()}${chkTugasBlok(role)}${bukaAwalBlokTugas()}`;
+   ${tanyaBlokTugas()}${chkTugasBlok(role)}`;   /* patch225: "Bisa kamu isi lebih awal" dihapus dari Tugas saya */
 }
 
 /* Kelengkapan yang menunggu ORANG INI, termasuk di order yang fase-nya
