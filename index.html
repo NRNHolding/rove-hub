@@ -1101,7 +1101,7 @@ const KEY='rovehub_orders_v18';
 /* ================= VERSI YANG SEDANG BERJALAN =================
    Diisi otomatis oleh terbitkan.js waktu salinan ini diterbitkan; '-' berarti
    dibuka langsung dari berkas, bukan dari alamat terbitannya. */
-const VERSI='20261124-151103';
+const VERSI='20261125-095041';
 /* Berkas versi.txt di sebelah halaman ini berisi penanda yang sama. Ia
    ditanyakan tanpa cache, jadi ia jujur walau halamannya sendiri masih
    tersimpan di cache browser. */
@@ -20324,6 +20324,8 @@ function rfqTanggal(o,l){
   var b=briefGet(o),jenis=rfqJenisBaris(l);
   var acara=o.eventDate||b.tglAcara||'',kirim=b.tglKirim||'';
   if(jenis==='live')return acara?{tgl:acara,ket:'tanggal acara'}:null;
+  /* patch223: client ikut waktu tercepat — deadline yang tercatat bukan permintaan kita, jangan dikirim balik sebagai tanggal dibutuhkan */
+  if(tglIkutAktif(o))return {tgl:'',tercepat:true,ket:'secepatnya — client mengikuti waktu tercepat dari tim produksi'};
   var prod=(o.po||{}).deadline||'';
   /* Acuannya yang PALING AWAL, bukan yang kebetulan ada duluan — kalau tidak,
      kemasan bisa diminta datang sesudah acaranya sendiri. */
@@ -20521,7 +20523,8 @@ function rfqPesanGabung(o,l){
 
   /* ---- tanggal ---- */
   var T=rfqTanggal(o,l);
-  if(T&&T.lewat)P.push('','**Tanggal**','⚠️ '+T.ket+'.');
+  if(T&&T.tercepat)P.push('','**Tanggal**','Secepatnya — client mengikuti waktu tercepat dari tim produksi. Mohon info paling cepat selesai tanggal berapa.');
+  else if(T&&T.lewat)P.push('','**Tanggal**','⚠️ '+T.ket+'.');
   else if(T&&T.tgl)P.push('','**Tanggal**',
     (jenis==='live'?'Acara ':'Kami butuh barangnya paling lambat ')+tglID(T.tgl)+
     ' _('+T.ket+')_');
@@ -20727,7 +20730,7 @@ function rfqSpekBarisAsli(o,l){
   if(tglIkutAktif(o))tambah('Tanggal','client mengikuti waktu tercepat dari tim produksi');
   tambah('Tanggal acara client',tglID(o.eventDate||b.tglAcara));
   tambah('Tanggal kirim diminta client',tglID(b.tglKirim));
-  if(o.po&&o.po.deadline)tambah('Deadline produksi yang sudah disepakati',tglID(o.po.deadline));
+  if(o.po&&o.po.deadline&&!tglIkutAktif(o))tambah('Deadline produksi yang sudah disepakati',tglID(o.po.deadline));
   return S;}
 /* Tanggal yang dipakai vendor menghitung mundur. */
 function rfqPatokan(o){
@@ -26298,7 +26301,7 @@ function rfqDocTanya(o,L){
     ['Jenis material & warna yang ready',''],
     ['Desain di atas bisa dikerjakan apa adanya? Kalau perlu diubah, apa saja',''],
     ['Paling lambat kapan PO harus turun',''],
-  ]);}
+  ]).concat(tglIkutAktif(o)?[['Paling cepat selesai tanggal berapa, bila PO turun minggu ini','']]:[]);}
 function rfqDocHTML(o,vendor){
   /* himpunan yang sama dengan angka di tombolnya — dulu tombol bilang 2 item
      dan lembarnya berisi 3 */
@@ -26322,7 +26325,7 @@ function rfqDocHTML(o,vendor){
         ((jenis==='kemasan'&&rekomendasiDok(o,kemasanKey(l)))?('<div style="font-size:9.5px;color:#333;margin-top:3px">Rekomendasi ukuran: <b>'+esc(rekomendasiDok(o,kemasanKey(l)))+'</b><div style="font-size:8.5px;color:#888">dihitung dari isinya — vendor boleh menyesuaikan</div></div>'):'')+
         varianHTML(l,o)+'</td>'+
       '<td class="num">'+esc(jenis==='live'?'1 event':((l.qty||0)+' pcs'))+'</td>'+
-      '<td>'+(T&&T.lewat?'<span style="color:#b00">jadwalnya sudah lewat — mohon dikonfirmasi</span>'
+      '<td>'+(T&&T.tercepat?'secepatnya<div style="font-size:9px;color:#888">mohon info tanggal tercepat</div>':T&&T.lewat?'<span style="color:#b00">jadwalnya sudah lewat — mohon dikonfirmasi</span>'
              :(T&&T.tgl?esc(tglID(T.tgl)):'-'))+'</td></tr>';}).join('');
   /* spesifikasi: kalau lebih dari satu item, tiap blok diberi judulnya */
   var spek=L.map(function(l){
@@ -26374,7 +26377,7 @@ function rfqSerahTeks(o,vendor,untuk){
   L.forEach(function(l){
     var T=rfqTanggal(o,l),jenis=rfqJenisBaris(l);
     P.push('• '+(l.produk||'-')+' · '+(jenis==='live'?'1 event':((l.qty||0)+' pcs'))+
-      ((T&&T.tgl&&!T.lewat)?(' · dibutuhkan '+tglID(T.tgl)):'')+
+      ((T&&T.tgl&&!T.lewat)?(' · dibutuhkan '+tglID(T.tgl)):((T&&T.tercepat)?' · dibutuhkan secepatnya':''))+
       (hargaOtomatis(l)?(' · harga yang kami pegang '+hargaPeganganTeks(l)+' — mohon dikonfirmasi / diperbarui'):''));
     var vt=varianTeks(l,o);if(vt)P.push(vt);});
   if(untuk==='vendor'){
