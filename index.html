@@ -588,10 +588,17 @@
     .xscroll>table.mstack{min-width:0}                /* kartu ikut lebar layar, tak perlu digeser */
     .mstack,.mstack tbody,.mstack tr,.mstack td{display:block;width:auto;min-width:0}
     .mstack tr{border:1px solid var(--line);border-radius:11px;padding:9px 11px;margin-bottom:9px;background:var(--panel)}
-    .mstack td{border:none;padding:4px 0;display:flex;gap:10px;align-items:flex-start;text-align:left}
-    .mstack td:before{content:attr(data-l);flex:0 0 78px;font-size:10px;font-weight:800;color:var(--muted);text-transform:uppercase;padding-top:2px}
+    .mstack td{border:none;padding:4px 0 4px 88px;display:block;position:relative;text-align:left!important;min-height:22px;overflow-wrap:break-word}
+    .mstack td:before{content:attr(data-l);position:absolute;left:0;top:6px;width:80px;font-size:10px;font-weight:800;color:var(--muted);text-transform:uppercase;line-height:1.3}
+    .mstack td:not([data-l]),.mstack td[data-l=""]{padding-left:0}
     .mstack td:not([data-l]):before,.mstack td[data-l=""]:before{display:none}
-    .mstack td.num{justify-content:flex-start}
+    /* tabel Minta harga vendor: kolom lebar tetap (±320px) tak muat di HP — jadi bertumpuk */
+    table.rfq-tb{table-layout:auto!important}
+    table.rfq-tb tbody{display:block}
+    table.rfq-tb tr{display:grid;grid-template-columns:auto minmax(0,1fr);column-gap:12px;align-items:start;padding:7px 0;border-bottom:1px dashed var(--line)}
+    table.rfq-tb td{display:block;width:auto!important;padding:2px 0!important;min-width:0;overflow-wrap:break-word}
+    table.rfq-tb td:first-child,table.rfq-tb td:nth-child(4),table.rfq-tb td[colspan]{grid-column:1/-1}
+    table.rfq-tb td.num{text-align:left}
     .mstack .bar{max-width:150px}
   }
   /* petunjuk geser — dipasang otomatis pada tabel yang lebih lebar dari layar */
@@ -809,7 +816,7 @@ body.seret .dz.dzOver{outline-style:solid;background:var(--warn-bg);position:rel
 .dz.dzAktif:not(.dzOver)::after{background:var(--gold,#b08b4f)}
 .dzTip{font-size:9.5px;color:var(--muted)}
 /* kotak unggah bergaya "Tarik foto ke sini, atau klik untuk memilih" (kecil) */
-.dzKotak{display:flex;align-items:center;gap:10px;flex:1;min-width:230px;border:1.5px dashed var(--brand);border-radius:9px;padding:7px 12px;background:rgba(154,106,47,.05);cursor:pointer;line-height:1.3;text-align:left}
+.dzKotak{display:flex;align-items:center;gap:10px;flex:1;min-width:min(230px,100%);border:1.5px dashed var(--brand);border-radius:9px;padding:7px 12px;background:rgba(154,106,47,.05);cursor:pointer;line-height:1.3;text-align:left}
 .dzKotak:hover{background:rgba(154,106,47,.11)}
 .dzKotak .dzIkon{font-size:18px;line-height:1}
 .dzKotak b{display:block;font-size:11px}
@@ -1104,7 +1111,7 @@ const KEY='rovehub_orders_v18';
 /* ================= VERSI YANG SEDANG BERJALAN =================
    Diisi otomatis oleh terbitkan.js waktu salinan ini diterbitkan; '-' berarti
    dibuka langsung dari berkas, bukan dari alamat terbitannya. */
-const VERSI='20261125-114528';
+const VERSI='20261126-102137';
 /* Berkas versi.txt di sebelah halaman ini berisi penanda yang sama. Ia
    ditanyakan tanpa cache, jadi ia jujur walau halamannya sendiri masih
    tersimpan di cache browser. */
@@ -9405,9 +9412,9 @@ function evChkPanel(o){
     var done=!!c[s.k],tgl=evTgl(o,s.h),dn=dLeft(tgl);
     var warna=done?'var(--ok)':(dn===null?'var(--muted)':(dn<0?'#d9534f':(dn<=1?'var(--warn)':'var(--muted)')));
     var ket=done?('selesai · '+esc(c[s.k].by)):(dn===null?'isi tanggal acara dulu':(dn<0?('TELAT '+(-dn)+' hari'):(dn===0?'hari ini':('H-'+s.h+' · '+dn+' hari lagi'))));
-    return '<div style="display:flex;align-items:center;gap:9px;padding:6px 0;border-bottom:1px dashed var(--line)">'+
+    return '<div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px 9px;padding:6px 0;border-bottom:1px dashed var(--line)">'+
       '<input type="checkbox" '+(done?'checked':'')+' onchange="evToggle(\''+o.id+'\',\''+s.k+'\')" style="width:auto;accent-color:var(--brand);flex:none">'+
-      '<div style="flex:1;min-width:0"><div style="font-size:11.5px;font-weight:700'+(done?';text-decoration:line-through;opacity:.6':'')+'">'+esc(s.n)+'</div>'+
+      '<div style="flex:1 1 170px;min-width:0"><div style="font-size:11.5px;font-weight:700'+(done?';text-decoration:line-through;opacity:.6':'')+'">'+esc(s.n)+'</div>'+
       '<div style="font-size:9.5px;color:var(--muted)">'+esc(s.note)+'</div></div>'+
       '<span style="font-size:10px;font-weight:800;color:'+warna+';white-space:nowrap">'+ket+'</span>'+
       (s.tpl?'<button class="btn ghost sm" style="padding:3px 9px;font-size:10px" onclick="evCopy(\''+o.id+'\',\''+s.tpl+'\')">📋 teks</button>':'')+
@@ -9794,7 +9801,7 @@ function evFeePanel(o){
       var trf=opTarifMaster(x.nama);
       var beda=trf>0&&(+x.fee||0)!==trf;
       return '<div style="display:flex;align-items:center;gap:9px;padding:4px 0;font-size:11px;flex-wrap:wrap">'+
-      '<span style="flex:1;min-width:0">'+esc(x.nama)+' <span style="color:var(--muted)">· '+esc(x.job)+'</span></span>'+
+      '<span style="flex:1 1 170px;min-width:0">'+esc(x.nama)+' <span style="color:var(--muted)">· '+esc(x.job)+'</span></span>'+
       '<input class="pin n money" inputmode="numeric" style="width:120px'+(beda?';border-color:var(--warn)':'')+'" value="'+moneyInp(x.fee)+'" onchange="evFeeSet(\''+o.id+'\','+i+',this.value)" placeholder="Rp 0">'+
       (beda?('<span style="font-size:9px;color:var(--warn);font-weight:700;white-space:nowrap">≠ tarif master '+fmt0(trf)+
              ' <button class="btn ghost sm" style="font-size:8.5px;padding:1px 6px" onclick="evFeeReset(\''+o.id+'\','+i+')">↺ pakai tarif</button></span>')
@@ -20050,7 +20057,7 @@ function liveTanyaBlok(o){
         '<b style="font-size:12.5px">🎪 '+esc(n)+'</b>'+
         '<span style="font-size:9.5px;color:var(--muted)">tim live service'+(tim?(' · saran: '+esc(tim)):' · tim belum ada di kota acara')+'</span>'+
         '<span style="margin-left:auto;font-size:9.5px;color:var(--muted)">lewat Event Management</span></div>'+
-      '<table class="rtable" style="table-layout:fixed;width:100%"><tbody><tr>'+
+      '<table class="rtable rfq-tb" style="table-layout:fixed;width:100%"><tbody><tr>'+
         '<td style="vertical-align:top;border-bottom:none;padding-left:0"><b style="font-size:11.5px">'+esc(n)+'</b>'+
           '<div style="font-size:9px;color:var(--muted)">'+(acara?esc(tglID(acara)):'<span style="color:var(--warn);font-weight:700">tanggal acara belum diisi</span>')+(tempat?(' · '+esc(tempat)):' · <span style="color:var(--warn);font-weight:700">kota/venue belum diisi</span>')+'</div>'+
           ((teknik&&teknik!=='-')?('<div style="font-size:9px;color:var(--muted)">teknik: <b>'+esc(teknik)+'</b>'+(letak?(' · letak: '+esc(letak)):'')+'</div>'):(letak?('<div style="font-size:9px;color:var(--muted)">letak: '+esc(letak)+'</div>'):''))+
@@ -22280,7 +22287,7 @@ function rfqPanel(o){
               (vd.kontak&&vd.kontak!=='-'?(' · '+esc(vd.kontak)):'')+'</span>'):'')+
           '<span style="margin-left:auto;font-size:9.5px;color:'+(v?'var(--muted)':'var(--warn)')+'">'+
             (v?esc(cara):'baris ini tak masuk PO dan tak ikut terekspor — pilih vendornya')+'</span></div>'+
-        '<table class="rtable" style="table-layout:fixed;width:100%"><tbody>'+
+        '<table class="rtable rfq-tb" style="table-layout:fixed;width:100%"><tbody>'+
         X.map(function(x){var l=x.l,st=rfqStatus(l);
           var otomatis=hargaOtomatis(l);
           return '<tr>'+
