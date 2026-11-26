@@ -1111,7 +1111,7 @@ const KEY='rovehub_orders_v18';
 /* ================= VERSI YANG SEDANG BERJALAN =================
    Diisi otomatis oleh terbitkan.js waktu salinan ini diterbitkan; '-' berarti
    dibuka langsung dari berkas, bukan dari alamat terbitannya. */
-const VERSI='20261126-115558';
+const VERSI='20261126-133927';
 /* Berkas versi.txt di sebelah halaman ini berisi penanda yang sama. Ia
    ditanyakan tanpa cache, jadi ia jujur walau halamannya sendiri masih
    tersimpan di cache browser. */
@@ -23605,7 +23605,7 @@ function setEstColl(rows){
   ST.master.coll=hub.concat((rows||[]).map(function(r){
     var l=lama[collKey(r)];
     if(l){ /* baris lama dipertahankan — gambar unggahan sendiri tidak ditimpa */
-      if(!l.img||String(l.img).slice(0,5)!=='data:')l.img=r.img||l.img||'';
+      if(!l.img||(String(l.img).slice(0,5)!=='data:'&&fotoDriveSet().indexOf(l.img)<0))l.img=r.img||l.img||'';   // patch230: foto yang sudah di Shared Drive tak ditimpa
       l.src='est';return l;}
     return {type:r.type,kind:r.kind,value:r.value,img:r.img||'',src:'est'};}));}
 /* Cost Estimator menyimpan ukuran sebagai teks ("10 x 17 x 1,5 cm") dan berat
@@ -23640,7 +23640,7 @@ function mergeKatalog(lama,baru){
     if(p){dipakai[p.name]=1;
       if(p.material)l.material=p.material;
       if(p.t&&p.t.length)l.t=p.t.slice();
-      if(!l.img||String(l.img).slice(0,5)!=='data:')l.img=p.img||l.img||'';
+      if(!l.img||(String(l.img).slice(0,5)!=='data:'&&fotoDriveSet().indexOf(l.img)<0))l.img=p.img||l.img||'';   // patch230: foto yang sudah di Shared Drive tak ditimpa
       /* ukuran & berat: ikut Estimator selama belum pernah diketik manual di HUB */
       var kosong=!(l.pjg||l.lbr||l.tgi||l.berat);
       if(l._dimSrc==='est'||kosong){
@@ -24479,7 +24479,7 @@ function fotoStatus(){var D=fotoDriveSet(),n={drive:0,perangkat:0,lama:0};
   return n;}
 function fotoSumberBlok(){var n=fotoStatus(),tot=n.drive+n.perangkat+n.lama,pct=tot?Math.round(n.drive*100/tot):100;
   return '<div style="border:1px solid var(--line);border-radius:10px;padding:11px 13px;margin:4px 0 8px;background:var(--bg)">'+
-    '<b style="font-size:12.5px">Sumber master data</b>'+
+    '<b style="font-size:12.5px">Sumber master data</b>'+imporSekaliBlok()+
     '<div style="font-size:11px;margin-top:3px">Produk, harga &amp; opsi: <b>Master HUB</b> (tersimpan di Drive) · Cost Estimator: <b>tidak tersambung</b></div>'+
     '<div style="font-size:11px;margin-top:8px"><b>Foto master</b> — <span style="color:var(--ok);font-weight:800">'+n.drive+' di Shared Drive</span> · '+
       '<span style="color:'+(n.lama?'var(--warn)':'var(--muted)')+';font-weight:800">'+n.lama+' masih link lama (Cost Estimator)</span> · '+
@@ -24488,6 +24488,43 @@ function fotoSumberBlok(){var n=fotoStatus(),tot=n.drive+n.perangkat+n.lama,pct=
     ((n.lama||n.perangkat)?'<button class="btn sm" onclick="fotoPindahkan()">📁 Pindahkan foto master ke Drive</button> ':'')+
     '<button class="btn ghost sm" onclick="fotoBukaFolder()">↗ Buka folder Master Produk</button>'+
     '<div style="font-size:10px;color:var(--muted);margin-top:5px;line-height:1.5">Sekali jalan: foto lama (link Cost Estimator &amp; unggahan di perangkat) disalin ke <b>ROVE HUB / Master Produk / …</b>. Link lama tak diubah.</div></div>';}
+/* ---- IMPOR TERAKHIR DARI COST ESTIMATOR (sekali jalan, patch230) ----
+   Katalog produk & kombinasi harga dulu hanya hidup di cache browser (ditarik tiap HUB dibuka).
+   Sekali impor penuh ke Master HUB, lalu alamat & token lama dihapus dari browser — sesudah itu
+   tak ada lagi jalan ke Cost Estimator. Tombolnya hilang begitu Master HUB sudah punya hasil impor. */
+function imporSekaliPerlu(){return !(ST.master&&ST.master.imporEst);}
+function imporSekaliBlok(){
+  if(ST.user!=='Holding'||!imporSekaliPerlu())return '';
+  var c=ST.cfg||{},ada=!!String(c.catalogUrl||'').trim();
+  return '<div style="border:1px dashed var(--warn);border-radius:9px;padding:9px 11px;margin:8px 0 2px;font-size:11px;line-height:1.55">'+
+    '<b style="color:var(--warn)">Katalog produk &amp; kombinasi harga belum ada di Master HUB</b> — selama ini hanya di cache browser. '+
+    'Impor sekali: produk + harga bertingkat, kombinasi harga collateral, jasa, kurs, kardus, ongkir &amp; foto masuk ke Master HUB; '+
+    'sesudahnya alamat &amp; token Cost Estimator dihapus dari browser ini dan tombol ini hilang.'+
+    (ada?'':('<div style="margin-top:6px">Alamat Cost Estimator tak tersimpan di browser ini — isi sekali di sini:'+
+      '<input class="pin" id="imsUrl" placeholder="https://script.google.com/macros/s/…/exec" style="margin:4px 0">'+
+      '<input class="pin" id="imsTok" type="password" placeholder="token baca Cost Estimator" style="margin:0 0 4px;max-width:260px"></div>'))+
+    '<div><button class="btn sm" style="margin-top:6px" onclick="imporSekali()">⭳ Impor terakhir dari Cost Estimator</button></div></div>';}
+function imporSekaliUrl(u,t){u=String(u||'').trim();t=String(t||'').trim();if(!u)return '';
+  if(!/script\.google\.com\/macros\/s\/[^\/]+\/exec/.test(u))return u;
+  if(!/[?&]t=/.test(u)&&t)u+=(u.indexOf('?')>=0?'&':'?')+'t='+encodeURIComponent(t);
+  if(!/[?&](data|est)=1/.test(u))u+=(u.indexOf('?')>=0?'&':'?')+'data=1';
+  return u;}
+function imporSekali(){
+  if(ST.user!=='Holding'){alert('Hanya Holding.');return;}
+  var c=ST.cfg||{},eu=document.getElementById('imsUrl'),et=document.getElementById('imsTok');
+  var url=imporSekaliUrl((eu&&eu.value)||c.catalogUrl,(et&&et.value)||c.catalogToken);
+  if(!url){alert('Isi alamat Cost Estimator (…/exec) dulu.');return;}
+  dzProgres('mengimpor katalog & harga…');
+  fetch(url).then(function(r){return r.text();}).then(function(txt){
+    var d;try{d=JSON.parse(txt);}catch(e){throw new Error('alamat itu tidak membalas data (cek alamat / token).');}
+    if(d&&d.ok===false)throw new Error(String(d.error||'ditolak Cost Estimator')+' — cek token baca.');
+    if(!d||!(d.products||[]).length)throw new Error('data terbaca tapi tanpa produk — pastikan alamatnya Rove Backend Cost Estimator.');
+    var lap=imporEstimator(d);
+    /* putus permanen: alamat & token lama dihapus dari browser ini */
+    delete ST.cfg.catalogUrl;delete ST.cfg.catalogToken;try{LS.setItem('rovehub_cfg',JSON.stringify(ST.cfg));}catch(e){}
+    saveMaster();try{buildCollatData();}catch(e){}dzProgres('');render();
+    if(confirm('✓ Impor selesai — sekarang tersimpan di Master HUB.\n\n'+imporRingkas(lap)+'\n\nAlamat & token Cost Estimator sudah dihapus dari browser ini.\n\nLanjut pindahkan foto produknya ke Shared Drive sekarang?'))fotoPindahkan();
+  }).catch(function(e){dzProgres('');alert('Impor gagal: '+((e&&e.message)||e));});}
 function fotoBukaFolder(){backendTanya('foto.folder').then(function(j){if(j&&j.ok&&j.link)window.open(j.link,'_blank');else alert('Folder belum bisa dibuka: '+((j&&j.error)||'backend belum Code.gs 2.6'));},function(e){alert('Tak bisa menghubungi backend: '+e.message);});}
 async function fotoPindahkan(){
   if(ST.user!=='Holding'){alert('Hanya Holding.');return;}
