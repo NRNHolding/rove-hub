@@ -1111,7 +1111,7 @@ const KEY='rovehub_orders_v18';
 /* ================= VERSI YANG SEDANG BERJALAN =================
    Diisi otomatis oleh terbitkan.js waktu salinan ini diterbitkan; '-' berarti
    dibuka langsung dari berkas, bukan dari alamat terbitannya. */
-const VERSI='20261126-102137';
+const VERSI='20261126-113005';
 /* Berkas versi.txt di sebelah halaman ini berisi penanda yang sama. Ia
    ditanyakan tanpa cache, jadi ia jujur walau halamannya sendiri masih
    tersimpan di cache browser. */
@@ -11564,11 +11564,11 @@ async function hashPw(s){
 }
 /* password teks biasa (akun bawaan versi lama) diubah jadi hash — teksnya tak lagi ikut tersimpan & terkirim */
 async function pwMigrasi(){var U=(ST.master&&ST.master.users)||[],ubah=false;
-  for(var i=0;i<U.length;i++){var u=U[i];if(u&&!u.pwHash&&u.password!=null&&String(u.password)!==''){u.pwHash=await hashPw(String(u.password));delete u.password;stampRow(u);ubah=true;}
-    else if(u&&u.pwHash&&u.password!=null){delete u.password;stampRow(u);ubah=true;}}
+  for(var i=0;i<U.length;i++){var u=U[i];if(u&&!u.pwHash&&u.password!=null&&String(u.password)!==''){u.pwHash=await hashPw(String(u.password));delete u.password;ubah=true;}
+    else if(u&&u.pwHash&&u.password!=null){delete u.password;ubah=true;}}   // patch228: tanpa stampRow — migrasi tak boleh mengalahkan password di server
   if(ubah)saveMaster();
   return ubah;}
-async function setUserPw(i,val){if(!val)return;var u=ST.master.users[i];if(!u)return;u.pwHash=await hashPw(val);delete u.password;stampRow(u);saveMaster();render();}   // cap waktu: server menjaga akun per baris (Code.gs 2.3)
+async function setUserPw(i,val){if(!val)return;var u=ST.master.users[i];if(!u)return;u.pwHash=await hashPw(val);delete u.password;u._pwSet=Date.now();stampRow(u);saveMaster();render();}   // cap waktu: server menjaga akun per baris (Code.gs 2.3)
 /* Kegagalan login dijelaskan apa adanya. "Username atau password salah"
    untuk semua sebab membuat daftar akun yang kosong terlihat seperti salah
    ketik — dan itu memakan waktu berjam-jam untuk disadari. */
@@ -11636,7 +11636,7 @@ async function gantiPwSimpan(){var g=ST._gantiPw;if(!g)return;
     if(d&&d.perluLogin){ST._gantiPw=null;render();var e2=document.getElementById('lg_err');if(e2)e2.textContent='Server menolak — masuk ulang dengan password lamamu.';return;}
     if(er)er.textContent=(d&&d.error)?String(d.error):'Server tak terjangkau — password belum diganti. Coba lagi.';return;}
   /* diterima server berkunci — atau backend lama mengabaikan aksinya: gantinya ikut tersimpan lewat master */
-  ((ST.master&&ST.master.users)||[]).forEach(function(x){if(x&&String(x.username||'').trim().toLowerCase()===g.u){x.pwHash=h;delete x.password;stampRow(x);}});   // cap waktu: versi akun lain tak lagi menang
+  ((ST.master&&ST.master.users)||[]).forEach(function(x){if(x&&String(x.username||'').trim().toLowerCase()===g.u){x.pwHash=h;delete x.password;x._pwSet=Date.now();stampRow(x);}});   // cap waktu: versi akun lain tak lagi menang
   ST._gantiPw=null;kredSet(g.u,h);saveMaster();
   login(g.r,g.u,g.roles);try{cloudAutoLoad();}catch(e){}}
 function delOrder(id){var o=ST.orders.find(function(x){return x.id===id;});if(!o)return;
@@ -11713,7 +11713,7 @@ function loginAkunDariServer(u,d){var S=(((d||{}).master||{}).users)||[];if(!S.l
   if(!Array.isArray(ST.master.users))ST.master.users=[];
   var L=ST.master.users.filter(function(x){return x&&String(x.username||'').trim().toLowerCase()===u;});
   if(!L.length){su.forEach(function(x){ST.master.users.push(JSON.parse(JSON.stringify(x)));});}
-  else{var s0=su[0];L.forEach(function(x){if(s0.pwHash)x.pwHash=s0.pwHash;else delete x.pwHash;if(s0.password!=null)x.password=s0.password;else delete x.password;x.aktif=!!s0.aktif;if(s0._m)x._m=s0._m;});}
+  else{var s0=su[0];L.forEach(function(x){if(s0.pwHash)x.pwHash=s0.pwHash;else delete x.pwHash;if(s0.password!=null)x.password=s0.password;else delete x.password;x.aktif=!!s0.aktif;if(s0._m)x._m=s0._m;if(s0._pwSet)x._pwSet=s0._pwSet;else delete x._pwSet;});}
   try{LS.setItem('rovehub_master',JSON.stringify(ST.master));}catch(e){}
   return true;}
 function loginTerimaCloud(d){
@@ -28245,6 +28245,7 @@ function driveUnggah(f,folder,cb,tautanFn){
     .catch(function(e){dzProgres('');alert('Unggah ke Drive gagal: '+e.message+'\n\nUnggah manual ke Google Drive lalu tempel tautannya (🔗).');if(tautanFn)tautanFn();});}
 function driveUji(){
   backendTanya('drive.ping').then(function(r){
+    if(r&&r.perluLogin){alert('Server tidak mengenali sesi login perangkat ini.\n\nKlik ↩ Keluar di kiri bawah, masuk lagi, lalu ulangi uji Drive.');return;}
     alert(r&&r.ok&&r.folder?('✓ Drive tersambung — folder "'+r.folder+'"'+(r.link?('\n'+r.link):'')):('Backend belum melayani Drive: '+JSON.stringify(r||{}).slice(0,200)+'\n\nPerbarui Code.gs (aksi drive.ping / drive.sesi / drive.selesai), deploy versi baru, dan setujui izin Google Drive.'));
   }).catch(function(e){alert('Tak bisa menghubungi backend: '+e.message);});}
 var DROP_FILES=null,DROP_SISA=null;
