@@ -1111,7 +1111,7 @@ const KEY='rovehub_orders_v18';
 /* ================= VERSI YANG SEDANG BERJALAN =================
    Diisi otomatis oleh terbitkan.js waktu salinan ini diterbitkan; '-' berarti
    dibuka langsung dari berkas, bukan dari alamat terbitannya. */
-const VERSI='20261126-133927';
+const VERSI='20261126-140436';
 /* Berkas versi.txt di sebelah halaman ini berisi penanda yang sama. Ia
    ditanyakan tanpa cache, jadi ia jujur walau halamannya sendiri masih
    tersimpan di cache browser. */
@@ -2907,6 +2907,7 @@ if(r){ST.orders=JSON.parse(r);}else{ST.orders=[];}
   try{migrasiTeknikJasa();}catch(e){}
   try{setTimeout(function(){pwMigrasi();},0);}catch(e){}   // password teks biasa → hash (async)
   try{setTimeout(function(){gambarRampingkan();},2500);}catch(e){}   // lampiran gambar besar → diperkecil sekali (13 Okt)
+  try{setTimeout(gambarLatar,20000);setInterval(gambarLatar,180000);}catch(e){}   // patch231: gambar order → Shared Drive di latar
   finData();asetAll();loadCatalogCache();loadMaster();loadLeads();loadTax();loadKonten();loadHR();loadBuy();loadInv();adminLoad();
   try{migrasiContoh();}catch(e){}   // kartu contoh versi lama diganti yang lengkap
   try{if(contohLiveSegarkan())simpanLokal();}catch(e){}   // acara contoh Live service selalu relatif ke hari ini
@@ -20700,7 +20701,7 @@ function rfqJawab(id,i){
    Vendor butuh gambar + spesifikasi, bukan cuma nama barang. */
 function driveLink(id){
   if(!id)return '';
-  if(String(id).slice(0,5)==='data:')return '';          // gambar unggahan tak punya URL publik
+  if(String(id).slice(0,5)==='data:'||String(id).slice(0,6)==='drive:')return '';          // gambar unggahan / Shared Drive tak punya URL publik
   return 'https://drive.google.com/thumbnail?id='+id+'&sz=w1200';}
 function vendorTautan(o){ // semua tautan berkas (Drive / Dropbox) yang terlampir di Brief order ini
   var b=briefGet(o),out=[];
@@ -23340,7 +23341,7 @@ function vendorGambar(o,l){
      Estimator (id Drive) ditampilkan lewat tautannya */
   var gambarBaris=function(lx,slotData,slotDrive,nama){
     try{lineImgs(lx).forEach(function(src,i){
-      if(String(src||'').slice(0,11)==='data:image/'){
+      if(String(src||'').slice(0,11)==='data:image/'||String(src||'').slice(0,6)==='drive:'){   // patch231: gambar order di Shared Drive = berkas
         out.push({slot:slotData,i:i,nama:nama||'',f:{nama:(nama||lx.produk||'gambar')+'-'+(i+1)+'.png',tipe:'image/png',data:src}});return;}
       var url='';try{url=driveLink(src);}catch(e){}
       if(url)out.push({slot:slotDrive,i:i,drive:true,nama:nama||'',
@@ -23389,6 +23390,7 @@ function vendorGambar(o,l){
   return out;}
 /* Simpan satu berkas ke komputer — dari data URI, tanpa perlu server. */
 function gambarUnduhSatu(f){
+  if(String((f&&f.data)||'').slice(0,6)==='drive:'){gambarMuat(f.data).then(function(u){gambarUnduhSatu({data:u,nama:f.nama});},function(e){alert('Gambar belum bisa diambil: '+e.message);});return true;}
   try{
     var a=document.createElement('a');
     a.href=f.data;a.download=f.nama||'gambar';
@@ -23442,7 +23444,7 @@ function gambarSalin(id,slot,i,kunci){
       },'image/png');
     }catch(e){alert('Gambarnya gagal disiapkan. Pakai tombol unduh saja.');}};
   img.onerror=function(){alert('Gambarnya tak terbaca.');};
-  img.src=f.data;}
+  gambarMuat(f.data).then(function(u){img.src=u;},function(){alert('Gambarnya tak terbaca.');});}
 /* Blok gambar di kotak pesan: terlihat dulu, baru bisa dikirim. */
 /* Gambar untuk beberapa baris sekaligus, tanpa kembar. */
 function vendorGambarBanyak(o,baris){
@@ -24450,7 +24452,8 @@ function fotoAmbil(id){
   return FOTO_JANJI[id];}
 function fotoJalan(){
   while(FOTO_JALAN<4&&FOTO_ANTRE.length)(function(t){FOTO_JALAN++;
-    backendTanya('foto.ambil',{id:t.id}).then(function(j){
+    var dv=String(t.id).slice(0,6)==='drive:';
+    backendTanya('foto.ambil',dv?{id:String(t.id).slice(6),besar:true}:{id:t.id}).then(function(j){
       if(j&&j.ok&&j.b64){var u='data:'+(j.mime||'image/jpeg')+';base64,'+j.b64;IMGCACHE[t.id]=u;t.ok(u);}
       else{delete FOTO_JANJI[t.id];t.gagal(new Error((j&&j.perluLogin)?'sesi login tak dikenali server — keluar lalu masuk lagi':((j&&j.error)||'ditolak server')));}
     },function(e){delete FOTO_JANJI[t.id];t.gagal(e);}).then(function(){FOTO_JALAN--;fotoJalan();});})(FOTO_ANTRE.shift());}
@@ -24487,7 +24490,54 @@ function fotoSumberBlok(){var n=fotoStatus(),tot=n.drive+n.perangkat+n.lama,pct=
     '<div style="height:8px;border-radius:5px;background:var(--line);overflow:hidden;margin:6px 0"><i style="display:block;height:100%;width:'+pct+'%;background:var(--ok)"></i></div>'+
     ((n.lama||n.perangkat)?'<button class="btn sm" onclick="fotoPindahkan()">📁 Pindahkan foto master ke Drive</button> ':'')+
     '<button class="btn ghost sm" onclick="fotoBukaFolder()">↗ Buka folder Master Produk</button>'+
+    (function(){var g=gambarHitung();return '<div style="font-size:11px;margin-top:10px"><b>Gambar order &amp; prospek</b> — <span style="color:var(--ok);font-weight:800">'+g.drive+' di Shared Drive</span> · '+
+      '<span style="color:'+(g.hub?'var(--warn)':'var(--muted)')+';font-weight:800">'+g.hub+' masih di data HUB</span></div>'+
+      (g.hub?'<button class="btn sm" style="margin-top:5px" onclick="gambarOrderPindahkan()">📁 Pindahkan gambar order ke Drive</button>':'')+
+      '<div style="font-size:10px;color:var(--muted);margin-top:4px">Gambar baru ikut dipindah sendiri di latar (Code.gs 2.7). Folder: ROVE HUB / Order / nama channel.</div>';})()+
     '<div style="font-size:10px;color:var(--muted);margin-top:5px;line-height:1.5">Sekali jalan: foto lama (link Cost Estimator &amp; unggahan di perangkat) disalin ke <b>ROVE HUB / Master Produk / …</b>. Link lama tak diubah.</div></div>';}
+/* ================= GAMBAR ORDER & PROSPEK DI SHARED DRIVE (patch231) =================
+   Lampiran gambar (referensi, logo, preview, foto produksi / QC / packing, gambar baris pricing, …) dulu
+   tersimpan sebagai data di dalam order — membuat data HUB & cache perangkat berat. Sekarang disalin ke
+   ROVE HUB / Order / <channel> (prospek: Prospek / <nama>), di HUB tinggal penanda drive:<id>.
+   Berjalan sendiri di latar (6 gambar tiap 3 menit, perangkat yang memegang datanya) + tombol di Panel Holding. */
+var GAMBAR_DATA_RE=/^data:image\/(png|jpe?g|webp);base64,/i;
+function gambarDataCari(x,out,d,induk,kunci){out=out||[];d=d||0;if(!x||typeof x!=='object'||d>9)return out;
+  Object.keys(x).forEach(function(k){var v=x[k];
+    if(typeof v==='string'){if(GAMBAR_DATA_RE.test(v))out.push({o:x,k:k,nama:(!Array.isArray(x)&&(x.nama||x.n))||(Array.isArray(x)&&kunci)||k});}
+    else if(v&&typeof v==='object')gambarDataCari(v,out,d+1,x,k);});
+  return out;}
+function gambarHitung(){var n={drive:0,hub:0},cek=function(x,d){if(!x||typeof x!=='object'||d>9)return;
+    Object.keys(x).forEach(function(k){var v=x[k];if(typeof v==='string'){if(v.slice(0,6)==='drive:')n.drive++;else if(GAMBAR_DATA_RE.test(v))n.hub++;}else if(v&&typeof v==='object')cek(v,d+1);});};
+  (ST.orders||[]).forEach(function(o){if(o&&!o.deleted&&!o._contoh)cek(o,0);});
+  (leadsAll()||[]).forEach(function(l){if(l&&!l.deleted&&!l._contoh)cek(l,0);});
+  return n;}
+function gambarDriveSiap(){var r=parseFloat(ST._rilis||'0');return !!(ST.user&&ST.cfg&&ST.cfg.url&&kredGet()&&r>=2.7);}
+async function gambarOrderKeDrive(maks,diam){
+  if(ST._gambarPindah||!gambarDriveSiap())return {n:0,gagal:[]};ST._gambarPindah=true;
+  var n=0,gagal=[],ubahO=0,ubahL=0;
+  try{
+    var tugas=[];
+    (ST.orders||[]).forEach(function(o){if(o&&!o.deleted&&!o._contoh)gambarDataCari(o).forEach(function(t){t.induk=o;t.akar='Order';t.folder=chName(o);tugas.push(t);});});
+    (leadsAll()||[]).forEach(function(l){if(l&&!l.deleted&&!l._contoh)gambarDataCari(l).forEach(function(t){t.induk=l;t.akar='Prospek';t.folder=(l.nama||l.id||'prospek');t.lead=true;tugas.push(t);});});
+    if(maks)tugas=tugas.slice(0,maks);
+    for(var i=0;i<tugas.length;i++){var t=tugas[i],v=t.o[t.k];if(typeof v!=='string'||!GAMBAR_DATA_RE.test(v))continue;
+      if(!diam)dzProgres('memindahkan gambar order ke Drive… '+(i+1)+' / '+tugas.length);
+      var m=/^data:([^;]+);base64,(.*)$/.exec(v);
+      try{var j=await backendTanya('foto.unggah',{akar:t.akar,folder:t.folder,nama:String(t.nama||'gambar').replace(/[.](png|jpe?g|webp)$/i,''),mime:m[1],b64:m[2]});
+        if(!(j&&j.ok&&j.id))throw new Error((j&&j.error)||'ditolak server');
+        if(t.o[t.k]===v){t.o[t.k]='drive:'+j.id;IMGCACHE['drive:'+j.id]=v;t.induk._m=Date.now();n++;if(t.lead)ubahL++;else ubahO++;}}
+      catch(e){gagal.push(String(t.nama||'gambar')+': '+e.message);if(/sesi login|Code.gs/.test(e.message))break;}}
+    if(ubahO){simpanLokal();cloudSave();}
+    if(ubahL)saveLeads();
+  }finally{ST._gambarPindah=false;if(!diam)dzProgres('');}
+  return {n:n,gagal:gagal};}
+async function gambarOrderPindahkan(){
+  if(!gambarDriveSiap()){alert('Perlu Code.gs 2.7 dan login yang dikenali server.');return;}
+  var h=gambarHitung();if(!h.hub){alert('Semua gambar order sudah di Shared Drive.');return;}
+  if(!confirm(h.hub+' gambar order & prospek akan disalin ke Shared Drive (ROVE HUB / Order / nama channel). Lanjut?'))return;
+  var r=await gambarOrderKeDrive(0,false);render();
+  alert('✓ '+r.n+' gambar order sekarang di Shared Drive.'+(r.gagal.length?('\n\n'+r.gagal.length+' gagal:\n'+r.gagal.slice(0,8).join('\n')):''));}
+function gambarLatar(){try{if(gambarDriveSiap())gambarOrderKeDrive(6,true).then(function(r){if(r.n&&ST.user)render();});}catch(e){}}
 /* ---- IMPOR TERAKHIR DARI COST ESTIMATOR (sekali jalan, patch230) ----
    Katalog produk & kombinasi harga dulu hanya hidup di cache browser (ditarik tiap HUB dibuka).
    Sekali impor penuh ke Master HUB, lalu alamat & token lama dihapus dari browser — sesudah itu
@@ -24567,7 +24617,14 @@ function loadImages(){var base=imgUrlBase();if(!base)return;
     var id=el.getAttribute('data-imgid');el.removeAttribute('data-imgid');if(!id)return;
     if(IMGCACHE[id]){el.src=IMGCACHE[id];return;}
     fotoAmbil(id).then(function(uri){el.src=uri;},function(e){imgGagal(el,(e&&e.message)||'jaringan');});
-  });}
+  });
+  /* patch231: gambar order di Shared Drive — src/href berisi penanda drive:<id> */
+  document.querySelectorAll('img[src^="drive:"]').forEach(function(el){var id=el.getAttribute('src');
+    el.setAttribute('src','data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==');el.style.background=el.style.background||'#eee';
+    fotoAmbil(id).then(function(uri){el.src=uri;},function(e){imgGagal(el,(e&&e.message)||'jaringan');});});
+  document.querySelectorAll('a[href^="drive:"]').forEach(function(a){a.href='https://drive.google.com/file/d/'+a.getAttribute('href').slice(6)+'/view';});}
+/* data gambar siap pakai (data URI) — untuk unduh / salin: drive:<id> diambil dulu */
+function gambarMuat(d){d=gambarSrc(d);if(String(d).slice(0,6)==='drive:')return fotoAmbil(d);return Promise.resolve(d);}
 /* ---- geser mendatar dengan klik-tahan (tak perlu menarik scrollbar) ---- */
 var PANSEL='.xscroll,.board,#docbody';
 function panBisa(w){return w&&w.scrollWidth>w.clientWidth+2;}
