@@ -954,7 +954,7 @@ table.tpl-x{border-collapse:separate;border-spacing:0;font-size:11.5px;min-width
     <div class="ftab" data-tab="2" style="display:none">
       <div style="font-size:10.5px;color:var(--muted);margin-bottom:10px">Tambahkan item sebanyak yang diminta client. <b>Tipe order ditentukan sendiri</b> dari isinya — katalog saja, custom saja, atau campuran keduanya.</div>
       <div class="fld" style="background:var(--bg);border:1px dashed var(--accent);border-radius:9px;padding:11px 12px">
-        <label style="color:var(--brand)">◈ Ambil dari katalog Cost Estimator — isi Qty lalu klik produk</label>
+        <label style="color:var(--brand)">◈ Ambil dari katalog Master Product — isi Qty lalu klik produk</label>
         <div style="display:flex;gap:7px;align-items:flex-end;margin:6px 0 8px">
           <input id="f_catsearch" oninput="nolCatFilter()" placeholder="Cari nama, material…" style="flex:1;min-width:0">
           <input id="f_catqty" type="number" placeholder="Qty" style="width:74px" oninput="nolCatFilter()">
@@ -1111,7 +1111,7 @@ const KEY='rovehub_orders_v18';
 /* ================= VERSI YANG SEDANG BERJALAN =================
    Diisi otomatis oleh terbitkan.js waktu salinan ini diterbitkan; '-' berarti
    dibuka langsung dari berkas, bukan dari alamat terbitannya. */
-const VERSI='20261126-113005';
+const VERSI='20261126-115558';
 /* Berkas versi.txt di sebelah halaman ini berisi penanda yang sama. Ia
    ditanyakan tanpa cache, jadi ia jujur walau halamannya sendiri masih
    tersimpan di cache browser. */
@@ -1776,8 +1776,8 @@ const EN={
 'Yang kamu kerjakan:':'What you do:','— belum':'— not yet','— tidak ada':'— none','DP masuk':'deposit received',
 '🔒 tunggu: DP masuk':'🔒 waiting: deposit received','ITEM OTOMATIS DARI PRICING · 1 PO PER VENDOR':'ITEMS AUTOMATIC FROM PRICING · 1 PO PER VENDOR',
 'Berat manual tetap bisa diisi kalau datanya belum lengkap.':'You can still enter the weight manually if the data is incomplete.',
-'Angka di daftar = harga per-pcs dari Cost Estimator pada tier Qty itu, dan masuk sebagai HPP (biaya vendor). Harga jualnya dihitung dari margin order, tetap bisa diedit di barisnya.':
-  'The listed price is the Cost Estimator per-piece price at that qty tier, and lands as HPP (vendor cost). The selling price comes from the order margin and stays editable on the line.',
+'Angka di daftar = harga per-pcs dari Master Product pada tier Qty itu, dan masuk sebagai HPP (biaya vendor). Harga jualnya dihitung dari margin order, tetap bisa diedit di barisnya.':
+  'The listed price is the Master Product per-piece price at that qty tier, and lands as HPP (vendor cost). The selling price comes from the order margin and stays editable on the line.',
 '— ambil harga langsung dari':'— pull prices straight from','— isi Qty lalu klik produk':'— enter the qty then click a product',
 'lewat picker di bawah. Tak perlu nanya vendor manual. HPP bisa disembunyikan saat presentasi.':
   'using the picker below. No need to ask the vendor manually. Cost price can be hidden during a presentation.',
@@ -1848,8 +1848,7 @@ const EN={
 '✓ DATABASE SUDAH DI HUB':'✓ DATABASE NOW LIVES IN HUB',
 'Kombinasi harga':'Price combinations','Opsi collateral':'Collateral options',
 'Kardus':'Cartons','Tarif ongkir':'Shipping rates','Kurs USD':'USD rate','Kurs AUD':'AUD rate',
-'Semuanya bisa diedit langsung di HUB. Impor ulang hanya kalau Cost Estimator berubah — angka yang sudah kamu ubah sendiri tidak ditimpa.':
-  'Everything is editable directly in HUB. Re-import only when the Cost Estimator changes — figures you have edited yourself are never overwritten.',
+'Semuanya diedit langsung di HUB — Master HUB adalah sumbernya (Cost Estimator tak lagi tersambung).':'Everything is edited directly in HUB — the HUB master is the source (Cost Estimator is no longer connected).',
 'Database belum diimpor penuh.':'The database has not been fully imported yet.',
 'Pricing vendor':'Vendor pricing','Quotation terkirim':'Quotation sent',
 'Sketch previewing':'Sketch previewing','Deal — spec & PO':'Deal — spec & PO',
@@ -2068,8 +2067,8 @@ const EN={
 'ITEM YANG DIPESAN':'ITEMS ORDERED','Detail / permintaan khusus':'Detail / special request',
 '📷 tambah (maks 5)':'📷 add (max 5)','Gambar referensi':'Reference images',
 '＋ Tambah item custom (non-katalog)':'＋ Add a custom item (non-catalogue)',
-'◈ Ambil dari katalog Cost Estimator — isi Qty lalu klik produk':
-  '◈ Take from the Cost Estimator catalogue — enter the qty then click a product',
+'◈ Ambil dari katalog Master Product — isi Qty lalu klik produk':
+  '◈ Take from the Master Product catalogue — enter the qty then click a product',
 'Catatan personalisasi':'Personalisation notes','Harga jual/pcs':'Selling price/pc','HPP/pcs':'Cost/pc',
 'Material / bahan':'Material','subtotal':'subtotal','Belum ada item.':'No items yet.',
 'Penentuan harga jual':'Setting the selling price','HPP VENDOR VS HARGA JUAL':'VENDOR COST VS SELLING PRICE',
@@ -2931,12 +2930,12 @@ if(r){ST.orders=JSON.parse(r);}else{ST.orders=[];}
 function cfgSerap(){
   var C=ST.cfg=ST.cfg||{};
   var ambil=function(id,f){var e=document.getElementById(id);if(e)C[f]=(e.value||'').trim();};
-  ambil('cfgurl','url');ambil('cfgcatalog','catalogUrl');ambil('cfgcattoken','catalogToken');ambil('cfgdb','dbUrl');ambil('cfgklien','klienUrl');
+  ambil('cfgurl','url');ambil('cfgdb','dbUrl');ambil('cfgklien','klienUrl');
   var lv=document.getElementById('cfglive');if(lv)C.live=!!lv.checked;var dv=document.getElementById('cfgdrive');if(dv)C.drive=!!dv.checked;
   try{LS.setItem('rovehub_cfg',JSON.stringify(C));}catch(e){}
   return C;}
 function saveCfg(){ST.cfg.url=(document.getElementById('cfgurl').value||'').trim();ST.cfg.live=document.getElementById('cfglive').checked;
-  var dp=document.getElementById('cfgdipakai');if(dp)ST.cfg.dipakai=dp.checked;try{dipakaiTerapkan();}catch(e){}var dv=document.getElementById('cfgdrive');if(dv)ST.cfg.drive=dv.checked;ST.cfg.catalogUrl=(document.getElementById('cfgcatalog').value||'').trim();var tk=document.getElementById('cfgcattoken');if(tk)ST.cfg.catalogToken=(tk.value||'').trim();var db=document.getElementById('cfgdb');ST.cfg.dbUrl=db?(db.value||'').trim():(ST.cfg.dbUrl||'');var kl=document.getElementById('cfgklien');ST.cfg.klienUrl=kl?(kl.value||'').trim():(ST.cfg.klienUrl||'');LS.setItem('rovehub_cfg',JSON.stringify(ST.cfg));fetchCatalog();render();}
+  var dp=document.getElementById('cfgdipakai');if(dp)ST.cfg.dipakai=dp.checked;try{dipakaiTerapkan();}catch(e){}var dv=document.getElementById('cfgdrive');if(dv)ST.cfg.drive=dv.checked;var db=document.getElementById('cfgdb');ST.cfg.dbUrl=db?(db.value||'').trim():(ST.cfg.dbUrl||'');var kl=document.getElementById('cfgklien');ST.cfg.klienUrl=kl?(kl.value||'').trim():(ST.cfg.klienUrl||'');LS.setItem('rovehub_cfg',JSON.stringify(ST.cfg));render();}
 /* ================= KUNCI SESI (12 Okt) =================
    Backend hanya melayani yang login: tiap baca / tulis membawa auth {u, h} — username + hash SHA-256 password
    (hash yang sama dengan yang dicocokkan saat login). Disimpan di perangkat sejak login, dihapus saat keluar. */
@@ -2997,7 +2996,7 @@ function holdingAdaUsulan(){try{var U=adminUsulanTerbuka().filter(function(u){re
 function holdingStatusBaris(){var c=ST.cfg||{},live=!!(c.live&&c.url),st=String(ST.cloudStatus||''),masalah=live&&/🔒|gagal|sibuk|menolak|tak tersambung|error/i.test(st),n=(typeof CATALOG_LIVE!=='undefined'&&CATALOG_LIVE&&CATALOG_LIVE.length)||0,tt='<span style="color:var(--muted)"> · </span>';
   var h=(!live?'<b style="color:var(--warn)">Belum tersambung ke server</b>':(masalah?'<b style="color:var(--warn)">Sambungan bermasalah</b>':'<b>Tersambung ke server</b>'))+
     ((live&&ST._rilis)?(tt+'<span>Code.gs</span> <b>'+esc(ST._rilis)+'</b>'):'')+
-    tt+(n?('<span>katalog</span> <b>'+n+'</b> <span>produk</span>'):'<span style="color:var(--warn)">katalog belum tersambung</span>')+
+    (function(){var f=fotoStatus(),t=f.drive+f.lama+f.perangkat;return t?(tt+'<span>foto master di Drive</span> <b'+(f.drive<t?' style="color:var(--warn)"':'')+'>'+f.drive+' / '+t+'</b>'):'';})()+
     ((live&&ST.cloudStatus)?(tt+'<span style="color:var(--muted);font-weight:400">'+esc(ST.cloudStatus)+'</span>'):'');
   return '<div class="rcard" data-f="holdingStatus" style="max-width:660px;padding:11px 14px"><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:12px">'+
     '<span style="width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:3px;background:'+((live&&!masalah)?'var(--ok)':'var(--warn)')+'"></span>'+h+'</div></div>';}
@@ -3444,7 +3443,7 @@ function leadKatalogBlok(l){
           '<span style="font-size:9.5px;color:var(--muted);margin-left:auto">'+esc(c.material||'')+'</span></button>';}).join('')
         :(K.length
             ?'<div style="font-size:10.5px;color:var(--muted);padding:6px">Tak ada produk yang cocok dengan &ldquo;'+esc(q)+'&rdquo;.</div>'
-            :'<div style="font-size:10.5px;color:var(--warn);padding:6px">Katalog masih kosong. Isi di Master data → Master Product, atau tarik dari Cost Estimator.</div>'))+
+            :'<div style="font-size:10.5px;color:var(--warn);padding:6px">Katalog masih kosong. Isi di Master data → Master Product.</div>'))+
     '</div></div>';
   return '<div style="margin-top:11px">'+
     '<div style="font-size:9.5px;font-weight:800;color:var(--brand);letter-spacing:.04em;margin-bottom:7px">DARI KATALOG'+
@@ -11301,10 +11300,8 @@ function renderMaster(){
          '<td><input class="pin n" type="number" style="width:66px" value="'+(r.berat||'')+'" onchange="mEdit(\'catalog\','+i+',\'berat\',+this.value||0)"></td>'+
          (r.t||[0,0,0,0,0,0,0]).map(function(v,ti){return '<td><input class="pin n money" inputmode="numeric" style="min-width:76px" value="'+moneyInp(v)+'" onchange="mEditTier('+i+','+ti+',this.value)"></td>';}).join('')+
          '<td style="font-size:9px;color:var(--muted)">'+fmtStamp(r)+'</td>'+actCell('catalog',i,r)+'</tr>';};
-       isi='<div style="font-size:10.5px;color:var(--muted);margin-bottom:9px"><b>Katalog</b> = produk tetap (dari Cost Estimator). <b>Custom</b> = produk hasil deal. <b>P/L/T (cm) &amp; berat (gram)</b> dipakai untuk menghitung kardus &amp; ongkir otomatis — <b>ditarik otomatis dari Cost Estimator</b> (kolom Ukuran &amp; Berat Produk). Kalau kamu ubah angkanya di sini, tarik ulang tak akan menimpanya lagi. Klik <b>📷</b> untuk unggah gambar produk — otomatis dipakai di <b>quotation, invoice &amp; PO</b> kalau baris pricing belum punya gambar sendiri.</div>'+
+       isi='<div style="font-size:10.5px;color:var(--muted);margin-bottom:9px"><b>Katalog</b> = produk tetap Rove — diubah di sini. <b>Custom</b> = produk hasil deal. <b>P/L/T (cm) &amp; berat (gram)</b> dipakai untuk menghitung kardus &amp; ongkir otomatis. Klik <b>📷</b> untuk unggah foto produk ke Shared Drive (Master Produk / Produk / nama produk) — otomatis dipakai di <b>quotation, invoice &amp; PO</b> kalau baris pricing belum punya gambar sendiri.</div>'+
          '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:11px">'+
-         '<button class="btn sm" onclick="syncEstMaster()">⟳ Impor dari Cost Estimator (URL)</button>'+
-         '<button class="btn sm" style="background:#3f7d54;border-color:#3f7d54" onclick="imporEstFile()">⭳ Impor dari file JSON</button>'+
          '<button class="btn sm" style="background:#6a6f8a;border-color:#6a6f8a" onclick="pullCustomProducts()">⟳ Tarik produk custom dari deal ('+customCandidates().length+' baru)</button>'+
          '<span style="font-size:9.5px;color:var(--muted);align-self:center">'+esc(ST.catStatus||'')+'</span></div>'+
          imporStatus()+
@@ -11371,7 +11368,7 @@ function renderMaster(){
          '<button class="btn ghost sm" style="margin-top:9px" onclick="mAdd(\'jasa\')">＋ Tambah '+
            (JT==='TeknikLive'?'teknik live service':(JT==='TeknikAddon'?'teknik add-on':(JT==='Service'?'add-on':'live service')))+'</button>'+
          (function(){var bt=(M.jasa||[]).filter(function(j){return j.perPcTiers&&j.perPcTiers.length;});
-           return bt.length?('<div style="margin-top:11px;font-size:10.5px;color:var(--muted)"><b>Harga bertingkat</b> (dari Estimator): '+
+           return bt.length?('<div style="margin-top:11px;font-size:10.5px;color:var(--muted)"><b>Harga bertingkat</b> (Master Product): '+
              bt.map(function(j){return esc(j.nama)+' → '+j.perPcTiers.map(function(t){return (t.max>=999999?'di atas itu':'s/d '+t.max)+' = '+fmt0(t.price);}).join(' · ');}).join('<br>')+'</div>'):'';})();
      }
      return `<div class="rcard"><h3>Master Product</h3>
@@ -11882,13 +11879,7 @@ ${adaUsulan?'':adminInboxAman()}
        <label style="font-size:12px;display:flex;align-items:center;gap:8px;margin-bottom:11px"><input type="checkbox" id="cfglive" ${(ST.cfg&&ST.cfg.live)?'checked':''} style="width:auto;accent-color:var(--brand)"> Mode live (kirim ke backend)</label>
 ${muatDcSitusUji()?'':`       <label style="font-size:12px;display:flex;align-items:flex-start;gap:8px;margin-bottom:4px"><input type="checkbox" id="cfgdipakai" ${hubDipakai()?'checked':''} style="width:auto;accent-color:var(--brand);margin-top:2px"> <span>HUB sudah dipakai order sungguhan<div style="font-size:10px;color:var(--muted);font-weight:400;line-height:1.55">Nyalakan sekali waktu HUB mulai mengurus order betulan. Sejak itu alat coba-coba — seperti tombol <b>mundur ke fase sebelumnya</b> — hilang, supaya order yang berjalan tak bisa dimundurkan sampai channel dan dokumennya tak cocok lagi.</div></span></label>`}
        <label style="font-size:12px;display:flex;align-items:flex-start;gap:8px;margin:8px 0 10px"><input type="checkbox" id="cfgdrive" ${(ST.cfg&&ST.cfg.drive)?'checked':''} style="width:auto;accent-color:var(--brand);margin-top:2px"> <span>Unggah berkas besar (&gt; 4 MB) ke Google Drive lewat backend <span title="Berkas ratusan MB (artwork, video) tak muat di HUB maupun Discord (batas 10 MB). Kalau dicentang, berkas besar dari kotak unggah mana pun dikirim ke folder Drive ROVE HUB / order, dibagikan ke siapa saja yang punya link, dan tautannya ikut tercantum di spesifikasi RFQ. Tanpa ini: unggah manual ke Drive lalu tempel tautannya lewat 🔗 di tiap kotak unggah." style="cursor:help;color:var(--muted)">ⓘ</span><div style="font-size:10px;color:var(--muted);font-weight:400;line-height:1.55">Berkas besar masuk folder Drive “ROVE HUB / order”, HUB menyimpan tautannya. <button class="btn ghost sm" onclick="driveUji()" style="margin-top:5px">☁ Uji sambungan Drive</button></div></span></label>
-       <label class="nlbl">Katalog Cost Estimator — URL Apps Script <b>Rove Backend</b> (…/exec)</label>
-       <input class="pin" id="cfgcatalog" value="${esc(ST.cfg&&ST.cfg.catalogUrl)}" placeholder="https://script.google.com/macros/s/…/exec" style="margin:4px 0 4px">
-       <label class="nlbl" style="margin-top:6px;display:block">Token baca Cost Estimator</label>
-       <input class="pin" id="cfgcattoken" value="${esc(ST.cfg&&ST.cfg.catalogToken)}" placeholder="password Cost Estimator (TOKEN_READ di Code.gs)" style="margin:4px 0 4px;max-width:320px">
-       <div style="font-size:10px;color:var(--muted);margin:2px 0 6px">Link …/exec dari proyek Apps Script <b>Rove Backend</b>; token = password Cost Estimator. <span title="Dari mana linknya: script.google.com → proyek Rove Backend → Deploy → Manage deployments → Web app URL (…/exec). Link yang sama dipakai app Cost Estimator dan Admin-nya. Token baca = password Cost Estimator (TOKEN_READ di Code.gs), bukan password admin. Tanpa link ini: Impor dari file JSON di Master Product." style="cursor:help">ⓘ</span></div>
-       <div style="font-size:10px;color:${(CATALOG_LIVE&&CATALOG_LIVE.length)?'var(--ok)':'var(--warn)'};word-break:break-word">${(CATALOG_LIVE&&CATALOG_LIVE.length)?'● katalog live: '+CATALOG_LIVE.length+' produk':(ST.catStatus?('… '+esc(ST.catStatus)):'○ pakai katalog mock (belum tersambung)')}</div>
-       <button class="btn ghost sm" style="margin-top:8px" onclick="syncEstMaster()">↻ Muat ulang katalog</button> <span style="font-size:9px;color:var(--muted)">tarik produk + collateral ke master HUB</span>
+       ${fotoSumberBlok()}
        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:13px">
          <button class="btn ghost sm" onclick="cloudSave();var b=document.getElementById('cloudstat');if(b)b.textContent='mengirim…'">☁︎ Simpan ke cloud</button>
          <button class="btn ghost sm" onclick="cloudLoad()">⭳ Muat dari cloud</button>
@@ -21252,7 +21243,7 @@ function profitTambahCustom(id){
       {k:'bahan',label:'Bahan / material',type:'text'},
       {k:'qty',label:'Qty',type:'number',req:true},
       {k:'jual',label:'Harga jual per pcs',type:'money'},
-      {k:'hpp',label:'HPP per pcs',type:'money',hint:'Terisi dari katalog Cost Estimator kalau produknya ada di sana. Timpa kalau vendor naik harga.'},
+      {k:'hpp',label:'HPP per pcs',type:'money',hint:'Terisi dari katalog Master Product kalau produknya ada di sana. Timpa kalau vendor naik harga.'},
       {k:'sumber',label:'Vendor',type:'select',val:vendorGrup('produk')[0]||'',opts:vendorGrup('produk')}],
     ok:function(v){
       if(!o.pricing)o.pricing={lines:[],margin:30};
@@ -23472,7 +23463,7 @@ function vendorGambarBlok(o,l,kunci,baris){
   ST._gmb={};ST._gmb[kunci]=G;
   if(!G.length)return '<div style="border:1px dashed var(--line);border-radius:9px;padding:9px 11px;margin-bottom:12px;'+
     'font-size:10px;color:var(--muted);line-height:1.55">Belum ada gambar produk untuk baris ini. '+
-    'Vendor memberi harga dari gambar produknya — muat katalog Cost Estimator (foto produk ikut) atau unggah gambar di baris pricing (📷).</div>';
+    'Vendor memberi harga dari gambar produknya — isi foto produk di Master Product atau unggah gambar di baris pricing (📷).</div>';
   return '<div style="border:1px solid var(--line);border-radius:9px;padding:9px 11px;margin-bottom:12px;background:var(--bg)">'+
     '<div style="display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-bottom:7px">'+
       '<b style="font-size:10.5px">Gambar yang perlu ikut</b>'+
@@ -23775,20 +23766,6 @@ function imporRingkas(lap){
   return ['Produk: '+lap.produk,'Kombinasi harga: '+lap.komb,'Jasa: '+lap.jasa,
     'Opsi collateral: '+lap.coll,'Konfigurasi: '+(lap.cfg?'ikut':'tidak ada'),
     'Gift set: '+lap.giftset].join('\n');}
-/* Impor dari file JSON — dipakai kalau URL Estimator sedang tak bisa diakses. */
-function imporEstFile(){
-  var inp=document.createElement('input');inp.type='file';inp.accept='.json,application/json';
-  inp.onchange=function(){var f=inp.files[0];if(!f)return;
-    var rd=new FileReader();
-    rd.onload=function(){
-      var d;try{d=JSON.parse(rd.result);}catch(e){alert('File bukan JSON yang sah.\n\n'+e.message);return;}
-      try{var lap=imporEstimator(d);
-        ST.catStatus='impor file: '+lap.produk+' produk · '+lap.komb+' kombinasi harga';
-        alert('✓ Impor selesai.\n\n'+imporRingkas(lap)+'\n\nSemuanya sekarang tersimpan di HUB dan bisa diedit di Master data.');
-        render();}
-      catch(e){alert('Impor gagal.\n\n'+e.message);}};
-    rd.readAsText(f);};
-  unggahMulai(inp);}
 
 /* ---- panel Kombinasi harga collateral ----
    6 Okt: 653 kombinasi dulu satu tabel datar (dipotong 150 baris). Sekarang dikelompokkan per MODEL (Soft Pouch,
@@ -23873,7 +23850,7 @@ function kombPanel(){
       'Dikelompokkan per <b>'+esc(gl.toLowerCase())+'</b> — buka satu kelompok untuk melihat &amp; menyaring kombinasinya.</div>'+
     '<div style="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:11px">'+KOMB_SECS.map(tb).join('')+
       '<input class="pin" style="width:auto;min-width:180px;margin-left:auto" value="'+esc(ST._kombQ||'')+'" oninput="kombCari2(this.value)" placeholder="🔍 Cari kombinasi…"></div>';
-  if(!semua.length)return h+'<div style="color:var(--muted);font-size:11px;padding:6px 0">Belum ada kombinasi harga. Jalankan impor dari Cost Estimator di tab <b>Produk</b>.</div>'+
+  if(!semua.length)return h+'<div style="color:var(--muted);font-size:11px;padding:6px 0">Belum ada kombinasi harga — tambahkan di sini.</div>'+
     '<button class="btn ghost sm" style="margin-top:9px" onclick="kombAdd(\''+k+'\')">＋ Tambah kombinasi</button>';
   var G=kombGrupDaftar(k),nCocok=0,BATAS=60;
   G.forEach(function(g){
@@ -24131,10 +24108,10 @@ function collTambah(tipe,kind){
 function collPanel(actCell){
   var C=(ST.master&&ST.master.coll)||[],tipe=collTipeAktif();
   var h='<div style="font-size:10.5px;color:var(--muted);margin-bottom:9px">Opsi collateral per <b>tipe</b>, dikelompokkan per atribut — sumber dropdown di baris pricing. '+
-      'Klik <b>📷</b> untuk unggah gambar; gambar ikut tampil di <b>quotation, invoice &amp; PO</b>. Nilai baru langsung masuk tipe &amp; atribut tempat tombolnya ditekan.</div>'+
+      'Klik <b>📷</b> untuk unggah foto ke Shared Drive (Master Produk / Collateral / tipe / atribut); foto ikut tampil di <b>quotation, invoice &amp; PO</b>. Nilai baru langsung masuk tipe &amp; atribut tempat tombolnya ditekan.</div>'+
     '<div style="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:11px">'+COLL_TIPE_M.map(function(t){
       return '<button class="btn '+(t===tipe?'':'ghost')+' sm" onclick="collTipeSet('+jsArg(t)+')">'+esc(t)+' ('+C.filter(function(c){return c.type===t;}).length+')</button>';}).join('')+
-      '<button class="btn sm" style="margin-left:auto" onclick="syncEstMaster()">⟳ Tarik dari Cost Estimator</button></div>';
+      '</div>';
   var kinds=COLL_ATR.slice();C.forEach(function(c){if(c.type===tipe&&c.kind&&kinds.indexOf(c.kind)<0)kinds.push(c.kind);});
   kinds.forEach(function(kind){
     var I=[];C.forEach(function(c,i){if(c.type===tipe&&c.kind===kind)I.push(i);});
@@ -24267,7 +24244,7 @@ function prodDaftar(CT){
   if(kat!=='*'&&!cnt[kat])kat='*';
   var chip=function(k,lbl,n){return '<button class="btn '+(kat===k?'':'ghost')+' sm" onclick="prodKatSet('+jsArg(k)+')">'+esc(lbl)+' <span style="opacity:.7">('+n+')</span></button>';};
   var h=warnaKatalogBlok()+'<div style="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:11px">'+chip('*','Semua',CT.length)+K.map(function(k){return chip(k,k,cnt[k]);}).join('')+'</div>';
-  if(!CT.length)return h+'<div style="color:var(--muted);font-size:11px;padding:6px 0">Belum ada. Klik “Tarik dari Cost Estimator”.</div>';
+  if(!CT.length)return h+'<div style="color:var(--muted);font-size:11px;padding:6px 0">Belum ada — tambahkan nilainya lewat tombol ＋.</div>';
   var terselip=CT.filter(function(r){return prodKat(r)===PROD_KAT_PROYEK&&(r.jenis||'Katalog')!=='Custom'&&!String(r.kategori||'').trim();}).length;
   if(kat===PROD_KAT_PROYEK&&terselip)h+='<div style="font-size:10.5px;color:var(--brand-dark);background:var(--warn-bg);border:1px solid var(--line);border-radius:8px;padding:7px 10px;margin-bottom:9px">'+
     terselip+' produk berjenis Katalog bernama “… for …” — dikelompokkan di sini otomatis. Ubah Jenis-nya ke Custom bila memang produk proyek.</div>';
@@ -24337,10 +24314,7 @@ function katalogHppSegarkan(o,l){
 /* Ringkasan impor terakhir + konfigurasi yang ikut terbawa dari Estimator. */
 function imporStatus(){
   var im=(ST.master&&ST.master.imporEst),c=estCfg();
-  if(!im&&!Object.keys(c).length)
-    return '<div style="border:1px dashed var(--warn);border-radius:9px;padding:10px 13px;margin-bottom:12px;font-size:10.5px;color:var(--warn);line-height:1.6">'+
-      '<b>Database belum diimpor penuh.</b> Jalankan impor sekali — setelah itu HUB punya datanya sendiri '+
-      '(produk, harga collateral, jasa, kurs, kardus, tarif ongkir) dan tak perlu menarik dari Cost Estimator lagi.</div>';
+  if(!im&&!Object.keys(c).length)return '';   // patch229: HUB tak lagi menarik dari Cost Estimator — tak ada yang perlu diimpor
   var baris=function(a,b){return '<div><span style="color:var(--muted)">'+a+'</span> <b>'+b+'</b></div>';};
   return '<div style="border:1px dashed var(--ok);border-radius:9px;padding:10px 13px;margin-bottom:12px;background:var(--bg)">'+
     '<div style="font-size:10.5px;font-weight:800;color:var(--ok);margin-bottom:7px">✓ DATABASE SUDAH DI HUB'+
@@ -24358,47 +24332,11 @@ function imporStatus(){
     (c.wgPouch||c.wgHardbox?('<div style="font-size:9.5px;color:var(--muted);margin-top:7px">Berat bawaan packaging — pouch '+c.wgPouch+
       ' g · hardbox '+c.wgHardbox+' g · softbox '+c.wgSoftbox+' g · card '+c.wgCard+' g'+
       (c.softboxMOQ?(' · MOQ softbox '+c.softboxMOQ+' pcs'):'')+'</div>'):'')+
-    '<div style="font-size:9.5px;color:var(--muted);margin-top:5px">Semuanya bisa diedit langsung di HUB. Impor ulang hanya kalau Cost Estimator berubah — angka yang sudah kamu ubah sendiri tidak ditimpa.</div>'+
+    '<div style="font-size:9.5px;color:var(--muted);margin-top:5px">Semuanya diedit langsung di HUB — Master HUB adalah sumbernya (Cost Estimator tak lagi tersambung).</div>'+
   '</div>';}
 
 function hasEstColl(){return ((ST.master&&ST.master.coll)||[]).some(function(r){return r.src==='est';});}
 function mEditTier(i,ti,v){var r=ST.master.catalog[i];if(!r)return;if(!r.t)r.t=[0,0,0,0,0,0,0];r.t[ti]=moneyVal(v);saveMaster();}
-/* URL data Cost Estimator. Kotaknya boleh diisi URL Apps Script Rove Backend
-   (…/exec) — HUB menambahkan ?t=TOKEN&data=1 sendiri; URL lengkap atau URL
-   Worker lama tetap dipakai apa adanya. Tokennya token BACA (TOKEN_READ di
-   Code.gs), disimpan di cfg peramban, bukan di kode. */
-function estAppsScript(u){return /script\.google\.com\/macros\/s\/[^\/]+\/exec/.test(String(u||''));}
-function estUrlData(){
-  var C=ST.cfg||{},u=String(C.catalogUrl||'').trim(),t=String(C.catalogToken||'').trim();
-  if(!u)return '';
-  if(!estAppsScript(u))return u;
-  var out=u;
-  if(!/[?&]t=/.test(out)&&t)out+=(out.indexOf('?')>=0?'&':'?')+'t='+encodeURIComponent(t);
-  if(!/[?&](data|est)=1/.test(out))out+=(out.indexOf('?')>=0?'&':'?')+'data=1';
-  return out;}
-function estUrlImg(id){
-  var C=ST.cfg||{},u=String(C.catalogUrl||'').trim(),t=String(C.catalogToken||'').trim();
-  if(!u)return '';
-  if(estAppsScript(u)){
-    var base=u.split('?')[0],mt=u.match(/[?&]t=([^&]+)/),tok=t||(mt?decodeURIComponent(mt[1]):'');
-    return base+'?'+(tok?('t='+encodeURIComponent(tok)+'&'):'')+'img='+encodeURIComponent(id);}
-  return u.replace(/\/estimator\/?$/,'/img')+'?id='+encodeURIComponent(id);}
-/* pesan gagal yang menyebut sebabnya, bukan cuma "bukan JSON" */
-function estPesanGagal(d){
-  if(d&&d.ok===false&&/token/i.test(String(d.error||'')))return 'Token baca salah atau kosong — isi kotak "Token baca Cost Estimator" (TOKEN_READ di Code.gs Rove Backend).';
-  if(d&&d.hint&&!(d.products||[]).length)return 'URL ini backend uji HUB, bukan Cost Estimator — isi URL Apps Script Rove Backend (…/exec) + token bacanya.';
-  if(d&&!(d.products||[]).length)return 'Data terbaca tapi tanpa produk — pastikan URL-nya Rove Backend Cost Estimator.';
-  return '';}
-function syncEstMaster(){cfgSerap();var u=estUrlData();
-  if(!u){alert('Kotak "Katalog Cost Estimator" di Holding → Integrasi masih kosong.\n\nIsi URL-nya dulu, atau pakai "⭳ Impor dari file JSON" — hasilnya sama.');return;}
-  ST.catStatus='menarik master…';render();
-  fetch(u).then(function(r){return r.text();}).then(function(txt){
-    var d;try{d=JSON.parse(txt);}
-    catch(e){throw new Error('URL membalas halaman web, bukan data JSON. Biasanya URL salah atau Apps Script minta login. Pakai impor file JSON sebagai gantinya.');}
-    var sebab=estPesanGagal(d);if(sebab)throw new Error(sebab);
-    var lap=imporEstimator(d);
-    ST.catStatus='impor: '+lap.produk+' produk · '+lap.komb+' kombinasi harga · '+lap.jasa+' jasa';render();
-  }).catch(function(e){ST.catStatus='GAGAL: '+((e&&e.message)||e);render();});}
 function selOpts(arr,cur){var a=['-'].concat((arr||[]).filter(function(x){return x&&x!=='-';}));if(cur&&a.indexOf(cur)<0)a=[cur].concat(a);return a.map(function(s){return '<option '+(cur===s?'selected':'')+'>'+esc(s)+'</option>';}).join('');}
 function lineProdPick(id,i,name){var o=ST.orders.find(function(x){return x.id===id;});if(!o||!o.pricing)return;var l=o.pricing.lines[i];if(!l)return;l.produk=name;
   var p=vendorProducts(l.sumber).find(function(x){return x.name===name;});
@@ -24407,7 +24345,7 @@ function lineProdPick(id,i,name){var o=ST.orders.find(function(x){return x.id===
 function catalog(){ var mc=ST.master&&ST.master.catalog; if(mc&&mc.length)return mc; return (CATALOG_LIVE&&CATALOG_LIVE.length)?CATALOG_LIVE:CATALOG; }
 function driveId(u){if(!u)return'';var m=String(u).match(/[-\w]{25,}/);return m?m[0]:'';}
 var IMGCACHE={};
-function imgUrlBase(){var u=ST.cfg&&ST.cfg.catalogUrl;return u?String(u):'';}   // ada/tidak; URL gambarnya estUrlImg(id)
+function imgUrlBase(){var u=ST.cfg&&ST.cfg.url;return u?String(u):'';}   // patch229: foto dibuka lewat backend HUB (Shared Drive) — fotoAmbil(id)
 function imgTag(id,style,attr){attr=attr||'';if(!id)return'';if(String(id).slice(0,7)==='contoh:')id=gambarSrc(id);if(!id)return'';if(String(id).slice(0,5)==='data:')return '<img src="'+id+'" alt="" '+attr+' style="background:#eee;'+style+'">';return '<img class="lazyimg" data-imgid="'+id+'" src="data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==" alt="" '+attr+' style="background:#eee;'+style+'">';}
 function openLB(src){if(!src||src.indexOf('data:image/gif')===0)return;var lb=document.getElementById('lightbox');lb.querySelector('img').src=src;lb.style.display='flex';}
 function closeLB(){var lb=document.getElementById('lightbox');if(lb)lb.style.display='none';}
@@ -24483,7 +24421,11 @@ function mImgUpload(sec,i){
   var inp=document.createElement('input');inp.type='file';inp.accept='image/*';
   inp.onchange=function(){var f=inp.files[0];if(!f)return;
     imgKecilkan(f,function(uri){var r=ST.master[sec]&&ST.master[sec][i];if(!r)return;
-      r.img=uri;stampRow(r);saveMaster();if(sec==='coll')buildCollatData();render();});};
+      /* patch229: foto master disimpan di Shared Drive (Master Produk / …), HUB hanya menyimpan ID berkasnya */
+      dzProgres('mengunggah foto ke Drive…');
+      fotoKeDrive(uri,fotoJalur(sec,r),fotoNama(sec,r)).then(function(id){dzProgres('');
+        r.img=id;stampRow(r);saveMaster();if(sec==='coll')buildCollatData();render();},
+        function(e){dzProgres('');alert('Foto belum tersimpan — gagal mengunggah ke Drive: '+((e&&e.message)||e)+'\n\nCek ☁ Uji sambungan Drive di Panel Holding.');});},{mx:1200});};
   unggahMulai(inp);}
 function mImgDel(sec,i){
   var r=ST.master[sec]&&ST.master[sec][i];if(!r||!r.img)return;
@@ -24496,6 +24438,77 @@ function mImgCell(sec,i,r){
           :'<span style="display:inline-block;width:34px;height:34px;border-radius:5px;border:1px dashed var(--line);vertical-align:middle"></span>')+
     '<button class="xrow" style="color:var(--brand)" title="'+(r.img?'ganti gambar':'upload gambar')+'" onclick="mImgUpload(\''+sec+'\','+i+')">📷</button>'+
     (r.img?'<button class="xrow" title="hapus gambar" onclick="mImgDel(\''+sec+'\','+i+')">✕</button>':'')+'</td>';}
+/* ================= FOTO MASTER DI SHARED DRIVE (patch229) =================
+   HUB tak lagi tersambung ke Cost Estimator. Foto produk & collateral ada di
+   ROVE HUB (Shared Drive) / Master Produk / …, dibuka lewat backend HUB (Code.gs 2.6).
+   ST.master.fotoDrive = daftar ID berkas yang sudah di Shared Drive. */
+var FOTO_ANTRE=[],FOTO_JALAN=0,FOTO_JANJI={};
+function fotoAmbil(id){
+  if(IMGCACHE[id])return Promise.resolve(IMGCACHE[id]);
+  if(FOTO_JANJI[id])return FOTO_JANJI[id];
+  FOTO_JANJI[id]=new Promise(function(ok,gagal){FOTO_ANTRE.push({id:id,ok:ok,gagal:gagal});fotoJalan();});
+  return FOTO_JANJI[id];}
+function fotoJalan(){
+  while(FOTO_JALAN<4&&FOTO_ANTRE.length)(function(t){FOTO_JALAN++;
+    backendTanya('foto.ambil',{id:t.id}).then(function(j){
+      if(j&&j.ok&&j.b64){var u='data:'+(j.mime||'image/jpeg')+';base64,'+j.b64;IMGCACHE[t.id]=u;t.ok(u);}
+      else{delete FOTO_JANJI[t.id];t.gagal(new Error((j&&j.perluLogin)?'sesi login tak dikenali server — keluar lalu masuk lagi':((j&&j.error)||'ditolak server')));}
+    },function(e){delete FOTO_JANJI[t.id];t.gagal(e);}).then(function(){FOTO_JALAN--;fotoJalan();});})(FOTO_ANTRE.shift());}
+function fotoDriveSet(){var M=ST.master||{};if(!Array.isArray(M.fotoDrive))M.fotoDrive=[];return M.fotoDrive;}
+function fotoDriveTandai(id){var L=fotoDriveSet();if(id&&L.indexOf(id)<0)L.push(id);}
+function fotoJalur(sec,r){
+  if(sec==='catalog')return 'Produk/'+(r.name||'tanpa nama');
+  if(sec==='coll')return 'Collateral/'+(r.type||'lain')+'/'+(r.kind||'lain');
+  return 'Lain/'+sec;}
+function fotoNama(sec,r){
+  if(sec==='coll')return [r.type,r.kind,r.value].filter(Boolean).join(' - ')||'foto';
+  return r.name||r.nama||r.value||r.tipe||sec;}
+function fotoKeDrive(uri,folder,nama){
+  var m=/^data:([^;]+);base64,(.*)$/.exec(String(uri||''));
+  if(!m)return Promise.reject(new Error('bukan gambar'));
+  return backendTanya('foto.unggah',{folder:folder,nama:nama,mime:m[1],b64:m[2]}).then(function(j){
+    if(!(j&&j.ok&&j.id))throw new Error((j&&j.perluLogin)?'sesi login tak dikenali server — keluar lalu masuk lagi':((j&&j.error)||'backend belum Code.gs 2.6'));
+    fotoDriveTandai(j.id);IMGCACHE[j.id]=uri;return j.id;});}
+/* semua baris master yang berfoto: [{sec,i,r}] */
+function fotoBarisMaster(){var M=ST.master||{},out=[];
+  Object.keys(M).forEach(function(k){if(!Array.isArray(M[k])||k==='fotoDrive'||k==='users')return;
+    M[k].forEach(function(r,i){if(r&&typeof r==='object'&&typeof r.img==='string'&&r.img&&r.img.slice(0,7)!=='contoh:')out.push({sec:k,i:i,r:r});});});
+  return out;}
+function fotoStatus(){var D=fotoDriveSet(),n={drive:0,perangkat:0,lama:0};
+  fotoBarisMaster().forEach(function(x){var v=x.r.img;if(v.slice(0,5)==='data:')n.perangkat++;else if(D.indexOf(v)>=0)n.drive++;else n.lama++;});
+  return n;}
+function fotoSumberBlok(){var n=fotoStatus(),tot=n.drive+n.perangkat+n.lama,pct=tot?Math.round(n.drive*100/tot):100;
+  return '<div style="border:1px solid var(--line);border-radius:10px;padding:11px 13px;margin:4px 0 8px;background:var(--bg)">'+
+    '<b style="font-size:12.5px">Sumber master data</b>'+
+    '<div style="font-size:11px;margin-top:3px">Produk, harga &amp; opsi: <b>Master HUB</b> (tersimpan di Drive) · Cost Estimator: <b>tidak tersambung</b></div>'+
+    '<div style="font-size:11px;margin-top:8px"><b>Foto master</b> — <span style="color:var(--ok);font-weight:800">'+n.drive+' di Shared Drive</span> · '+
+      '<span style="color:'+(n.lama?'var(--warn)':'var(--muted)')+';font-weight:800">'+n.lama+' masih link lama (Cost Estimator)</span> · '+
+      '<span style="color:'+(n.perangkat?'var(--warn)':'var(--muted)')+';font-weight:800">'+n.perangkat+' tersimpan di perangkat</span></div>'+
+    '<div style="height:8px;border-radius:5px;background:var(--line);overflow:hidden;margin:6px 0"><i style="display:block;height:100%;width:'+pct+'%;background:var(--ok)"></i></div>'+
+    ((n.lama||n.perangkat)?'<button class="btn sm" onclick="fotoPindahkan()">📁 Pindahkan foto master ke Drive</button> ':'')+
+    '<button class="btn ghost sm" onclick="fotoBukaFolder()">↗ Buka folder Master Produk</button>'+
+    '<div style="font-size:10px;color:var(--muted);margin-top:5px;line-height:1.5">Sekali jalan: foto lama (link Cost Estimator &amp; unggahan di perangkat) disalin ke <b>ROVE HUB / Master Produk / …</b>. Link lama tak diubah.</div></div>';}
+function fotoBukaFolder(){backendTanya('foto.folder').then(function(j){if(j&&j.ok&&j.link)window.open(j.link,'_blank');else alert('Folder belum bisa dibuka: '+((j&&j.error)||'backend belum Code.gs 2.6'));},function(e){alert('Tak bisa menghubungi backend: '+e.message);});}
+async function fotoPindahkan(){
+  if(ST.user!=='Holding'){alert('Hanya Holding.');return;}
+  var D=fotoDriveSet(),B=fotoBarisMaster().filter(function(x){return D.indexOf(x.r.img)<0;});
+  if(!B.length){alert('Semua foto master sudah di Shared Drive.');return;}
+  if(!confirm(B.length+' foto master akan disalin ke Shared Drive (ROVE HUB / Master Produk). Link lama tak diubah. Lanjut?'))return;
+  var peta={},gagal=[],selesai=0,salin=[];
+  B.forEach(function(x){if(x.r.img.slice(0,5)!=='data:'&&!salin.some(function(s0){return s0.id===x.r.img;}))salin.push({id:x.r.img,folder:fotoJalur(x.sec,x.r),nama:fotoNama(x.sec,x.r)});});
+  for(var a=0;a<salin.length;a+=10){
+    dzProgres('menyalin foto ke Drive… '+Math.min(a+10,salin.length)+' / '+salin.length);
+    try{var j=await backendTanya('foto.salin',{items:salin.slice(a,a+10)});
+      if(!(j&&j.ok))throw new Error((j&&j.error)||'backend belum Code.gs 2.6');
+      (j.hasil||[]).forEach(function(h){if(h.baru){peta[h.lama]=h.baru;fotoDriveTandai(h.baru);}else gagal.push(h.lama+': '+h.error);});}
+    catch(e){gagal.push('salin: '+e.message);break;}}
+  var dev=B.filter(function(x){return x.r.img.slice(0,5)==='data:';});
+  for(var k=0;k<dev.length;k++){dzProgres('mengunggah foto dari perangkat… '+(k+1)+' / '+dev.length);
+    try{var uri=dev[k].r.img;peta[uri]=await fotoKeDrive(uri,fotoJalur(dev[k].sec,dev[k].r),fotoNama(dev[k].sec,dev[k].r));}
+    catch(e){gagal.push(fotoNama(dev[k].sec,dev[k].r)+': '+e.message);}}
+  B.forEach(function(x){var baru=peta[x.r.img];if(baru){x.r.img=baru;stampRow(x.r);selesai++;}});
+  dzProgres('');saveMaster();try{buildCollatData();}catch(e){}render();
+  alert('✓ '+selesai+' foto master sekarang di Shared Drive.'+(gagal.length?('\n\n'+gagal.length+' gagal:\n'+gagal.slice(0,8).join('\n')):''));}
 /* Baris pricing yang belum punya gambar sendiri → pinjam dari master. */
 function masterImgFor(nama,bahan){
   if(!nama)return'';
@@ -24511,14 +24524,12 @@ function imgGagal(el,sebab){
   el.removeAttribute('src');
   el.style.background='repeating-linear-gradient(45deg,#eee,#eee 6px,#e2e2e2 6px,#e2e2e2 12px)';
   el.style.border='1px dashed #bbb';el.alt='gambar gagal dimuat';
-  el.title='Gambar tak bisa dimuat'+(sebab?(' — '+sebab):'')+'. Cek URL Katalog di Holding → Integrasi.';}
+  el.title='Gambar tak bisa dimuat'+(sebab?(' — '+sebab):'')+'. Cek ☁ Uji sambungan Drive di Panel Holding.';}
 function loadImages(){var base=imgUrlBase();if(!base)return;
   document.querySelectorAll('img.lazyimg[data-imgid]').forEach(function(el){
     var id=el.getAttribute('data-imgid');el.removeAttribute('data-imgid');if(!id)return;
     if(IMGCACHE[id]){el.src=IMGCACHE[id];return;}
-    fetch(estUrlImg(id)).then(function(r){return r.json();}).then(function(j){
-      if(j&&j.ok&&j.b64){var uri='data:'+(j.mime||'image/jpeg')+';base64,'+j.b64;IMGCACHE[id]=uri;el.src=uri;}else imgGagal(el,(j&&j.error)||'ditolak server');
-    }).catch(function(e){imgGagal(el,(e&&e.message)||'jaringan');});
+    fotoAmbil(id).then(function(uri){el.src=uri;},function(e){imgGagal(el,(e&&e.message)||'jaringan');});
   });}
 /* ---- geser mendatar dengan klik-tahan (tak perlu menarik scrollbar) ---- */
 var PANSEL='.xscroll,.board,#docbody';
@@ -24548,31 +24559,6 @@ function loadCatalogCache(){ try{var c=JSON.parse(LS.getItem('rovehub_catalog')|
   try{var ci=JSON.parse(LS.getItem('rovehub_collimg')||'null'); if(ci)COLLAT_IMG=ci;}catch(e){}
   try{var cd=JSON.parse(LS.getItem('rovehub_colldata')||'null'); if(cd)COLLAT_DATA=cd;}catch(e){}
   if(!COLLAT_IMG)COLLAT_IMG={box:'1GAPUFOItQ0r3aB1tHCXWkJIJYfDO8P5-',pouch:'18yMwa-5MGQfKFQGXVbC4gIwZTANWgjOk',card:'1U7Q1CL-fsbSWwcP7s6YsxkP0vEiHlJNp'}; }
-function fetchCatalog(){
-  var u=estUrlData(); if(!u)return;
-  ST.catStatus='memuat katalog…';
-  fetch(u).then(function(r){return r.json();}).then(function(d){
-    var n=0;
-    if(d&&d.products){
-      CATALOG_LIVE=d.products.filter(function(p){return (p.hq||p.au)&&p.t&&p.t.length;})
-        .map(prodDariEst);
-      n=CATALOG_LIVE.length; LS.setItem('rovehub_catalog',JSON.stringify(CATALOG_LIVE));
-    }
-    if(d&&d.collateral){
-      COLLAT_IMG={};var cd={};
-      d.collateral.forEach(function(c){var t=(c.type||'').toLowerCase(),id=driveId(c.photo||'');
-        var k=t.indexOf('pouch')>=0?'pouch':t.indexOf('box')>=0?'box':t.indexOf('card')>=0?'card':null;
-        if(k&&id&&!COLLAT_IMG[k])COLLAT_IMG[k]=id;
-        var type=c.type||'',kind=c.kind||'';if(!cd[type])cd[type]={};if(!cd[type][kind])cd[type][kind]=[];cd[type][kind].push({v:c.value,img:id});});
-      LS.setItem('rovehub_collimg',JSON.stringify(COLLAT_IMG));
-      LS.setItem('rovehub_colldata',JSON.stringify(cd));
-      setEstColl(collRowsFrom(cd));saveMaster();  // refresh baris estimator; baris HUB (box/manual) tetap
-      buildCollatData();
-    }
-    ST.catStatus=n?('live: '+n+' produk'):'tersambung tapi 0 produk (cek respons)';
-    render();
-  }).catch(function(e){ST.catStatus='GAGAL fetch: '+((e&&e.message)||e);render();});
-}
 function addFromCatalog(id,i,qtyDari){
   const o=ST.orders.find(x=>x.id===id);if(!o)return;
   const qty=(+qtyDari||0)||(+((document.getElementById('cat_qty')||{}).value)||0);
@@ -24726,7 +24712,7 @@ function catRowsHTML(o){
 var _catIO=null;
 function catImgLoad(el){var base=imgUrlBase();if(!base)return;var id=el.getAttribute('data-imgid');if(!id)return;el.removeAttribute('data-imgid');
   if(IMGCACHE[id]){el.src=IMGCACHE[id];return;}
-  fetch(estUrlImg(id)).then(function(r){return r.json();}).then(function(j){if(j&&j.ok&&j.b64){var uri='data:'+(j.mime||'image/jpeg')+';base64,'+j.b64;IMGCACHE[id]=uri;el.src=uri;}else imgGagal(el,(j&&j.error)||'ditolak server');}).catch(function(e){imgGagal(el,(e&&e.message)||'jaringan');});}
+  fotoAmbil(id).then(function(uri){el.src=uri;},function(e){imgGagal(el,(e&&e.message)||'jaringan');});}
 function catLazyLoad(contId){var cont=document.getElementById(contId||'cat_list');if(!cont)return;var base=imgUrlBase();if(!base)return;
   if(_catIO)_catIO.disconnect();
   _catIO=new IntersectionObserver(function(ents){ents.forEach(function(en){if(!en.isIntersecting)return;_catIO.unobserve(en.target);catImgLoad(en.target);});},{root:cont,rootMargin:'200px'});
@@ -24745,7 +24731,7 @@ function catFilter(oid){var o=ST.orders.find(function(x){return x.id===oid;});if
 function tipeNote(o){
   var akhir=' HPP bisa disembunyikan saat presentasi.';
   if(o.type==='Katalog')
-    return 'Order <b>Katalog</b> — ambil harga langsung dari <b>Cost Estimator</b> lewat picker di bawah. Tak perlu nanya vendor manual.'+akhir;
+    return 'Order <b>Katalog</b> — ambil harga langsung dari <b>Master Product</b> lewat picker di bawah. Tak perlu nanya vendor manual.'+akhir;
   if(o.type==='Mix')
     return 'Order <b>Mix</b> — item katalog diambil dari picker di bawah, item custom ditanyakan ke vendor. Keduanya jadi satu quotation.'+akhir;
   return 'Order <b>Custom</b> — kumpulkan harga tiap vendor dulu: <b>Radja</b> (produk kulit) + vendor collaterals (<b>Box</b>, <b>Soft Pouch</b>, <b>Thank You Card</b>, <b>Others</b>).'+akhir+
@@ -24772,7 +24758,7 @@ function catalogPicker(o,tempat){
   var buka=!!((ST._catBuka||{})[o.id]);
   if(!buka)return '<div style="margin-bottom:11px">'+
     '<button class="btn ghost sm" onclick="catToggle('+jsArg(o.id)+')">＋ Tambah produk dari katalog</button> '+
-    '<span style="font-size:9.5px;color:var(--muted)">'+(liveN?(liveN+' produk Cost Estimator'):'katalog contoh')+' — isi Qty lalu klik produknya</span></div>';
+    '<span style="font-size:9.5px;color:var(--muted)">'+(liveN?(liveN+' produk Master Product'):'katalog contoh')+' — isi Qty lalu klik produknya</span></div>';
   return `<style>.catrow{display:flex;align-items:center;gap:11px;padding:8px 10px;border-radius:8px;cursor:pointer;transition:background .12s}.catrow:hover{background:var(--bg)}</style>
   <div style="background:var(--card,#fff);border:1px dashed var(--accent);border-radius:11px;padding:12px 13px;margin-bottom:12px">
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:9px"><span style="font-size:11px;font-weight:800;color:var(--brand);letter-spacing:.03em">◈ KATALOG COST ESTIMATOR</span><span style="color:var(--muted);font-size:10px">— isi Qty lalu klik produk</span><span style="font-size:9px;color:var(--muted)">${liveN?'● live '+liveN+' produk':'○ mock'}</span><button class="btn ghost sm" style="margin-left:auto;padding:2px 9px;font-size:9.5px" onclick="catToggle('${o.id}')">Tutup</button></div>
@@ -24785,7 +24771,7 @@ function catalogPicker(o,tempat){
         <input id="cat_qty" class="pin n" type="number" value="${(+o.qty||'')}" oninput="catFilter('${o.id}')" placeholder="0" style="width:80px;margin-top:3px"></label>
     </div>
     <div id="cat_list" style="max-height:236px;overflow-y:auto;border:1px solid var(--line,#eee);border-radius:9px;padding:4px;background:var(--card,#fff)">${catRowsHTML(o)}</div>
-    <div style="font-size:9.5px;color:var(--muted);margin-top:7px">Angka di daftar = harga per-pcs dari Cost Estimator pada tier Qty itu, dan masuk sebagai HPP (biaya vendor). Harga jualnya dihitung dari margin order, tetap bisa diedit di barisnya.</div>
+    <div style="font-size:9.5px;color:var(--muted);margin-top:7px">Angka di daftar = harga per-pcs dari Master Product pada tier Qty itu, dan masuk sebagai HPP (biaya vendor). Harga jualnya dihitung dari margin order, tetap bisa diedit di barisnya.</div>
   </div>`;
 }
 /* ---- collaterals Inquiry → baris pricing (harga dari Cost Estimator) ---- */
@@ -27868,7 +27854,7 @@ function renderCollSpec(k){
   el.innerHTML='<div style="display:flex;flex-wrap:wrap;gap:7px;margin-top:6px">'+Object.keys(opts).map(function(kind){
     return '<label style="font-size:10px;color:var(--muted)">'+kind+'<br><select class="pin" style="margin-top:2px" onchange="cspecSet(\''+k+'\',\''+kind+'\',this.value)">'+opts[kind].map(function(v){return '<option '+(CSPEC[k][kind]===v?'selected':'')+'>'+esc(v)+'</option>';}).join('')+'</select></label>';
   }).join('')+'</div>'+
-  (collDariMaster(k)?'':'<div style="font-size:9.5px;color:var(--warn);margin-top:5px">Pilihan bawaan — tarik <b>Collateral</b> dari Cost Estimator di Master Product supaya lengkap.</div>');
+  (collDariMaster(k)?'':'<div style="font-size:9.5px;color:var(--warn);margin-top:5px">Pilihan bawaan — lengkapi <b>Collateral</b> di Master Product.</div>');
 }
 function nolCatRows(){
   var q=($('#f_catsearch')?$('#f_catsearch').value:'').toLowerCase();
@@ -27883,7 +27869,7 @@ function nolCatRows(){
     return '<div class="catcard" onclick="nolAddFromCat('+x.i+')" title="klik untuk menambahkan '+esc(c.name)+'">'+ih
       +'<div style="flex:1;min-width:0"><div class="cn">'+esc(c.name)+'</div>'
       +(c.material?'<div class="cm">'+esc(c.material)+'</div>':'')
-      +'<div class="cp" title="HPP dari Cost Estimator">'+fmt0(price)+'<span style="font-weight:400;color:var(--muted)">'+(qty?'/pcs':'')+' HPP</span></div></div></div>';
+      +'<div class="cp" title="HPP dari Master Product">'+fmt0(price)+'<span style="font-weight:400;color:var(--muted)">'+(qty?'/pcs':'')+' HPP</span></div></div></div>';
   }).join('')+'</div>';
 }
 function nolCatFilter(){var el=$('#f_catpick');if(el){el.innerHTML=nolCatRows();catLazyLoad('f_catpick');}}
@@ -27973,7 +27959,7 @@ function renderCatBuilder(){
           '<button type="button" class="xrow" style="margin-left:auto" onclick="catDelLine('+i+')">✕</button></div>'+
         '<div style="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:8px">'+
           '<label style="font-size:10px;color:var(--muted)">Qty<br><input class="pin n" type="number" style="width:80px;margin-top:2px" value="'+(l.qty||0)+'" onchange="nolSet('+i+',\'qty\',this.value)"></label>'+
-          (l.fixed?('<label style="font-size:10px;color:var(--muted)" title="HPP dari katalog Cost Estimator. Timpa kalau vendor naik harga.">HPP/pcs<br><input class="pin n money" inputmode="numeric" style="width:100px;margin-top:2px" value="'+moneyInp(l.hpp)+'" onchange="nolSet('+i+',\'hpp\',this.value)"></label>'):'')+
+          (l.fixed?('<label style="font-size:10px;color:var(--muted)" title="HPP dari katalog Master Product. Timpa kalau vendor naik harga.">HPP/pcs<br><input class="pin n money" inputmode="numeric" style="width:100px;margin-top:2px" value="'+moneyInp(l.hpp)+'" onchange="nolSet('+i+',\'hpp\',this.value)"></label>'):'')+
           '<label style="font-size:10px;color:var(--muted)">Harga jual/pcs<br><input class="pin n money" inputmode="numeric" style="width:110px;margin-top:2px" value="'+moneyInp(l.jual)+'" onchange="nolSet('+i+',\'jual\',this.value)"></label>'+
           '<label style="font-size:10px;color:var(--muted);flex:1;min-width:150px">Material / bahan<br><input class="pin" style="margin-top:2px;width:100%" value="'+esc(l.bahan||'')+'" placeholder="mis. Pull Up Coklat" onchange="nolSet('+i+',\'bahan\',this.value)"></label>'+
           '<label style="font-size:10px;color:var(--muted)">Vendor<br><select class="pin" style="margin-top:2px" onchange="nolSet('+i+',\'sumber\',this.value)">'+
@@ -28340,7 +28326,7 @@ document.addEventListener('keydown',function(e){
   if(t.type==='checkbox'||t.type==='radio'||t.type==='button'||t.type==='submit')return;
   try{t.blur();}catch(err){}});
 LS.siapkan(function(){   /* patch207: data perangkat dibaca dulu dari IndexedDB */
-load();try{adminTerapkanFakta(false,true);}catch(e){}render();fetchCatalog();cloudAutoLoad();startCloudPoll();
+load();try{adminTerapkanFakta(false,true);}catch(e){}render();cloudAutoLoad();startCloudPoll();
 try{(ST.orders||[]).forEach(ordSnapSet);}catch(e){}   /* patch208: potret awal untuk mencap bagian yang berubah */
 try{cekRilis();setInterval(function(){if(ST.cur&&!(typeof document!=='undefined'&&document.visibilityState==='hidden'))hadirKirim();},60000);}catch(e){}   /* patch209 */
 try{sinkronBadge();}catch(e){}
