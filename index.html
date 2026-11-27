@@ -1111,7 +1111,7 @@ const KEY='rovehub_orders_v18';
 /* ================= VERSI YANG SEDANG BERJALAN =================
    Diisi otomatis oleh terbitkan.js waktu salinan ini diterbitkan; '-' berarti
    dibuka langsung dari berkas, bukan dari alamat terbitannya. */
-const VERSI='20261126-140436';
+const VERSI='20261127-100408';
 /* Berkas versi.txt di sebelah halaman ini berisi penanda yang sama. Ia
    ditanyakan tanpa cache, jadi ia jujur walau halamannya sendiri masih
    tersimpan di cache browser. */
@@ -3735,9 +3735,7 @@ function leadRefBuka(id,i){
   var f=leadRef(l)[i];if(!f)return;
   if(f.link){window.open(f.link,'_blank');return;}
   if(String(f.tipe||'').indexOf('image')===0){openLB(gambarSrc(f.data));return;}
-  var w=window.open('','_blank');
-  if(w)w.document.write('<iframe src="'+gambarSrc(f.data)+'" style="border:0;width:100%;height:100%;position:absolute;inset:0"></iframe>');
-  else alert('Popup diblokir browser. Izinkan popup untuk membuka PDF.');}
+  berkasTabBaru(f.data);}   // patch232: PDF di Shared Drive dibuka lewat backend
 function leadRefTautan(id){var l=leadsAll().find(function(x){return x.id===id;});if(!l)return;
   tautanTambah('Referensi prospek',function(e){e.ket='';e.untuk='';leadRef(l).push(e);l._m=Date.now();saveLeads();render();});}
 /* prospek (9 Nov): tiap file dipilih untuk apa — file prospek lama (sebelum ada label) dianggap referensi */
@@ -24349,7 +24347,9 @@ function driveId(u){if(!u)return'';var m=String(u).match(/[-\w]{25,}/);return m?
 var IMGCACHE={};
 function imgUrlBase(){var u=ST.cfg&&ST.cfg.url;return u?String(u):'';}   // patch229: foto dibuka lewat backend HUB (Shared Drive) — fotoAmbil(id)
 function imgTag(id,style,attr){attr=attr||'';if(!id)return'';if(String(id).slice(0,7)==='contoh:')id=gambarSrc(id);if(!id)return'';if(String(id).slice(0,5)==='data:')return '<img src="'+id+'" alt="" '+attr+' style="background:#eee;'+style+'">';return '<img class="lazyimg" data-imgid="'+id+'" src="data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==" alt="" '+attr+' style="background:#eee;'+style+'">';}
-function openLB(src){if(!src||src.indexOf('data:image/gif')===0)return;var lb=document.getElementById('lightbox');lb.querySelector('img').src=src;lb.style.display='flex';}
+function openLB(src){if(!src||src.indexOf('data:image/gif')===0)return;var lb=document.getElementById('lightbox');
+  if(String(src).slice(0,6)==='drive:'){fotoAmbil(src).then(function(u){lb.querySelector('img').src=u;lb.style.display='flex';},function(e){alert('Gambar belum bisa dibuka: '+e.message);});return;}   // patch232
+  lb.querySelector('img').src=src;lb.style.display='flex';}
 function closeLB(){var lb=document.getElementById('lightbox');if(lb)lb.style.display='none';}
 const LINE_IMG_MAX=5;
 /* Gambar baris pricing. Yang dari katalog/master selalu jadi yang pertama dan
@@ -24490,7 +24490,7 @@ function fotoSumberBlok(){var n=fotoStatus(),tot=n.drive+n.perangkat+n.lama,pct=
     '<div style="height:8px;border-radius:5px;background:var(--line);overflow:hidden;margin:6px 0"><i style="display:block;height:100%;width:'+pct+'%;background:var(--ok)"></i></div>'+
     ((n.lama||n.perangkat)?'<button class="btn sm" onclick="fotoPindahkan()">📁 Pindahkan foto master ke Drive</button> ':'')+
     '<button class="btn ghost sm" onclick="fotoBukaFolder()">↗ Buka folder Master Produk</button>'+
-    (function(){var g=gambarHitung();return '<div style="font-size:11px;margin-top:10px"><b>Gambar order &amp; prospek</b> — <span style="color:var(--ok);font-weight:800">'+g.drive+' di Shared Drive</span> · '+
+    (function(){var g=gambarHitung();return '<div style="font-size:11px;margin-top:10px"><b>Gambar &amp; PDF order / prospek</b> — <span style="color:var(--ok);font-weight:800">'+g.drive+' di Shared Drive</span> · '+
       '<span style="color:'+(g.hub?'var(--warn)':'var(--muted)')+';font-weight:800">'+g.hub+' masih di data HUB</span></div>'+
       (g.hub?'<button class="btn sm" style="margin-top:5px" onclick="gambarOrderPindahkan()">📁 Pindahkan gambar order ke Drive</button>':'')+
       '<div style="font-size:10px;color:var(--muted);margin-top:4px">Gambar baru ikut dipindah sendiri di latar (Code.gs 2.7). Folder: ROVE HUB / Order / nama channel.</div>';})()+
@@ -24500,14 +24500,14 @@ function fotoSumberBlok(){var n=fotoStatus(),tot=n.drive+n.perangkat+n.lama,pct=
    tersimpan sebagai data di dalam order — membuat data HUB & cache perangkat berat. Sekarang disalin ke
    ROVE HUB / Order / <channel> (prospek: Prospek / <nama>), di HUB tinggal penanda drive:<id>.
    Berjalan sendiri di latar (6 gambar tiap 3 menit, perangkat yang memegang datanya) + tombol di Panel Holding. */
-var GAMBAR_DATA_RE=/^data:image\/(png|jpe?g|webp);base64,/i;
+var GAMBAR_DATA_RE=/^data:image\/(png|jpe?g|webp);base64,/i,PDF_DATA_RE=/^data:application\/pdf;base64,/i;   // patch232: PDF ikut (drivef:)
 function gambarDataCari(x,out,d,induk,kunci){out=out||[];d=d||0;if(!x||typeof x!=='object'||d>9)return out;
   Object.keys(x).forEach(function(k){var v=x[k];
-    if(typeof v==='string'){if(GAMBAR_DATA_RE.test(v))out.push({o:x,k:k,nama:(!Array.isArray(x)&&(x.nama||x.n))||(Array.isArray(x)&&kunci)||k});}
+    if(typeof v==='string'){var pdf=PDF_DATA_RE.test(v);if(pdf||GAMBAR_DATA_RE.test(v))out.push({o:x,k:k,pdf:pdf,nama:(!Array.isArray(x)&&(x.nama||x.n))||(Array.isArray(x)&&kunci)||k});}
     else if(v&&typeof v==='object')gambarDataCari(v,out,d+1,x,k);});
   return out;}
 function gambarHitung(){var n={drive:0,hub:0},cek=function(x,d){if(!x||typeof x!=='object'||d>9)return;
-    Object.keys(x).forEach(function(k){var v=x[k];if(typeof v==='string'){if(v.slice(0,6)==='drive:')n.drive++;else if(GAMBAR_DATA_RE.test(v))n.hub++;}else if(v&&typeof v==='object')cek(v,d+1);});};
+    Object.keys(x).forEach(function(k){var v=x[k];if(typeof v==='string'){if(v.slice(0,6)==='drive:'||v.slice(0,7)==='drivef:')n.drive++;else if(GAMBAR_DATA_RE.test(v)||PDF_DATA_RE.test(v))n.hub++;}else if(v&&typeof v==='object')cek(v,d+1);});};
   (ST.orders||[]).forEach(function(o){if(o&&!o.deleted&&!o._contoh)cek(o,0);});
   (leadsAll()||[]).forEach(function(l){if(l&&!l.deleted&&!l._contoh)cek(l,0);});
   return n;}
@@ -24519,13 +24519,14 @@ async function gambarOrderKeDrive(maks,diam){
     var tugas=[];
     (ST.orders||[]).forEach(function(o){if(o&&!o.deleted&&!o._contoh)gambarDataCari(o).forEach(function(t){t.induk=o;t.akar='Order';t.folder=chName(o);tugas.push(t);});});
     (leadsAll()||[]).forEach(function(l){if(l&&!l.deleted&&!l._contoh)gambarDataCari(l).forEach(function(t){t.induk=l;t.akar='Prospek';t.folder=(l.nama||l.id||'prospek');t.lead=true;tugas.push(t);});});
+    if(parseFloat(ST._rilis||'0')<2.8)tugas=tugas.filter(function(t){return !t.pdf;});   // PDF butuh Code.gs 2.8
     if(maks)tugas=tugas.slice(0,maks);
-    for(var i=0;i<tugas.length;i++){var t=tugas[i],v=t.o[t.k];if(typeof v!=='string'||!GAMBAR_DATA_RE.test(v))continue;
+    for(var i=0;i<tugas.length;i++){var t=tugas[i],v=t.o[t.k];if(typeof v!=='string'||!(GAMBAR_DATA_RE.test(v)||PDF_DATA_RE.test(v)))continue;
       if(!diam)dzProgres('memindahkan gambar order ke Drive… '+(i+1)+' / '+tugas.length);
       var m=/^data:([^;]+);base64,(.*)$/.exec(v);
-      try{var j=await backendTanya('foto.unggah',{akar:t.akar,folder:t.folder,nama:String(t.nama||'gambar').replace(/[.](png|jpe?g|webp)$/i,''),mime:m[1],b64:m[2]});
+      try{var j=await backendTanya('foto.unggah',{akar:t.akar,folder:t.folder,nama:String(t.nama||'gambar').replace(/[.](png|jpe?g|webp|pdf)$/i,''),mime:m[1],b64:m[2]});
         if(!(j&&j.ok&&j.id))throw new Error((j&&j.error)||'ditolak server');
-        if(t.o[t.k]===v){t.o[t.k]='drive:'+j.id;IMGCACHE['drive:'+j.id]=v;t.induk._m=Date.now();n++;if(t.lead)ubahL++;else ubahO++;}}
+        if(t.o[t.k]===v){if(t.pdf)t.o[t.k]='drivef:'+j.id;else{t.o[t.k]='drive:'+j.id;IMGCACHE['drive:'+j.id]=v;}t.induk._m=Date.now();n++;if(t.lead)ubahL++;else ubahO++;}}
       catch(e){gagal.push(String(t.nama||'gambar')+': '+e.message);if(/sesi login|Code.gs/.test(e.message))break;}}
     if(ubahO){simpanLokal();cloudSave();}
     if(ubahL)saveLeads();
@@ -24534,9 +24535,9 @@ async function gambarOrderKeDrive(maks,diam){
 async function gambarOrderPindahkan(){
   if(!gambarDriveSiap()){alert('Perlu Code.gs 2.7 dan login yang dikenali server.');return;}
   var h=gambarHitung();if(!h.hub){alert('Semua gambar order sudah di Shared Drive.');return;}
-  if(!confirm(h.hub+' gambar order & prospek akan disalin ke Shared Drive (ROVE HUB / Order / nama channel). Lanjut?'))return;
+  if(!confirm(h.hub+' gambar & PDF order / prospek akan disalin ke Shared Drive (ROVE HUB / Order / nama channel). Lanjut?'))return;
   var r=await gambarOrderKeDrive(0,false);render();
-  alert('✓ '+r.n+' gambar order sekarang di Shared Drive.'+(r.gagal.length?('\n\n'+r.gagal.length+' gagal:\n'+r.gagal.slice(0,8).join('\n')):''));}
+  alert('✓ '+r.n+' gambar & PDF order sekarang di Shared Drive.'+(r.gagal.length?('\n\n'+r.gagal.length+' gagal:\n'+r.gagal.slice(0,8).join('\n')):''));}
 function gambarLatar(){try{if(gambarDriveSiap())gambarOrderKeDrive(6,true).then(function(r){if(r.n&&ST.user)render();});}catch(e){}}
 /* ---- IMPOR TERAKHIR DARI COST ESTIMATOR (sekali jalan, patch230) ----
    Katalog produk & kombinasi harga dulu hanya hidup di cache browser (ditarik tiap HUB dibuka).
@@ -24622,7 +24623,19 @@ function loadImages(){var base=imgUrlBase();if(!base)return;
   document.querySelectorAll('img[src^="drive:"]').forEach(function(el){var id=el.getAttribute('src');
     el.setAttribute('src','data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==');el.style.background=el.style.background||'#eee';
     fotoAmbil(id).then(function(uri){el.src=uri;},function(e){imgGagal(el,(e&&e.message)||'jaringan');});});
-  document.querySelectorAll('a[href^="drive:"]').forEach(function(a){a.href='https://drive.google.com/file/d/'+a.getAttribute('href').slice(6)+'/view';});}
+  document.querySelectorAll('a[href^="drive:"]').forEach(function(a){a.href='https://drive.google.com/file/d/'+a.getAttribute('href').slice(6)+'/view';});
+  document.querySelectorAll('a[href^="drivef:"]').forEach(function(a){var h=a.getAttribute('href');a.setAttribute('href','#');a.removeAttribute('download');a.onclick=function(e){e.preventDefault();berkasTabBaru(h);};});}
+/* PDF / berkas di tab baru — data URI langsung; drivef:<id> diambil lewat backend dulu (patch232) */
+function berkasTabBaru(d){var w=window.open('','_blank');
+  if(!w){alert('Popup diblokir browser. Izinkan popup untuk membuka PDF.');return;}
+  d=gambarSrc(d);
+  if(String(d).slice(0,7)==='drivef:'){w.document.write('<p style="font-family:sans-serif;color:#666">membuka berkas…</p>');
+    backendTanya('berkas.ambil',{id:String(d).slice(7)}).then(function(j){
+      if(!(j&&j.ok&&j.b64))throw new Error((j&&j.perluLogin)?'sesi login tak dikenali server — keluar lalu masuk lagi':((j&&j.error)||'ditolak server'));
+      var bin=atob(j.b64),u8=new Uint8Array(bin.length);for(var i=0;i<bin.length;i++)u8[i]=bin.charCodeAt(i);
+      w.location.href=URL.createObjectURL(new Blob([u8],{type:j.mime||'application/pdf'}));
+    }).catch(function(e){try{w.document.body.innerHTML='<p style="font-family:sans-serif">Berkas gagal dibuka: '+String(e.message).replace(/</g,'&lt;')+'</p>';}catch(x){}});return;}
+  w.document.write('<iframe src="'+d+'" style="border:0;width:100%;height:100%;position:absolute;inset:0"></iframe>');}
 /* data gambar siap pakai (data URI) — untuk unduh / salin: drive:<id> diambil dulu */
 function gambarMuat(d){d=gambarSrc(d);if(String(d).slice(0,6)==='drive:')return fotoAmbil(d);return Promise.resolve(d);}
 /* ---- geser mendatar dengan klik-tahan (tak perlu menarik scrollbar) ---- */
@@ -25229,9 +25242,7 @@ function lampiranBuka(id,slot,i){
   var f=((briefGet(o)[slot])||[])[i];if(!f)return;
   if(f.link){window.open(f.link,'_blank');return;}           // tautan Drive / Dropbox: buka di tab baru
   if(String(f.tipe||'').indexOf('image')===0){openLB(gambarSrc(f.data));return;}
-  var w=window.open('','_blank');                       // pdf dibuka di tab baru
-  if(w)w.document.write('<iframe src="'+gambarSrc(f.data)+'" style="border:0;width:100%;height:100%;position:absolute;inset:0"></iframe>');
-  else alert('Popup diblokir browser. Izinkan popup untuk membuka PDF.');}
+  berkasTabBaru(f.data);}   // patch232: PDF di Shared Drive dibuka lewat backend
 /* Kemasan yang benar-benar dipesan order ini, beserta slot logonya. */
 /* slot logo milik satu jenis kemasan */
 const KEMASAN_LOGO={box:'logoBoxFiles',pouch:'logoPouchFiles',card:'logoCardFiles'};
@@ -25504,9 +25515,7 @@ function packRefBuka(o,k,i,j){
   var f=packRefOf(o,k,i)[j];if(!f)return;
   if(f.link){window.open(f.link,'_blank');return;}
   if(String(f.tipe||'').indexOf('image')===0){openLB(gambarSrc(f.data));return;}
-  var w=window.open('','_blank');
-  if(w)w.document.write('<iframe src="'+gambarSrc(f.data)+'" style="border:0;width:100%;height:100%;position:absolute;inset:0"></iframe>');
-  else alert('Popup diblokir browser. Izinkan popup untuk membuka PDF.');}
+  berkasTabBaru(f.data);}   // patch232: PDF di Shared Drive dibuka lewat backend
 function packRefBlok(o,k,i){
   var a=packRefOf(o,k,i),idx=(i===undefined?-1:i);
   /* logo kemasan ikut tampil DI SINI — dulu ia baris unggah tersendiri di
@@ -27402,7 +27411,7 @@ function spekKartuBaca(o,l,li){
 function lampiranGambarKecil(f,nm){
   var d=String(f.data||f.d||''),t=esc(nm),kotak='width:64px;height:64px;border:1px solid var(--line);border-radius:8px;background:#fff';
   if(f.link)return '<span title="'+t+'" style="'+kotak+';display:inline-flex;align-items:center;justify-content:center;font-size:22px;cursor:pointer" onclick="window.open('+jsArg(f.link)+',\'_blank\')">🔗</span>';
-  if(/^data:image[/]/i.test(d)||d.slice(0,7)==='contoh:')return imgTag(d,kotak+';object-fit:contain;padding:3px;cursor:zoom-in','onclick="openLB(this.src)" title="'+t+'" data-f="logoGbr"');
+  if(/^data:image[/]/i.test(d)||d.slice(0,7)==='contoh:'||d.slice(0,6)==='drive:')return imgTag(d,kotak+';object-fit:contain;padding:3px;cursor:zoom-in','onclick="openLB(this.src)" title="'+t+'" data-f="logoGbr"');
   return '<span title="'+t+'" style="'+kotak+';display:inline-flex;align-items:center;justify-content:center;font-size:22px">📄</span>';}
 function spekPanelBaca(o){
   var P=lineProduk(o),b=briefGet(o);
