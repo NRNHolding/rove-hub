@@ -1129,7 +1129,7 @@ const KEY='rovehub_orders_v18';
 /* ================= VERSI YANG SEDANG BERJALAN =================
    Diisi otomatis oleh terbitkan.js waktu salinan ini diterbitkan; '-' berarti
    dibuka langsung dari berkas, bukan dari alamat terbitannya. */
-const VERSI='20261127-165733';
+const VERSI='20261127-172755';
 /* Berkas versi.txt di sebelah halaman ini berisi penanda yang sama. Ia
    ditanyakan tanpa cache, jadi ia jujur walau halamannya sendiri masih
    tersimpan di cache browser. */
@@ -9588,6 +9588,9 @@ function msWaktu(r){if(!msObj(r))return 0;if(+r._m>0)return +r._m;
 var MS_JAGA_RE=/^(catalog|komb(\..+)?|vendors|customers|coll|jasa|itemLain|warnaKatalog|operator)$/;
 function msJumlahBaris(v){if(Array.isArray(v))return v.length;var n=0;if(msObj(v))Object.keys(v).forEach(function(k){if(Array.isArray(v[k]))n+=v[k].length;});return n;}
 function msJagaMassal(jalur,hasil,C){if(!MS_JAGA_RE.test(String(jalur||'')))return false;var nc=msJumlahBaris(C);return nc>=5&&(Array.isArray(C)===Array.isArray(hasil))&&msJumlahBaris(hasil)<=nc*0.5;}   // daftar, atau objek berisi daftar (komb)
+function msKosong(v){return v===undefined||v===null||v===''||(Array.isArray(v)&&!v.length);}
+function msBarisPadu(l,c){if(!msObj(l)||!msObj(c))return l;var o={};
+  Object.keys(c).forEach(function(k){o[k]=c[k];});Object.keys(l).forEach(function(k){if(!msKosong(l[k])||!msPunya(c,k))o[k]=l[k];});return o;}
 function msGabungBaris(jalur,L,C,D){   // D: hash baris dasar per hash-id (null = tanpa dasar → gabungan)
   var kembar={};[L,C].forEach(function(A){var c={};A.forEach(function(r){var id=msIdBaris(jalur,r);c[id]=(c[id]||0)+1;if(c[id]>1)kembar[id]=1;});});   // kembar di salah satu sisi
   var idL=msIdDaftar(jalur,L,kembar),idC=msIdDaftar(jalur,C,kembar),mC={},mL={},out=[],ada=!!D;D=D||{};
@@ -9597,7 +9600,8 @@ function msGabungBaris(jalur,L,C,D){   // D: hash baris dasar per hash-id (null 
     if(hb!==undefined&&hl===hb)return c;           // hanya berubah di cloud
     if(hb!==undefined&&hc===hb)return l;           // hanya berubah di sini
     var wc=msWaktu(c),wl=msWaktu(l);if(wc!==wl)return wc>wl?c:l;   // berubah di dua sisi: cap waktu lebih baru menang
-    return (jalur==='users')?c:l;};   // seri: akun & password ikut server (21 Okt) — dulu perangkat ini, dan password lama sempat mengalahkan yang baru
+    if(jalur==='users')return c;     // seri: akun & password ikut server (21 Okt) — dulu perangkat ini, dan password lama sempat mengalahkan yang baru
+    return msBarisPadu(l,c);};   // patch242: seri lain → isian perangkat ini, tapi isian yang kosong di sini diambil dari cloud (foto kulit sempat hilang)
   L.forEach(function(l,i){var id=idL[i];
     if(msPunya(mC,id)){out.push(pilih(id,l,mC[id]));return;}
     if(ada){var hb=dasar(id);if(hb!==undefined&&msHash(l)===hb)return;}   // dihapus di cloud, di sini tak berubah → ikut terhapus
@@ -9617,7 +9621,7 @@ function msGabungNilai(jalur,L,C,S){   // S: sidik dasar {k,r} atau null
   if(hb!==undefined&&hc===hb){if(!msJagaMassal(jalur,L,C))return L;   // patch238: daftar perangkat yang menyusut massal tak menang utuh —
     return (Array.isArray(L)&&msDaftarBaris(L)&&msDaftarBaris(C))?msGabungBaris(jalur,L,C,(S&&S.r[jalur])||null):C;}   // per baris (baris baru di sini tetap ikut), selain itu versi cloud
   if(Array.isArray(L)&&Array.isArray(C)){
-    if(jalur==='kitHapus'){var u=L.slice();C.forEach(function(x){if(u.indexOf(x)<0)u.push(x);});return u;}   // tombstone: himpunan
+    if(jalur==='kitHapus'||jalur==='fotoDrive'||jalur==='fotoGagal'){var u=L.slice();C.forEach(function(x){if(u.indexOf(x)<0)u.push(x);});return u;}   // tombstone & ID foto Drive: himpunan (patch242)
     if(msDaftarBaris(L)&&msDaftarBaris(C))return msGabungBaris(jalur,L,C,(S&&S.r[jalur])||null);
     return L;}                                // daftar nilai / daftar daftar: urutannya bermakna — utuh, perangkat ini
   if(msObj(L)&&msObj(C)&&jalur.split('.').length<4){var o={};
@@ -24370,7 +24374,7 @@ function wkFoto(k){var W=wkSalin(),w=W[k];if(!w)return;
   var inp=document.createElement('input');inp.type='file';inp.accept='image/*';
   inp.onchange=function(){var f=inp.files[0];if(!f)return;
     imgKecilkan(f,function(uri){dzProgres('mengunggah foto kulit ke Drive…');
-      fotoKeDrive(uri,'Warna',w.nama||'warna').then(function(id){dzProgres('');w.img=id;saveMaster();render();},
+      fotoKeDrive(uri,'Warna',w.nama||'warna').then(function(id){dzProgres('');w.img=id;stampRow(w);saveMaster();render();},
         function(e){dzProgres('');alert('Foto belum tersimpan — gagal mengunggah ke Drive: '+((e&&e.message)||e));});},{mx:1200});};
   unggahMulai(inp);}
 function warnaHex(n){var t=String(n||'').trim().toLowerCase();var w=warnaKatalog().find(function(x){return String(x.nama||'').trim().toLowerCase()===t;});return w?(w.hex||''):'';}
@@ -24381,11 +24385,11 @@ function wkTambah(){askForm({judul:'＋ Warna katalog Rove',sub:'Berlaku untuk s
   fields:[{k:'nama',label:'Nama warna',req:true,ph:'mis. Olive'},{k:'hex',label:'Contoh warna',type:'color',val:'#7a4630'}],
   ok:function(v){var n=String(v.nama||'').trim();if(!n)return;var W=wkSalin();
     if(W.some(function(x){return String(x.nama).toLowerCase()===n.toLowerCase();})){alert('Warna "'+n+'" sudah ada.');return;}
-    W.push({nama:n,hex:String(v.hex||'')});saveMaster();render();}});}
+    W.push(stampRow({nama:n,hex:String(v.hex||'')}));saveMaster();render();}});}
 function wkHapus(k){var W=wkSalin(),w=W[k];if(!w)return;
   if(!confirm('Hapus warna "'+w.nama+'" dari warna katalog Rove? Order yang sudah memakainya tak berubah.'))return;
   W.splice(k,1);if(!W.length)ST.master.warnaKatalog=[];saveMaster();render();}
-function wkHex(k,v){var W=wkSalin();if(!W[k])return;W[k].hex=String(v||'');saveMaster();render();}
+function wkHex(k,v){var W=wkSalin();if(!W[k])return;W[k].hex=String(v||'');stampRow(W[k]);saveMaster();render();}
 function warnaKatalogBlok(){var W=warnaKatalog();
   return '<div data-f="wkBlok" style="border:1px solid var(--line);border-radius:10px;padding:9px 12px;margin-bottom:12px;background:var(--bg)">'+
     '<div class="nlbl" style="margin-bottom:6px">Warna katalog Rove <span style="font-weight:400;text-transform:none;color:var(--muted)">— berlaku untuk semua produk katalog, tanpa stok (stok kulit dipegang Radja). Produk yang tak dibuat dalam warna tertentu: atur "Warna tersedia" di produknya.</span></div>'+
@@ -24480,10 +24484,17 @@ function prodFotoTanda(r,p){return prodFotoFolder(r,p)+'|'+prodFotoList(r,p).joi
 function prodFotoPerluRapi(r,p){var D=fotoDriveSet();
   if(!prodFotoList(r,p).some(function(id){return D.indexOf(id)>=0;}))return false;
   return String((r.fotoJalur||{})[p]||'')!==prodFotoTanda(r,p);}
+function fotoDriveLengkapi(){var M=ST.master;if(!M)return 0;var D=fotoDriveSet(),G=Array.isArray(M.fotoGagal)?M.fotoGagal:[],n=0;
+  var tambah=function(v){if(typeof v==='string'&&/^[-\w]{20,}$/.test(v)&&D.indexOf(v)<0&&G.indexOf(v)<0){D.push(v);n++;}};
+  Object.keys(M).forEach(function(k){if(!Array.isArray(M[k])||k==='fotoDrive'||k==='fotoGagal'||k==='users')return;
+    M[k].forEach(function(r){if(!r||typeof r!=='object')return;tambah(r.img);tambah(r.imgAu);
+      (Array.isArray(r.fotoLain)?r.fotoLain:[]).forEach(tambah);(Array.isArray(r.fotoLainAu)?r.fotoLainAu:[]).forEach(tambah);});});
+  return n;}
 function fotoRapiSiap(){return !!(ST.user&&ST.cfg&&ST.cfg.url&&kredGet()&&parseFloat(ST._rilis||'0')>=3.1&&ST.master&&Array.isArray(ST.master.catalog));}
 async function fotoProdukRapikan(maks){
   if(ST._fotoRapi||!fotoRapiSiap())return 0;ST._fotoRapi=true;var n=0;maks=maks||6;
-  try{var D=fotoDriveSet(),C=ST.master.catalog||[];
+  try{if(+ST._masterDasarTs>0&&fotoDriveLengkapi())saveMaster();
+    var D=fotoDriveSet(),C=ST.master.catalog||[];
     for(var i=0;i<C.length&&n<maks;i++){var r=C[i];if(!r||r._del)continue;
       for(var pi=0;pi<2&&n<maks;pi++){var p=pi?'au':'hq';if(!prodFotoPerluRapi(r,p))continue;
         var tanda=prodFotoTanda(r,p),folder=prodFotoFolder(r,p),items=[];
