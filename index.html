@@ -816,6 +816,7 @@ body.seret .dz.dzOver{outline-style:solid;background:var(--warn-bg);position:rel
 .dz.dzAktif:not(.dzOver)::after{background:var(--gold,#b08b4f)}
 .dzTip{font-size:9.5px;color:var(--muted)}
 /* kotak unggah bergaya "Tarik foto ke sini, atau klik untuk memilih" (kecil) */
+.ven-tbl>table{min-width:1900px}.ven-tbl>table th:nth-child(2){width:190px}.ven-tbl>table th:nth-child(3){width:64px}.ven-tbl>table th:nth-child(4){width:96px}.ven-tbl>table th:nth-child(5){width:70px}
 .dzKotak{display:flex;align-items:center;gap:10px;flex:1;min-width:min(230px,100%);border:1.5px dashed var(--brand);border-radius:9px;padding:7px 12px;background:rgba(154,106,47,.05);cursor:pointer;line-height:1.3;text-align:left}
 .dzKotak:hover{background:rgba(154,106,47,.11)}
 .dzKotak .dzIkon{font-size:18px;line-height:1}
@@ -1111,7 +1112,7 @@ const KEY='rovehub_orders_v18';
 /* ================= VERSI YANG SEDANG BERJALAN =================
    Diisi otomatis oleh terbitkan.js waktu salinan ini diterbitkan; '-' berarti
    dibuka langsung dari berkas, bukan dari alamat terbitannya. */
-const VERSI='20261127-100408';
+const VERSI='20261127-104133';
 /* Berkas versi.txt di sebelah halaman ini berisi penanda yang sama. Ia
    ditanyakan tanpa cache, jadi ia jujur walau halamannya sendiri masih
    tersimpan di cache browser. */
@@ -9735,7 +9736,66 @@ function evToolsPanel(o){
   return '<div style="border-top:1px solid var(--line);margin-top:11px;padding-top:10px">'+
     '<div style="font-weight:800;font-size:11px;margin-bottom:6px">Form alat per operator <span style="font-weight:400;color:var(--muted)">— isi <b>Keluar</b> sebelum berangkat, <b>Kembali</b> setelah acara. Selisih merah = belum kembali.</span></div>'+blok+'</div>';}
 /* ---- fee live service → jadi baris pricing vendor tim (COGS Service di AIS) ---- */
-function svcVendors(){return ((ST.master&&ST.master.vendors)||[]).filter(function(v){return v.tipe==='Live Service'||v.cogs==='Service';});}
+/* ================= VENDOR: HUB INDUK, AIS IKUT (patch233) =================
+   AIS m2 kolom S–Y: Vendor List · Jenis Vendor · Address · No. Hp · Contact Person · No. Rekening · COGS Type.
+   v._aisRow = baris AIS terakhir yang disalin / diimpor → baru / berubah / sama. */
+function vendorPakaiPeta(){var P={};
+  (ST.orders||[]).forEach(function(o){if(!o||o.deleted)return;var t0=String(o.date||o.tglDeal||''),tgl=/^\d{6}$/.test(t0)?dmyToISO(t0):t0.slice(0,10),ada={};   // tanggal order ddmmyy → ISO
+    (((o.pricing||{}).lines)||[]).forEach(function(l){if(l&&l.sumber)ada[String(l.sumber).trim().toLowerCase()]=1;});
+    Object.keys(o.vpo||{}).forEach(function(n){ada[String(n).trim().toLowerCase()]=1;});
+    Object.keys(ada).forEach(function(k){var p=P[k]||(P[k]={n:0,last:''});p.n++;if(tgl>p.last)p.last=tgl;});});
+  return P;}
+function venPakaiCell(r){var p=vendorPakaiPeta()[String(r.nama||'').trim().toLowerCase()];
+  return '<td style="font-size:10px;color:var(--muted);white-space:nowrap">'+(p?((p.last?tglID(p.last):'—')+'<div>'+p.n+' order</div>'):'belum pernah')+'</td>';}
+function venAisBersih(x){x=String(x==null?'':x).replace(/[\t\r\n]+/g,' ').trim();return x||'-';}
+function venAisBaris(v){return [venAisBersih(v.nama),venAisBersih(v.jenisAis||(v.tipe?tipeLabel(v.tipe):'')),venAisBersih(v.alamat),venAisBersih(v.hp),
+  venAisBersih(v.kontak),venAisBersih([v.bank,v.rek].filter(function(x){return x&&x!=='-';}).join(' ')),venAisBersih(v.cogs)];}
+function venAisStatus(v){if(!v||!String(v.nama||'').trim())return 'sama';if(!v._aisRow)return 'baru';return v._aisRow===venAisBaris(v).join('\t')?'sama':'berubah';}
+function venAisCell(r){var s=venAisStatus(r);
+  return '<td style="font-size:10px;font-weight:800;color:'+(s==='baru'?'var(--ok)':(s==='berubah'?'var(--warn)':'var(--muted)'))+'">'+(s==='sama'?'✓ sama':s)+'</td>';}
+function venAisSalin(semua){
+  var V=((ST.master&&ST.master.vendors)||[]).filter(function(v){return String(v.nama||'').trim();});
+  var L=semua?V:V.filter(function(v){return venAisStatus(v)!=='sama';});
+  if(!L.length){alert('Tak ada vendor baru / berubah — AIS sudah sama.');return;}
+  var tsv=L.map(function(v){return venAisBaris(v).join('\t');}).join('\n');
+  var baru=L.filter(function(v){return venAisStatus(v)==='baru';}).map(function(v){return v.nama;}),ubah=L.filter(function(v){return venAisStatus(v)==='berubah';}).map(function(v){return v.nama;});
+  var tandai=function(){L.forEach(function(v){v._aisRow=venAisBaris(v).join('\t');stampRow(v);});saveMaster();render();};
+  var lanjut=function(){
+    var pesan=semua?('Tersalin: '+L.length+' vendor, urutan kolom AIS m2 S–Y.\n\nDi AIS: kosongkan blok S5:Y lama dulu, lalu tempel di S5.')
+      :('Tersalin: '+L.length+' vendor, urutan kolom AIS m2 S–Y.'+(baru.length?('\n\nBaru ('+baru.length+') → tempel di baris kosong pertama di bawah daftar m2:\n• '+baru.slice(0,12).join('\n• ')):'')+
+        (ubah.length?('\n\nBerubah ('+ubah.length+') → ganti baris vendor ini di m2:\n• '+ubah.slice(0,12).join('\n• ')):''));
+    if(confirm(pesan+'\n\nOK = sudah ditempel di AIS (tandai sama). Batal = belum.'))tandai();};
+  try{navigator.clipboard.writeText(tsv).then(lanjut,function(){prompt('Salin teks ini (Ctrl+C), lalu tempel di AIS m2:',tsv);lanjut();});}
+  catch(e){prompt('Salin teks ini (Ctrl+C), lalu tempel di AIS m2:',tsv);lanjut();}}
+/* impor sekali dari AIS: berkas AIS hanya DIBACA (sheet m2 S–Y); vendor baru ditambah, kolom HUB yang kosong dilengkapi */
+function venAisDariBaris(b){var g=function(j){var x=String(b[j]==null?'':b[j]).trim();return (x==='-'||/^none$/i.test(x))?'':x;};
+  var rek=g(23),bank='',B=listArr('bank');
+  B.forEach(function(nm){if(!bank&&nm&&rek.toLowerCase().indexOf(String(nm).toLowerCase())===0){bank=nm;rek=rek.slice(nm.length).replace(/^[\s:.-]+/,'');}});
+  return {nama:g(18),jenisAis:g(19),alamat:g(20),hp:g(21),kontak:g(22),bank:bank,rek:rek,cogs:g(24)};}
+function venAisGabung(rows){var V=ST.master.vendors=ST.master.vendors||[],lap={baru:0,isi:0,lewat:0};
+  rows.forEach(function(b){var a=venAisDariBaris(b);if(!a.nama||/^vendor list$/i.test(a.nama)){lap.lewat++;return;}
+    var v=V.find(function(x){return String(x.nama||'').trim().toLowerCase()===a.nama.toLowerCase();});
+    if(!v){v={nama:a.nama,tipe:'',jenisAis:a.jenisAis,alamat:a.alamat,hp:a.hp,kontak:a.kontak,bank:a.bank,rek:a.rek,cogs:a.cogs,aktif:true,dari:'AIS'};
+      v._aisRow=venAisBaris(v).join('\t');V.push(stampRow(v));lap.baru++;return;}
+    var ubah=false;['jenisAis','alamat','hp','kontak','bank','rek','cogs'].forEach(function(f){var cur=String(v[f]==null?'':v[f]).trim();if((!cur||cur==='-')&&a[f]){v[f]=a[f];ubah=true;}});
+    if(ubah){stampRow(v);lap.isi++;}});
+  return lap;}
+function venAisImpor(){
+  if(!(ST.user==='Holding'||canSec('vendors'))){alert('Hanya pemegang Master → Vendors.');return;}
+  var inp=document.createElement('input');inp.type='file';inp.accept='.xlsx,.xlsm';
+  inp.onchange=function(){var f=inp.files[0];if(!f)return;var fr=new FileReader();dzProgres('membaca berkas AIS…');
+    fr.onload=function(){xlsxBaca(fr.result).then(function(lembar){dzProgres('');
+      var m2=lembar.find(function(l){return String(l.nama).trim().toLowerCase()==='m2';});
+      if(!m2){alert('Sheet "m2" tak ditemukan — pilih berkas AIS Rove Gift.xlsx.');return;}
+      var mulai=m2.baris.findIndex(function(b){return /^vendor list$/i.test(String(b[18]||'').trim());});
+      var rows=m2.baris.slice(mulai>=0?mulai+1:0).filter(function(b){return String(b[18]||'').trim();});
+      if(!rows.length){alert('Daftar vendor (m2 kolom S) kosong.');return;}
+      var lap=venAisGabung(rows);saveMaster();render();
+      alert('✓ Impor vendor dari AIS selesai (berkas AIS tidak diubah).\n\n• '+lap.baru+' vendor baru ditambahkan\n• '+lap.isi+' vendor yang sudah ada dilengkapi kolom kosongnya\n• '+lap.lewat+' baris dilewati\n\nIsi yang sudah ada di HUB tidak ditimpa. Lengkapi kolom Tipe untuk vendor baru supaya muncul di pilihan order yang tepat.');
+    },function(e){dzProgres('');alert('Berkas tak terbaca: '+e.message);});};
+    fr.readAsArrayBuffer(f);};
+  unggahMulai(inp);}
+function svcVendors(){return ((ST.master&&ST.master.vendors)||[]).filter(function(v){return vendorAktif(v)&&(v.tipe==='Live Service'||v.cogs==='Service');});}
 /* Tarif resmi operator ini di Master → Operator. 0 = belum diisi. */
 function opTarifMaster(nama){
   var op=operators().find(function(x){return x.nama===nama;});
@@ -10592,7 +10652,8 @@ function persoBlok(o,nama){
 function persoVals(){
   var t=teknikNama();
   return t.length?['-'].concat(t):listArr('perso');}
-function vendorNames(){return ((ST.master&&ST.master.vendors)||[]).map(function(v){return v.nama;}).filter(Boolean);}
+function vendorAktif(v){return !!v&&v.aktif!==false;}   // patch233: vendor yang ditandai tak dipakai tak ditawarkan lagi
+function vendorNames(){return ((ST.master&&ST.master.vendors)||[]).filter(vendorAktif).map(function(v){return v.nama;}).filter(Boolean);}
 /* Baris pricing untuk tiap kemasan yang diminta + tiap jasa yang dipilih.
    Dipanggil waktu order lahir DAN tiap kali kemasan/jasa berubah — barisnya
    dibuat kalau belum ada, tak pernah menimpa harga yang sudah diisi. */
@@ -11006,7 +11067,7 @@ function vendorJasaKota(o,izin){
   if(izin&&izin.length)kand=kand.filter(function(v){return izin.indexOf(v.nama)>=0;});
   var m=kand.filter(function(v){return kotaCocok(tempat,v.kota);})[0];
   return m?m.nama:'';}
-function vendorForTipe(t){var v=((ST.master&&ST.master.vendors)||[]).find(function(x){return x.tipe===t;});return v?v.nama:t;}
+function vendorForTipe(t){var V=(ST.master&&ST.master.vendors)||[],v=V.find(function(x){return x.tipe===t&&vendorAktif(x);})||V.find(function(x){return x.tipe===t;});return v?v.nama:t;}
 function seedMaster(){ST.master={access:defAccess(),msec:defMsec(),users:defUsers(),shipping:defShipping(),jenis:defJenis(),perso:defPerso(),coll:defColl(),catalog:[],operator:defOperators(),tools:defTools(),evTpl:defEvTpl(),kardus:defKardus(),kurs:defKurs(),jasa:defJasa(),volDiv:5000,packFactor:1.05,bank:[{v:'BCA'},{v:'Mandiri'},{v:'BNI'},{v:'BRI'}],vtipe:[{v:'Kulit'},{v:'Box'},{v:'Soft Pouch'},{v:'Thank You Card'},{v:'Live Service'},{v:'Others'}],cogs:[{v:'Main Product'},{v:'Packaging'},{v:'Service'}],customers:[{nama:'United Tractors',pic:'Ida Rahmawati (Purchasing)',kontak:'+62 811-2244-3010',email:'ida.rahmawati@unitedtractors.com',alamat:'Jl. Raya Bekasi KM 22, Cakung, Jakarta Timur 13910',alamatKantor:'Gedung UT Tower, Jl. Raya Bekasi KM 22, Jakarta Timur',kota:'Jakarta',tipe:'Corporate',lokasi:'HQ'},{nama:'Innaz Communique',kontak:'',alamat:'Surabaya',kota:'Surabaya',tipe:'Corporate',lokasi:'HQ'},{nama:'Bank Jatim',kontak:'',alamat:'Surabaya',kota:'Surabaya',tipe:'Corporate',lokasi:'HQ'}],vendors:[{nama:'Radja Leather',tipe:'Kulit',cogs:'Main Product',kontak:'Cici Andarwati',hp:'+62 811 3252 305'},{nama:'CraftByHanifah',tipe:'Soft Pouch',cogs:'Packaging',kontak:'-'},{nama:'BoxMaker',tipe:'Box',cogs:'Packaging',kontak:'-'},{nama:'CardPrint',tipe:'Thank You Card',cogs:'Packaging',kontak:'-'},{nama:'Tim Deboss Bali',tipe:'Live Service',cogs:'Service',kontak:'-',kota:'Bali'},{nama:'Tim Deboss SBY',tipe:'Live Service',cogs:'Service',kontak:'-',kota:'Surabaya'},{nama:'Tim Deboss JKT',tipe:'Live Service',cogs:'Service',kontak:'-',kota:'Jakarta'},{nama:'Mercia Calligraphy',tipe:'Live Service',cogs:'Service',kontak:'Mercia Anggara'}]};saveMaster();}
 function loadMaster(){try{ST.master=JSON.parse(LS.getItem('rovehub_master')||'null');}catch(e){ST.master=null;} if(!ST.master||!ST.master.customers)seedMaster(); if(!ST.master.users||!ST.master.users[0]||!('username' in ST.master.users[0])){ST.master.users=defUsers();saveMaster();} if(!ST.master.shipping){ST.master.shipping=defShipping();saveMaster();} ST.master.shipping.forEach(function(s){if(s.zona&&!s.kota){s.kota=s.zona;delete s.zona;}}); if(!ST.master.jenis){ST.master.jenis=defJenis();saveMaster();} if(!ST.master.perso){ST.master.perso=defPerso();saveMaster();}
    if(!ST.master.coll){ if(ST.master.collmat){ST.master.coll=[];ST.master.collmat.forEach(function(r){var ts=(r.tipe==='Box')?['Hardbox','Softbox']:[r.tipe];ts.forEach(function(t){ST.master.coll.push({type:t,kind:'Material',value:r.v});});});delete ST.master.collmat;} else ST.master.coll=defColl(); saveMaster(); }
@@ -11154,7 +11215,7 @@ function renderMaster(){
   /* table-layout:fixed — tanpa ini lebar kolom mengikuti isi terpanjang,
      jadi tabel melar dan halaman minta digeser kanan-kiri. */
   const tbl=(sec,cols,rows,idx)=>`<table class="rtable" style="table-layout:fixed"><thead><tr><th style="width:24px"></th>${cols.map(c=>`<th${c[2]==='img'?' style="width:80px;font-size:9px"':(c[2]==='terminpilih'?' style="width:150px"':'')}>${c[1]}</th>`).join('')}<th style="width:120px;font-size:9px">Diubah</th><th style="width:60px"></th></tr></thead>
-    <tbody>${rows.map((r,n)=>{const i=idx?idx[n]:n;return `<tr ondragover="mSeretLewat(event)" ondrop="mSeretJatuh('${sec}',${i},event)"${r&&r._del?' style="opacity:.55;background:var(--warn-bg)"':''}><td draggable="true" ondragstart="mSeretMulai('${sec}',${i},event)" style="cursor:grab;color:var(--muted);text-align:center;font-size:12px;user-select:none" title="seret untuk mengubah urutan">⣿</td>${cols.map(c=>{if(c[2]==='img')return mImgCell(sec,i,r);if(c[2]==='tekpilih')return tekListCell(i,r);if(c[2]==='venpilih')return venListCell(i,r);if(c[2]==='terminpilih')return vterminCell(i,r);if(Array.isArray(c[2]))return '<td><select class="pin" onchange="mEdit(\''+sec+'\','+i+',\''+c[0]+'\',this.value)">'+c[2].map(function(op){var v=Array.isArray(op)?op[0]:op,l=Array.isArray(op)?op[1]:op;return '<option value="'+esc(v)+'" '+(r[c[0]]===v?'selected':'')+'>'+esc(l)+'</option>';}).join('')+'</select></td>';var mny=c[2]==='money',num=c[2]==='number';
+    <tbody>${rows.map((r,n)=>{const i=idx?idx[n]:n;return `<tr ondragover="mSeretLewat(event)" ondrop="mSeretJatuh('${sec}',${i},event)"${r&&r._del?' style="opacity:.55;background:var(--warn-bg)"':''}><td draggable="true" ondragstart="mSeretMulai('${sec}',${i},event)" style="cursor:grab;color:var(--muted);text-align:center;font-size:12px;user-select:none" title="seret untuk mengubah urutan">⣿</td>${cols.map(c=>{if(c[2]==='img')return mImgCell(sec,i,r);if(c[2]==='tekpilih')return tekListCell(i,r);if(c[2]==='venpilih')return venListCell(i,r);if(c[2]==='terminpilih')return vterminCell(i,r);if(c[2]==='venaktif')return '<td style="text-align:center"><input type="checkbox" '+(vendorAktif(r)?'checked':'')+' title="hilangkan centang bila vendor ini sudah tak dipakai" onchange="mEdit(\''+sec+'\','+i+',\'aktif\',this.checked)" style="accent-color:var(--brand)"></td>';if(c[2]==='venpakai')return venPakaiCell(r);if(c[2]==='venais')return venAisCell(r);if(Array.isArray(c[2]))return '<td><select class="pin" onchange="mEdit(\''+sec+'\','+i+',\''+c[0]+'\',this.value)">'+c[2].map(function(op){var v=Array.isArray(op)?op[0]:op,l=Array.isArray(op)?op[1]:op;return '<option value="'+esc(v)+'" '+(r[c[0]]===v?'selected':'')+'>'+esc(l)+'</option>';}).join('')+'</select></td>';var mny=c[2]==='money',num=c[2]==='number';
        /* 'datalist:nama' = ketik bebas, tapi nilai yang sudah dipakai muncul sebagai saran */
        var dl=(typeof c[2]==='string'&&c[2].slice(0,9)==='datalist:')?c[2].slice(9):'';
        return '<td><input class="pin'+(mny?' n money':(num?' n':''))+'" '+(dl?('list="'+dl+'" '):'')+(mny?'inputmode="numeric" ':(num?'type="number" ':''))+'value="'+(mny?moneyInp(r[c[0]]):esc(r[c[0]]))+'" onchange="'+(mny?'mEditM':'mEdit')+'(\''+sec+'\','+i+',\''+c[0]+'\',this.value)" placeholder="'+esc(c[1])+'"></td>';}).join('')}<td style="font-size:9px;color:var(--muted)">${fmtStamp(r)}</td>${actCell(sec,i,r)}</tr>`;}).join('')}</tbody></table>`;
@@ -11274,14 +11335,23 @@ function renderMaster(){
      kat.sort(function(a,b){var ia=urutT.indexOf(a),ib=urutT.indexOf(b);return ((ia<0?99:ia)-(ib<0?99:ib))||a.localeCompare(b);});
      if(f!=='ALL'&&kat.indexOf(f)<0)f='ALL';
      var jenis=function(v){return (v.tipe||'').trim()||'Tanpa tipe';};
-     var idx=[];V.forEach(function(v,i){if(f==='ALL'||jenis(v)===f)idx.push(i);});
+     var stt=ST._venStatus||'aktif',P=vendorPakaiPeta(),urut=ST._venUrut||'master';
+     var idx=[];V.forEach(function(v,i){if((f==='ALL'||jenis(v)===f)&&(stt==='semua'||(stt==='aktif')===vendorAktif(v)))idx.push(i);});
+     var kp=function(v){return P[String(v.nama||'').trim().toLowerCase()]||{n:0,last:''};};
+     if(urut==='nama')idx.sort(function(a,b){return String(V[a].nama||'').localeCompare(String(V[b].nama||''));});
+     else if(urut==='baru')idx.sort(function(a,b){return String(kp(V[b]).last).localeCompare(String(kp(V[a]).last))||String(V[a].nama||'').localeCompare(String(V[b].nama||''));});
+     else if(urut==='sering')idx.sort(function(a,b){return (kp(V[b]).n-kp(V[a]).n)||String(V[a].nama||'').localeCompare(String(V[b].nama||''));});
+     var nAkt=V.filter(vendorAktif).length,nAis=V.filter(function(v){return venAisStatus(v)!=='sama';}).length;
+     var sc=function(k,l,n){return '<button class="btn '+(stt===k?'':'ghost')+' sm" onclick="ST._venStatus=\''+k+'\';render()">'+l+' <span style="opacity:.7">('+n+')</span></button>';};
      var chip=function(k,n){return '<button class="btn '+(f===k?'':'ghost')+' sm" onclick="venTab(\''+esc(k)+'\')">'+
        esc(k==='ALL'?'Semua':(k==='Tanpa tipe'?k:tipeLabel(k)))+' <span style="opacity:.7">('+n+')</span></button>';};
      return `<div class="rcard"><h3>Vendors (${V.length})</h3>
-     <div style="font-size:10.5px;color:var(--muted);margin-bottom:10px"><b>COGS Type</b> mengikuti AIS — menentukan biaya masuk ke Main Product, Packaging, atau Service. Tim live service didaftarkan di sini juga (tipe <b>${esc(tipeLabel('Live Service'))}</b>, COGS <b>Service</b>). Pilihan <b>Tipe</b> &amp; <b>Bank</b> bisa ditambah atau diganti namanya di <b>Opsi form</b> — HUB mengikuti nama yang ada di master.</div>
+     <div style="font-size:10.5px;color:var(--muted);margin-bottom:10px"><b>HUB = daftar induk vendor</b>; AIS (sheet m2 kolom S–Y) ikut lewat 📋 Salin untuk AIS — kolom itu di AIS diisi manual, tak ada rumus yang tertimpa. Hilangkan centang <b>Dipakai</b> untuk vendor yang sudah tak dipakai: tak ditawarkan lagi di order, tapi tetap ikut ke AIS (PO lama mencarinya). <b>COGS Type</b> mengikuti AIS — menentukan biaya masuk ke Main Product, Packaging, atau Service. Tim live service didaftarkan di sini juga (tipe <b>${esc(tipeLabel('Live Service'))}</b>, COGS <b>Service</b>). Pilihan <b>Tipe</b> &amp; <b>Bank</b> bisa ditambah atau diganti namanya di <b>Opsi form</b> — HUB mengikuti nama yang ada di master.</div>
+     <div style="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:10px"><button class="btn sm" onclick="venAisSalin(false)"${nAis?'':' disabled'}>📋 Salin untuk AIS — ${nAis} baru / berubah</button><button class="btn ghost sm" onclick="venAisSalin(true)">📋 Salin semua (${V.length})</button><button class="btn ghost sm" onclick="venAisImpor()">⭳ Impor vendor dari AIS</button></div>
+     <div style="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:8px;align-items:center">${sc('aktif','Dipakai',nAkt)}${sc('tidak','Tidak dipakai',V.length-nAkt)}${sc('semua','Semua',V.length)}<label style="margin-left:auto;font-size:10.5px;color:var(--muted)">Urutkan <select class="pin" style="width:auto;font-size:11px;padding:3px 6px" onchange="ST._venUrut=this.value;render()">${[['master','urutan master'],['nama','nama A–Z'],['baru','terakhir dipakai'],['sering','paling sering dipakai']].map(function(o){return '<option value="'+o[0]+'"'+(urut===o[0]?' selected':'')+'>'+o[1]+'</option>';}).join('')}</select></label></div>
      <div style="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:12px">${chip('ALL',V.length)}${kat.map(function(k){
        return chip(k,V.filter(function(v){return jenis(v)===k;}).length);}).join('')}</div>
-     ${idx.length?`<div class="xscroll">${tbl('vendors',[['nama','Nama'],['tipe','Tipe',tipeOpts()],['cogs','COGS Type',listArr('cogs')],['termin','Termin bayar','terminpilih'],['kontak','Contact person'],['hp','No. HP'],['kota','Kota'],['disc','Channel Discord (kosongkan kalau lewat WhatsApp)'],['bank','Bank',listArr('bank')],['rek','No. rekening'],['alamat','Alamat']],idx.map(function(i){return V[i];}),idx)}</div>`
+     ${idx.length?`<div class="xscroll ven-tbl">${tbl('vendors',[['nama','Nama'],['aktif','Dipakai','venaktif'],['_pakai','Terakhir dipakai','venpakai'],['_ais','AIS','venais'],['tipe','Tipe',tipeOpts()],['jenisAis','Jenis di AIS'],['cogs','COGS Type',listArr('cogs')],['termin','Termin bayar','terminpilih'],['kontak','Contact person'],['hp','No. HP'],['kota','Kota'],['disc','Channel Discord (kosongkan kalau lewat WhatsApp)'],['bank','Bank',listArr('bank')],['rek','No. rekening'],['alamat','Alamat']],idx.map(function(i){return V[i];}),idx)}</div>`
        :'<div style="color:var(--muted);font-size:11px;padding:6px 0">Belum ada vendor pada kategori ini.</div>'}
      <button class="btn ghost sm" style="margin-top:9px" onclick="mAdd('vendors')">＋ Tambah vendor${(f!=='ALL'&&f!=='Tanpa tipe')?(' '+esc(tipeLabel(f))):''}</button>
      ${f!=='ALL'?'<span style="font-size:9.5px;color:var(--muted);margin-left:8px">Vendor baru langsung masuk kategori ini.</span>':''}</div>`;})(),
@@ -23084,7 +23154,7 @@ function toggleHPP(){showHPP=!showHPP;render();}
 const VEN_GRUP={produk:['Kulit','Others'],collateral:['Box','Soft Pouch','Thank You Card'],jasa:['Live Service'],addon:['Kulit','Others','Live Service']};
 function vendorGrup(g){
   var t=VEN_GRUP[g]||[];
-  var L=((ST.master&&ST.master.vendors)||[]).filter(function(v){return v.nama&&t.indexOf(v.tipe)>=0;}).map(function(v){return v.nama;});
+  var L=((ST.master&&ST.master.vendors)||[]).filter(function(v){return v.nama&&vendorAktif(v)&&t.indexOf(v.tipe)>=0;}).map(function(v){return v.nama;});
   return L.length?L:vendorNames();}
 function vendorGrupBaris(l){
   /* Jenis barisnya dulu. Menebaknya dari tipe vendor tak bisa bekerja untuk
