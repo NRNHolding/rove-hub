@@ -1129,7 +1129,7 @@ const KEY='rovehub_orders_v18';
 /* ================= VERSI YANG SEDANG BERJALAN =================
    Diisi otomatis oleh terbitkan.js waktu salinan ini diterbitkan; '-' berarti
    dibuka langsung dari berkas, bukan dari alamat terbitannya. */
-const VERSI='20261127-153656';
+const VERSI='20261127-161628';
 /* Berkas versi.txt di sebelah halaman ini berisi penanda yang sama. Ia
    ditanyakan tanpa cache, jadi ia jujur walau halamannya sendiri masih
    tersimpan di cache browser. */
@@ -2925,7 +2925,9 @@ if(r){ST.orders=JSON.parse(r);}else{ST.orders=[];}
   try{migrasiTeknikJasa();}catch(e){}
   try{setTimeout(function(){pwMigrasi();},0);}catch(e){}   // password teks biasa → hash (async)
   try{setTimeout(function(){gambarRampingkan();},2500);}catch(e){}   // lampiran gambar besar → diperkecil sekali (13 Okt)
-  try{setTimeout(gambarLatar,20000);setInterval(gambarLatar,180000);}catch(e){}   // patch231: gambar order → Shared Drive di latar
+  try{setTimeout(gambarLatar,20000);setInterval(gambarLatar,180000);}catch(e){}
+  try{setTimeout(fotoRapiLatar,30000);setInterval(fotoRapiLatar,180000);}catch(e){}
+  try{setTimeout(ongkirJneLatar,25000);setInterval(ongkirJneLatar,120000);}catch(e){}   // tarif JNE 27 Nov (sekali)   // patch240: foto produk dirapikan per pasar & kategori   // patch231: gambar order → Shared Drive di latar
   finData();asetAll();loadCatalogCache();loadMaster();loadLeads();loadTax();loadKonten();loadHR();loadBuy();loadInv();adminLoad();
   try{migrasiContoh();}catch(e){}   // kartu contoh versi lama diganti yang lengkap
   try{if(contohLiveSegarkan())simpanLokal();}catch(e){}   // acara contoh Live service selalu relatif ke hari ini
@@ -8806,7 +8808,7 @@ function syncSidebar(){
     } else sm.innerHTML='';
   }
 }
-function saveMaster(){LS.setItem('rovehub_master',JSON.stringify(ST.master));
+function saveMaster(){LS.setItem('rovehub_master',JSON.stringify(ST.master));try{fotoRapiSegera();}catch(e){}
   /* catat: master perangkat ini punya ubahan yang belum terdorong (dan jenisnya — hanya alat deboss, atau lainnya) */
   try{var _lts=+LS.getItem('rovehub_ts')||0,_mu=+LS.getItem('rovehub_master_ubah')||0,_j=ST._masterJenis||'lain',
     _lama=(_mu>_lts)?(LS.getItem('rovehub_master_ubah_jenis')||'lain'):_j;
@@ -9628,6 +9630,25 @@ function msGabung(L,C,S){var o={};L=msObj(L)?L:{};C=msObj(C)?C:{};
 /* Master cloud diterima: digabung tiga arah dengan master perangkat ini; cloud yang baru dilihat jadi dasar berikutnya.
    ST._masterPerluDorong = hasil gabungan masih berbeda dari cloud (perangkat ini punya ubahan yang belum sampai).
    ST._masterDasarTs = versi cloud yang jadi dasar master ini — ikut tiap dorongan (masterDasarTs). */
+/* Tarif JNE dari Surabaya ke Jawa & Bali — dicek di jne.co.id (Cek Ongkir, 1 kg) 27 Nov 2026.
+   Diisikan SEKALI ke Master → Pengiriman di latar sesudah master cloud diterima (penanda ST.master.ongkirJne2611);
+   baris JNE kota yang sama diperbarui, sesudahnya bebas diubah di Master. */
+var ONGKIR_JNE_2611=[['Surabaya',9000,'2-3 hari','CTC (dalam kota)'],['Sidoarjo',9000,'2-3 hari'],['Gresik',9000,'2-3 hari'],['Mojokerto',9000,'1-2 hari'],['Malang',9000,'1-2 hari'],
+  ['Pasuruan',9000,'1-2 hari'],['Probolinggo',9000,'1-2 hari'],['Kediri',9000,'1-2 hari'],['Madiun',9000,'1-2 hari'],['Jember',9000,'1-2 hari'],['Tuban',9000,'2-3 hari'],['Banyuwangi',12000,'1-2 hari'],
+  ['Semarang',16000,'1-2 hari'],['Solo',16000,'1-2 hari'],['Magelang',16000,'1-2 hari'],['Tegal',16000,'2-3 hari'],['Kudus',19000,'2-3 hari'],['Purwokerto',19000,'2-3 hari'],['Yogyakarta',16000,'1-2 hari'],
+  ['Jakarta',17000,'1-2 hari'],['Bogor',19000,'1-2 hari'],['Depok',19000,'1-2 hari'],['Bekasi',19000,'1-2 hari'],['Tangerang',19000,'1-2 hari'],['Bandung',21000,'1-2 hari'],['Karawang',21000,'1-2 hari'],
+  ['Cirebon',21000,'1-2 hari'],['Sukabumi',21000,'1-3 hari'],['Tasikmalaya',23000,'3-5 hari'],['Serang',21000,'2-3 hari'],['Cilegon',21000,'2-3 hari'],
+  ['Denpasar',21000,'2-3 hari'],['Badung',24000,'3-5 hari'],['Gianyar',24000,'3-5 hari'],['Ubud',27000,'3-5 hari'],['Tabanan',24000,'3-5 hari'],['Singaraja',24000,'3-5 hari']];
+function ongkirJneIsi(){var M=ST.master;if(!M||M.ongkirJne2611)return false;
+  if(!Array.isArray(M.shipping))M.shipping=[];var S=M.shipping;
+  ONGKIR_JNE_2611.forEach(function(x){
+    var r=S.find(function(s){return s&&String(s.ekspedisi||'').trim().toUpperCase()==='JNE'&&String(s.kota||'').trim().toLowerCase()===x[0].toLowerCase();});
+    if(!r){r={ekspedisi:'JNE',kota:x[0]};S.push(r);}
+    r.layanan=x[3]||'REG';r.tarif=x[1];r.lama=x[2];stampRow(r);});
+  /* baris contoh kosong bawaan (JNE tanpa kota) tak perlu lagi */
+  M.shipping=S.filter(function(s){return !(s&&String(s.ekspedisi||'')==='JNE'&&!String(s.kota||'').trim()&&!(+s.tarif));});
+  M.ongkirJne2611={tgl:nowStr(),n:ONGKIR_JNE_2611.length,sumber:'jne.co.id Cek Ongkir, asal Surabaya'};return true;}
+function ongkirJneLatar(){try{if(ST.user&&ST.cfg&&ST.cfg.url&&kredGet()&&(+ST._masterDasarTs||0)>0&&ongkirJneIsi())saveMaster();}catch(e){}}
 function masterTerimaCloud(cloud){ST._masterPerluDorong=false;
   if(!cloud||!Array.isArray(cloud.orders)||!cloud.master||typeof cloud.master!=='object'||!Array.isArray(cloud.master.vendors)||!Array.isArray(cloud.master.catalog))return false;   // jawaban kosong / cacat: abaikan
   try{_msMemo=(typeof WeakMap==='function')?new WeakMap():null;}catch(e){_msMemo=null;}
@@ -11439,13 +11460,13 @@ function renderMaster(){
          '<td><input class="pin n" type="number" style="width:66px" value="'+(r.berat||'')+'" onchange="mEdit(\'catalog\','+i+',\'berat\',+this.value||0)"></td>'+
          (r.t||[0,0,0,0,0,0,0]).map(function(v,ti){return '<td><input class="pin n money" inputmode="numeric" style="min-width:76px" value="'+moneyInp(v)+'" onchange="mEditTier('+i+','+ti+',this.value)"></td>';}).join('')+
          '<td style="font-size:9px;color:var(--muted)">'+fmtStamp(r)+'</td>'+actCell('catalog',i,r)+'</tr>';};
-       isi='<div style="font-size:10.5px;color:var(--muted);margin-bottom:9px"><b>Katalog</b> = produk tetap Rove — diubah di sini. <b>Custom</b> = produk hasil deal. <b>P/L/T (cm) &amp; berat (gram)</b> dipakai untuk menghitung kardus &amp; ongkir otomatis. Klik <b>📷</b> untuk unggah foto produk ke Shared Drive (Master Produk / Produk / nama produk) — otomatis dipakai di <b>quotation, invoice &amp; PO</b> kalau baris pricing belum punya gambar sendiri.</div>'+
+       isi='<div style="font-size:10.5px;color:var(--muted);margin-bottom:9px"><b>Katalog</b> = produk tetap Rove — diubah di sini. <b>Custom</b> = produk hasil deal. <b>P/L/T (cm) &amp; berat (gram)</b> dipakai untuk menghitung kardus &amp; ongkir otomatis. Klik <b>📷</b> untuk unggah foto produk ke Shared Drive (Master Produk / Rove HQ atau Rove AU / kategori / nama produk) — otomatis dipakai di <b>quotation, invoice &amp; PO</b> kalau baris pricing belum punya gambar sendiri.</div>'+
          '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:11px">'+
          '<button class="btn sm" style="background:#6a6f8a;border-color:#6a6f8a" onclick="pullCustomProducts()">⟳ Tarik produk custom dari deal ('+customCandidates().length+' baru)</button>'+
          '<span style="font-size:9.5px;color:var(--muted);align-self:center">'+esc(ST.catStatus||'')+'</span></div>'+
          imporStatus()+
          prodDaftar(CT)+
-         '<button class="btn ghost sm" style="margin-top:9px" onclick="mAdd(\'catalog\')">＋ Tambah produk manual'+((prodKatAktif()!=='*')?(' ke '+esc(prodKatAktif())):'')+'</button>'+
+         '<button class="btn sm" style="margin-top:9px" data-f="prodBaru" onclick="prodBaru()">＋ Produk baru</button>'+
          (CT.some(function(r){return !r.pjg||!r.berat;})?'<div style="margin-top:9px;font-size:10.5px;color:var(--warn);font-weight:700">⚠ '+CT.filter(function(r){return !r.pjg||!r.berat;}).length+' produk belum ada ukuran/berat — perhitungan kardus &amp; ongkir tak bisa jalan untuk produk itu.</div>':'');
      } else if(sub==='coll'){
        isi=collPanel(actCell);
@@ -24330,27 +24351,6 @@ function katKelolaBlok(CT){var L=prodKatDaftar(CT),A=(ST.master&&ST.master.prodK
         '<td><input class="pin" value="'+esc(A[k]||'')+'" placeholder="'+esc(k)+'" onchange="katAuSet('+jsArg(k)+',this.value)"></td>'+
         '<td style="text-align:right;font-size:11px">'+n+'</td><td><button class="xrow" title="hapus kategori" onclick="katHapus('+jsArg(k)+')">✕</button></td></tr>';}).join('')+
     '</tbody></table></div><button class="btn ghost sm" style="margin-top:7px" onclick="katTambah()">＋ Kategori</button></div>';}
-/* ambil nama Rove AU sekali dari Cost Estimator (tombol sekali-pakai — hilang sesudah berhasil) */
-function auNamaImporPerlu(){var CT=(ST.master&&ST.master.catalog)||[];return ST.user==='Holding'&&!(ST.master&&ST.master.auNamaImpor)&&CT.length>0;}
-function auNamaImporBlok(){if(!auNamaImporPerlu())return '';
-  return '<div style="border:1px dashed var(--warn);border-radius:9px;padding:9px 11px;margin-bottom:11px;font-size:11px;line-height:1.55">'+
-    '<b style="color:var(--warn)">Nama Rove AU belum diisi</b> — di Cost Estimator tiap produk sudah punya nama AU. Ambil sekali (alamat &amp; token Cost Estimator diketik di sini, tak disimpan); sesudahnya kotak ini hilang. Atau isi manual di tiap produk.'+
-    '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px"><input class="pin" id="auNmUrl" placeholder="https://script.google.com/macros/s/…/exec" style="flex:1 1 260px">'+
-    '<input class="pin" id="auNmTok" type="password" placeholder="token baca Cost Estimator" style="flex:0 1 200px">'+
-    '<button class="btn sm" onclick="auNamaImpor()">⭳ Ambil nama Rove AU</button></div></div>';}
-function auNamaGabung(products){var CT=ST.master.catalog||[],n=0,tak=[];
-  (products||[]).forEach(function(p){var hq=String((p&&p.hq)||'').trim(),au=String((p&&p.au)||'').trim();if(!hq||!au)return;
-    var r=CT.find(function(x){return String(x.name||'').trim().toLowerCase()===hq.toLowerCase();});
-    if(!r){tak.push(hq);return;}if(!String(r.namaAu||'').trim()){r.namaAu=au;stampRow(r);n++;}});
-  return {n:n,tak:tak};}
-function auNamaImpor(){var eu=document.getElementById('auNmUrl'),et=document.getElementById('auNmTok');
-  var url=imporSekaliUrl(eu&&eu.value,et&&et.value);if(!url){alert('Isi alamat Cost Estimator (…/exec) dulu.');return;}
-  dzProgres('mengambil nama Rove AU…');
-  fetch(url).then(function(r){return r.text();}).then(function(txt){dzProgres('');var d;try{d=JSON.parse(txt);}catch(e){throw new Error('alamat itu tidak membalas data (cek alamat / token).');}
-    if(d&&d.ok===false)throw new Error(String(d.error||'ditolak')+' — cek token baca.');
-    var h=auNamaGabung(d&&d.products);ST.master.auNamaImpor={tgl:nowStr(),oleh:(ST.userName||ST.user||'-'),n:h.n};saveMaster();render();
-    alert('✓ Nama Rove AU terisi untuk '+h.n+' produk.'+(h.tak.length?('\n\n'+h.tak.length+' produk Cost Estimator tak ditemukan di HUB (nama HQ berbeda):\n• '+h.tak.slice(0,10).join('\n• ')):'')+'\n\nAlamat & token tidak disimpan.');
-  }).catch(function(e){dzProgres('');alert('Gagal: '+e.message);});}
 function prodKatAktif(){return ST._prodKat||'*';}
 function prodKatSet(k){ST._prodKat=k;render();}
 function prodBuka(i){ST._prodBuka=ST._prodBuka||{};ST._prodBuka[i]=!ST._prodBuka[i];render();}
@@ -24460,6 +24460,111 @@ function prodRentang(t){var a=(t||[]).filter(function(v){return v!=null&&+v>0;})
 function prodImgKecil(r){var st='width:38px;height:38px;object-fit:cover;border-radius:7px;border:1px solid var(--line)';
   return r.img?imgTag(r.img,st,'onclick="event.stopPropagation();openLB(this.src)"')
     :'<span style="display:inline-block;width:38px;height:38px;border-radius:7px;border:1px dashed var(--line)"></span>';}
+/* ================= FOTO PRODUK PER PASAR (patch240, Code.gs 3.1) =================
+   Shared Drive / Master Produk / Rove HQ / <Kategori> / <Nama HQ> / <Nama HQ> - 01.jpg
+                                 Rove AU / <Kategori AU> / <Nama AU> / <Nama AU> - 01.jpg
+   r.img = foto utama HQ (dipakai quotation / invoice / PO), r.fotoLain = foto HQ lainnya;
+   r.imgAu + r.fotoLainAu = foto Rove AU sendiri (kosong → sementara memakai foto HQ).
+   r.fotoJalur[hq|au] = tanda susunan terakhir yang sudah rapi di Drive; bila nama / kategori / urutan
+   berubah, latar memindahkan & menamai ulang berkasnya (foto.rapikan) — termasuk foto lama di Produk / <nama>. */
+function segAman(s){return String(s==null?'':s).replace(/[\\\/:*?"<>|]+/g,'-').replace(/\s+/g,' ').trim().slice(0,120)||'tanpa nama';}
+function prodFotoList(r,p){if(!r)return [];var u=p==='au'?r.imgAu:r.img,L=p==='au'?r.fotoLainAu:r.fotoLain;
+  if(!u)return [];return [u].concat((Array.isArray(L)?L:[]).filter(function(x){return x&&x!==u;}));}
+function prodFotoSet(r,p,L){L=(L||[]).filter(function(x,j,a){return x&&a.indexOf(x)===j;});
+  var ku=p==='au'?'imgAu':'img',kl=p==='au'?'fotoLainAu':'fotoLain';
+  if(p==='au'&&!L.length)delete r.imgAu;else r[ku]=L[0]||'';
+  if(L.length>1)r[kl]=L.slice(1);else delete r[kl];}
+function prodFotoNamaDasar(r,p){return segAman(p==='au'?prodNamaPasar(r,'au'):(r.name||'tanpa nama'));}
+function prodFotoFolder(r,p){return (p==='au'?'Rove AU/':'Rove HQ/')+segAman(katLabel(prodKat(r),p))+'/'+prodFotoNamaDasar(r,p);}
+function prodFotoBerkas(r,p,k){return prodFotoNamaDasar(r,p)+' - '+(k<9?'0':'')+(k+1);}
+function prodFotoTanda(r,p){return prodFotoFolder(r,p)+'|'+prodFotoList(r,p).join(',');}
+function prodFotoPerluRapi(r,p){var D=fotoDriveSet();
+  if(!prodFotoList(r,p).some(function(id){return D.indexOf(id)>=0;}))return false;
+  return String((r.fotoJalur||{})[p]||'')!==prodFotoTanda(r,p);}
+function fotoRapiSiap(){return !!(ST.user&&ST.cfg&&ST.cfg.url&&kredGet()&&parseFloat(ST._rilis||'0')>=3.1&&ST.master&&Array.isArray(ST.master.catalog));}
+async function fotoProdukRapikan(maks){
+  if(ST._fotoRapi||!fotoRapiSiap())return 0;ST._fotoRapi=true;var n=0;maks=maks||6;
+  try{var D=fotoDriveSet(),C=ST.master.catalog||[];
+    for(var i=0;i<C.length&&n<maks;i++){var r=C[i];if(!r||r._del)continue;
+      for(var pi=0;pi<2&&n<maks;pi++){var p=pi?'au':'hq';if(!prodFotoPerluRapi(r,p))continue;
+        var tanda=prodFotoTanda(r,p),folder=prodFotoFolder(r,p),items=[];
+        prodFotoList(r,p).forEach(function(id,k){if(D.indexOf(id)>=0)items.push({id:id,folder:folder,nama:prodFotoBerkas(r,p,k)});});
+        var j=await backendTanya('foto.rapikan',{items:items});n++;
+        if(!(j&&j.ok)){i=C.length;break;}   // jaringan / server — dicoba lagi di putaran berikut
+        if(prodFotoTanda(r,p)===tanda){r.fotoJalur=r.fotoJalur||{};r.fotoJalur[p]=tanda;stampRow(r);}}}
+    if(n)saveMaster();
+  }catch(e){}finally{ST._fotoRapi=false;}
+  return n;}
+var FOTO_RAPI_T=0;
+function fotoRapiSegera(){if(!fotoRapiSiap())return;if(FOTO_RAPI_T)clearTimeout(FOTO_RAPI_T);FOTO_RAPI_T=setTimeout(function(){FOTO_RAPI_T=0;fotoRapiLatar();},4000);}
+function fotoRapiLatar(){try{if(fotoRapiSiap())fotoProdukRapikan(6).then(function(n){if(n&&ST.user&&ST.page==='master')render();});}catch(e){}}
+/* tambah foto: bisa banyak sekaligus (pilih / tarik / tempel); langsung ke foldernya di Drive */
+function prodFotoTambah(i,p){
+  var r=(ST.master.catalog||[])[i];if(!r)return;
+  if(!String(r.name||'').trim()){alert('Isi dulu Nama Rove HQ — nama folder & berkas fotonya diambil dari nama produk.');return;}
+  var inp=document.createElement('input');inp.type='file';inp.accept='image/*';inp.multiple=true;
+  inp.onchange=function(){var F=Array.prototype.slice.call(inp.files||[]);if(!F.length)return;
+    var rapi=!prodFotoPerluRapi(r,p)&&!!(r.fotoJalur&&r.fotoJalur[p]),baru=[],gagal='',k=0;
+    var lanjut=function(){
+      if(k>=F.length){dzProgres('');
+        if(baru.length){prodFotoSet(r,p,prodFotoList(r,p).concat(baru));
+          /* foto baru langsung bernama urut di folder yang benar — bila yang lama sudah rapi, tak perlu dirapikan lagi */
+          if(rapi||prodFotoList(r,p).length===baru.length){r.fotoJalur=r.fotoJalur||{};r.fotoJalur[p]=prodFotoTanda(r,p);}
+          stampRow(r);saveMaster();render();}
+        if(gagal)alert('Sebagian foto belum tersimpan — gagal mengunggah ke Drive: '+gagal+'\n\nCek Uji sambungan Drive di Panel Holding.');
+        return;}
+      var f=F[k++];dzProgres('mengunggah foto '+k+'/'+F.length+' ke Drive…');
+      imgKecilkan(f,function(uri){
+        var no=prodFotoList(r,p).length+baru.length;
+        fotoKeDrive(uri,prodFotoFolder(r,p),prodFotoBerkas(r,p,no)).then(function(id){baru.push(id);lanjut();},
+          function(e){gagal=gagal||((e&&e.message)||String(e));lanjut();});},{mx:1600});};
+    lanjut();};
+  unggahMulai(inp);}
+function prodFotoHapus(i,p,k){
+  var r=(ST.master.catalog||[])[i];if(!r)return;var L=prodFotoList(r,p),id=L[k];if(!id)return;
+  if(!confirm('Hapus foto ini dari produk?\n\nBerkasnya pindah ke Sampah Google Drive (bisa dipulihkan 30 hari).'))return;
+  L.splice(k,1);prodFotoSet(r,p,L);stampRow(r);saveMaster();render();
+  if(fotoDriveSet().indexOf(id)>=0&&parseFloat(ST._rilis||'0')>=3.1)backendTanya('foto.buang',{id:id}).then(function(){},function(){});}
+function prodFotoUtama(i,p,k){
+  var r=(ST.master.catalog||[])[i];if(!r)return;var L=prodFotoList(r,p);if(!L[k])return;
+  L.unshift(L.splice(k,1)[0]);prodFotoSet(r,p,L);stampRow(r);saveMaster();render();}
+function prodFotoBlok(r,i){
+  var kotak=function(p){var L=prodFotoList(r,p),lbl=p==='au'?'Rove AU':'Rove HQ',st='width:62px;height:62px;object-fit:cover;border-radius:8px;border:1px solid var(--line);cursor:zoom-in;display:block';
+    var tunggu=prodFotoPerluRapi(r,p);
+    return '<div class="dz" data-f="prodFoto'+p+'" data-dz="prodFotoTambah('+i+',\''+p+'\')" data-dz-label="Foto '+lbl+' — '+esc(prodNamaPasar(r,p)||'produk')+'" '+
+      'style="flex:1 1 260px;min-width:0;border:1px dashed var(--line);border-radius:10px;padding:8px 10px;background:var(--bg)">'+
+      '<div class="nlbl" style="margin-bottom:2px">Foto '+lbl+' <span style="font-weight:400;text-transform:none;color:var(--muted)">('+L.length+') · pertama = foto utama · tarik / tempel foto ke kotak ini</span></div>'+
+      '<div style="display:flex;flex-wrap:wrap;gap:7px;align-items:flex-end">'+
+      L.map(function(id,k){return '<span style="position:relative;display:inline-block">'+imgTag(id,st,'onclick="openLB(this.src)"')+
+        '<span style="display:flex;gap:2px;justify-content:center;margin-top:2px">'+
+        (k===0?'<span style="font-size:9px;font-weight:800;color:var(--ok);align-self:center">utama</span>'
+              :'<button class="xrow" style="color:var(--brand)" title="jadikan foto utama" onclick="prodFotoUtama('+i+',\''+p+'\','+k+')">★</button>')+
+        '<button class="xrow" title="hapus foto (ke Sampah Drive)" onclick="prodFotoHapus('+i+',\''+p+'\','+k+')">✕</button></span></span>';}).join('')+
+      '<button class="btn ghost sm" style="align-self:center" onclick="prodFotoTambah('+i+',\''+p+'\')">📷 ＋ Foto</button></div>'+
+      ((p==='au'&&!L.length)?'<div style="font-size:10px;color:var(--warn);margin-top:5px">Belum ada foto AU — sementara memakai foto HQ.</div>':'')+
+      '<div style="font-size:9.5px;color:var(--muted);margin-top:5px;word-break:break-word">📁 Master Produk / '+esc(prodFotoFolder(r,p).replace(/\//g,' / '))+
+        (tunggu?' <span style="color:var(--warn);font-weight:700">· dirapikan di Drive sebentar lagi</span>':'')+'</div></div>';};
+  return '<div style="display:flex;flex-wrap:wrap;gap:9px;margin-top:10px">'+kotak('hq')+(prodDijual(r,'au')?kotak('au'):'')+'</div>';}
+/* ＋ Produk baru — satu form singkat, lalu form produknya terbuka untuk harga, ukuran, warna & foto */
+function prodBaru(){
+  var CT=ST.master.catalog=ST.master.catalog||[],K=prodKatDaftar(CT),ka=prodKatAktif();
+  askForm({judul:'＋ Produk baru',sub:'Rove HQ & Rove AU — satu produk, nama boleh berbeda',tanpaDraf:true,
+    info:'<div style="font-size:10.5px;color:var(--muted);line-height:1.55;margin-bottom:10px">Sesudah disimpan, form produknya langsung terbuka: isi harga per tier, ukuran, warna, lalu tarik foto ke kotak foto. Foto tersimpan rapi di Drive: <b>Master Produk / Rove HQ (atau Rove AU) / kategori / nama produk</b>.</div>',
+    fields:[{k:'name',label:'Nama Rove HQ',req:true,ph:'mis. Irvine Card Wallet'},
+      {k:'namaAu',label:'Nama Rove AU',ph:'kosong = sama dengan nama HQ'},
+      {k:'kategori',label:'Kategori',type:'select',val:(ka!=='*'?ka:K[0]),opts:K.map(function(k){var a=katLabel(k,'au');return {v:k,l:k+(a!==k?(' (AU: '+a+')'):'')};})},
+      {k:'dijualHq',label:'Dijual di',type:'checkbox',cbLabel:'Rove HQ',val:true},
+      {k:'dijualAu',label:'',type:'checkbox',cbLabel:'Rove AU',val:true},
+      {k:'material',label:'Material',ph:'mis. Kulit sapi'}],
+    cek:function(v){if(prodKatalog(v.name))return 'Produk "'+v.name+'" sudah ada di Master Product.';if(!v.dijualHq&&!v.dijualAu)return 'Centang minimal satu: Rove HQ atau Rove AU.';},
+    ok:function(v){var r={name:v.name,material:v.material||'',jenis:(v.kategori===PROD_KAT_PROYEK)?'Custom':'Katalog',t:[0,0,0,0,0,0,0]};
+      if(v.namaAu)r.namaAu=v.namaAu;if(v.kategori&&v.kategori!==PROD_KAT_PROYEK)r.kategori=v.kategori;
+      if(!v.dijualHq)r.dijualHq=false;if(!v.dijualAu)r.dijualAu=false;
+      CT.push(stampRow(r));var idx=CT.length-1;
+      ST._prodBuka=ST._prodBuka||{};ST._prodBuka[idx]=true;ST._prodKat='*';
+      if(!prodDijual(r,prodPasar()))ST._prodPasar=v.dijualHq?'hq':'au';
+      saveMaster();render();
+      setTimeout(function(){try{var e=document.querySelector('[data-f="prodEditor"][data-i="'+idx+'"]');if(e)e.scrollIntoView({block:'center'});}catch(x){}},80);}});}
 function prodDaftar(CT){
   var P=prodPasar(),CTp=CT.filter(function(r){return prodDijual(r,P);});
   var kat=prodKatAktif(),cnt={};CTp.forEach(function(r){var k=prodKat(r);cnt[k]=(cnt[k]||0)+1;});
@@ -24470,9 +24575,10 @@ function prodDaftar(CT){
     return '<button class="btn '+(P===p?'':'ghost')+'" style="'+(P===p?'background:#1c2240;border-color:#1c2240;':'')+'font-size:12.5px" onclick="prodPasarSet('+jsArg(p)+')">'+lbl+' <span style="opacity:.75">('+n+')</span></button>';};
   var h=warnaKatalogBlok()+
     '<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px" data-f="prodPasar">'+tabP('hq','Rove HQ')+tabP('au','Rove AU')+
+      '<button class="btn sm" data-f="prodBaruAtas" onclick="prodBaru()">＋ Produk baru</button>'+
       '<button class="btn ghost sm" style="margin-left:auto" onclick="ST._katKelola=!ST._katKelola;render()">⚙ Kelola kategori</button></div>'+
     (P==='au'?('<div style="font-size:11px;margin:-2px 0 10px;line-height:1.6">Markup Rove AU <input class="pin n" style="width:58px;display:inline-block" value="'+auMarkup()+'" onchange="auMarkupSet(this.value)"> % '+
-      '<span style="color:var(--muted)">— harga di tab ini = <b>HPP Rove AU</b> (HPP HQ + '+auMarkup()+'%), dasar harga order AU. PO &amp; pembayaran ke Radja tetap HPP HQ.</span></div>'+auNamaImporBlok()):'')+
+      '<span style="color:var(--muted)">— harga di tab ini = <b>HPP Rove AU</b> (HPP HQ + '+auMarkup()+'%), dasar harga order AU. PO &amp; pembayaran ke Radja tetap HPP HQ.</span></div>'):'')+
     (ST._katKelola?katKelolaBlok(CT):'')+
     '<div style="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:11px">'+chip('*','Semua',CTp.length)+K.map(function(k){return chip(k,katLabel(k,P),cnt[k]||0);}).join('')+'</div>';
   if(!CT.length)return h+'<div style="color:var(--muted);font-size:11px;padding:6px 0">Belum ada — tambahkan nilainya lewat tombol ＋.</div>';
@@ -24483,7 +24589,7 @@ function prodDaftar(CT){
   h+='<div class="mprod">';
   I.forEach(function(i){var r=CT[i],buka=!!((ST._prodBuka||{})[i]),W=prodWarnaDaftar(r),H=prodHargaWarna(r);
     var uk=r.ukuranTeks||((r.pjg&&r.lbr)?(r.pjg+' x '+r.lbr+(r.tgi?(' x '+r.tgi):'')+' cm'):'');
-    h+='<div class="mprod-r'+(r._del?' mprod-del':'')+'" data-f="prodBaris" data-i="'+i+'" onclick="prodBuka('+i+')">'+prodImgKecil(r)+
+    h+='<div class="mprod-r'+(r._del?' mprod-del':'')+'" data-f="prodBaris" data-i="'+i+'" onclick="prodBuka('+i+')">'+prodImgKecil((P==='au'&&r.imgAu)?{img:r.imgAu}:r)+
       '<div class="mprod-nm"><b>'+esc(prodNamaPasar(r,P)||'(tanpa nama)')+'</b>'+((r.jenis||'Katalog')==='Custom'?' <span class="tlabel" style="background:#6a6f8a">Custom</span>':'')+
         ((P==='au'&&!String(r.namaAu||'').trim())?' <span class="tlabel" style="background:var(--warn)">belum ada nama AU</span>':'')+((P==='au'&&String(r.namaAu||'').trim())?('<div class="mgrp-meta">HQ: '+esc(r.name||'')+'</div>'):'')+
         '<div class="mgrp-meta">'+esc(r.material||'—')+'</div></div>'+
@@ -24515,8 +24621,7 @@ function prodEditor(CT,i){
       '<label class="nlbl" style="flex:0 0 170px">Kategori<input class="pin" list="prodKatDl" style="margin-top:3px" value="'+esc(r.kategori||'')+'" placeholder="'+esc(prodKat({name:r.name,jenis:r.jenis}))+'" onchange="mEdit(\'catalog\','+i+',\'kategori\',this.value);render()"></label>'+
       inp('material','Material',170)+inp('pjg','P cm',62,1)+inp('lbr','L cm',62,1)+inp('tgi','T cm',62,1)+inp('berat','Berat g',72,1)+
       '<div style="margin-left:auto;display:flex;gap:6px;align-items:center;flex-wrap:wrap">'+
-        '<button class="btn ghost sm" onclick="mImgUpload(\'catalog\','+i+')">📷 '+(r.img?'Ganti gambar':'Gambar')+'</button>'+
-        (r.img?'<button class="xrow" title="hapus gambar" onclick="mImgDel(\'catalog\','+i+')">✕</button>':'')+hapus+'</div></div>'+
+        hapus+'</div></div>'+prodFotoBlok(r,i)+
     '<div class="xscroll" style="margin-top:9px"><table class="rtable"><thead>'+tierHead+'</thead><tbody>'+
       '<tr><td style="white-space:nowrap"><b>Harga produk</b> <span style="font-size:9px;color:var(--muted)">semua warna</span></td>'+
         (r.t||[0,0,0,0,0,0,0]).map(function(v,ti){return '<td><input class="pin n money" inputmode="numeric" style="min-width:72px" value="'+moneyInp(v)+'" onchange="mEditTier('+i+','+ti+',this.value)"></td>';}).join('')+'<td></td></tr>'+
@@ -24657,6 +24762,7 @@ function imgKecilkan(file,cb,opsi){ // perkecil dulu supaya database tak membeng
     img.src=rd.result;};
   rd.readAsDataURL(file);}
 function mImgUpload(sec,i){
+  if(sec==='catalog')return prodFotoTambah(i,'hq');   // patch240: foto produk per pasar & kategori
   var inp=document.createElement('input');inp.type='file';inp.accept='image/*';
   inp.onchange=function(){var f=inp.files[0];if(!f)return;
     imgKecilkan(f,function(uri){var r=ST.master[sec]&&ST.master[sec][i];if(!r)return;
@@ -24667,6 +24773,7 @@ function mImgUpload(sec,i){
         function(e){dzProgres('');alert('Foto belum tersimpan — gagal mengunggah ke Drive: '+((e&&e.message)||e)+'\n\nCek ☁ Uji sambungan Drive di Panel Holding.');});},{mx:1200});};
   unggahMulai(inp);}
 function mImgDel(sec,i){
+  if(sec==='catalog')return prodFotoHapus(i,'hq',0);
   var r=ST.master[sec]&&ST.master[sec][i];if(!r||!r.img)return;
   if(!confirm('Hapus gambar ini dari master?'))return;
   r.img='';stampRow(r);saveMaster();if(sec==='coll')buildCollatData();render();}
@@ -24697,7 +24804,7 @@ function fotoJalan(){
 function fotoDriveSet(){var M=ST.master||{};if(!Array.isArray(M.fotoDrive))M.fotoDrive=[];return M.fotoDrive;}
 function fotoDriveTandai(id){var L=fotoDriveSet();if(id&&L.indexOf(id)<0)L.push(id);}
 function fotoJalur(sec,r){
-  if(sec==='catalog')return 'Produk/'+(r.name||'tanpa nama');
+  if(sec==='catalog')return prodFotoFolder(r,'hq');   // patch240: Rove HQ / kategori / nama
   if(sec==='coll')return 'Collateral/'+(r.type||'lain')+'/'+(r.kind||'lain');
   return 'Lain/'+sec;}
 function fotoNama(sec,r){
