@@ -1129,7 +1129,7 @@ const KEY='rovehub_orders_v18';
 /* ================= VERSI YANG SEDANG BERJALAN =================
    Diisi otomatis oleh terbitkan.js waktu salinan ini diterbitkan; '-' berarti
    dibuka langsung dari berkas, bukan dari alamat terbitannya. */
-const VERSI='20261127-150554';
+const VERSI='20261127-153656';
 /* Berkas versi.txt di sebelah halaman ini berisi penanda yang sama. Ia
    ditanyakan tanpa cache, jadi ia jujur walau halamannya sendiri masih
    tersimpan di cache browser. */
@@ -24290,6 +24290,67 @@ function prodKat(r){var k=String((r&&r.kategori)||'').trim();if(k)return k;
   if((r&&r.jenis)==='Custom'||n.indexOf(' for ')>=0)return PROD_KAT_PROYEK;      // "Tray for <nama client>" = produk proyek
   for(var i=0;i<PROD_KAT_KATA.length;i++)if(n.indexOf(PROD_KAT_KATA[i][0])>=0)return PROD_KAT_KATA[i][1];
   return 'Aksesori lain';}
+/* ===== ROVE HQ & ROVE AU (27 Nov, patch239): produk sama, beda nama tampil & daftar yang dijual; HPP AU = HPP HQ + markup ===== */
+function prodPasar(){return ST._prodPasar==='au'?'au':'hq';}
+function prodPasarSet(p){ST._prodPasar=p;render();}
+function prodDijual(r,p){return p==='au'?(r&&r.dijualAu!==false):(r&&r.dijualHq!==false);}
+function prodNamaPasar(r,p){return (p==='au'&&String((r&&r.namaAu)||'').trim())?String(r.namaAu).trim():String((r&&r.name)||'');}
+function auMarkup(){var v=+((ST.master&&ST.master.auMarkup));return (v>=0&&ST.master&&ST.master.auMarkup!=null&&ST.master.auMarkup!=='')?v:10;}
+function auMarkupSet(v){v=Math.max(0,Math.min(100,+String(v).replace(',','.')||0));ST.master.auMarkup=v;saveMaster();render();}
+function hppAu(v){v=+v||0;return v>0?Math.round(v*(1+auMarkup()/100)):0;}   // harga beli Rove AU dari HQ — PO & bayar Radja tetap HPP HQ
+/* nama kategori: kunci = nama HQ; label AU boleh beda (ST.master.prodKatAu[kunci]); urutan & kategori kosong di ST.master.prodKatUrut */
+function katLabel(k,p){var A=(ST.master&&ST.master.prodKatAu)||{};return (p==='au'&&String(A[k]||'').trim())?String(A[k]).trim():k;}
+function prodKatDaftar(CT){var L=((ST.master&&ST.master.prodKatUrut)||[]).slice();
+  (CT||[]).forEach(function(r){var k=prodKat(r);if(L.indexOf(k)<0)L.push(k);});
+  var i=L.indexOf(PROD_KAT_PROYEK);if(i>=0&&i!==L.length-1&&!((ST.master&&ST.master.prodKatUrut)||[]).length){L.splice(i,1);L.push(PROD_KAT_PROYEK);}
+  return L;}
+function katUrutSimpan(L){ST.master.prodKatUrut=L.slice();saveMaster();render();}
+function katGanti(lama,baru){baru=String(baru||'').trim();if(!baru||baru===lama)return;var CT=ST.master.catalog||[];
+  if(prodKatDaftar(CT).indexOf(baru)>=0&&!confirm('Kategori "'+baru+'" sudah ada — gabungkan "'+lama+'" ke sana?'))return render();
+  CT.forEach(function(r){if(prodKat(r)===lama){r.kategori=baru;stampRow(r);}});
+  var U=prodKatDaftar(CT).map(function(x){return x===lama?baru:x;}).filter(function(x,j,a){return a.indexOf(x)===j;});
+  var A=ST.master.prodKatAu=ST.master.prodKatAu||{};if(A[lama]){if(!A[baru])A[baru]=A[lama];delete A[lama];}
+  if(ST._prodKat===lama)ST._prodKat=baru;katUrutSimpan(U);}
+function katAuSet(k,v){var A=ST.master.prodKatAu=ST.master.prodKatAu||{};v=String(v||'').trim();if(v)A[k]=v;else delete A[k];saveMaster();render();}
+function katTambah(){var n=String(prompt('Nama kategori baru (Rove HQ):')||'').trim();if(!n)return;var L=prodKatDaftar(ST.master.catalog);
+  if(L.indexOf(n)>=0){alert('Kategori "'+n+'" sudah ada.');return;}L.splice(Math.max(0,L.indexOf(PROD_KAT_PROYEK)),0,n);katUrutSimpan(L);}
+function katGeser(k,d){var L=prodKatDaftar(ST.master.catalog),i=L.indexOf(k),j=i+d;if(i<0||j<0||j>=L.length)return;L.splice(i,1);L.splice(j,0,k);katUrutSimpan(L);}
+function katHapus(k){var CT=ST.master.catalog||[],n=CT.filter(function(r){return prodKat(r)===k;}).length;
+  if(!confirm('Hapus kategori "'+k+'"?'+(n?('\n\n'+n+' produk di dalamnya pindah ke "Aksesori lain".'):'')))return;
+  CT.forEach(function(r){if(prodKat(r)===k){r.kategori='Aksesori lain';stampRow(r);}});
+  var A=ST.master.prodKatAu||{};delete A[k];if(ST._prodKat===k)ST._prodKat='*';
+  katUrutSimpan(prodKatDaftar(CT).filter(function(x){return x!==k;}));}
+function katKelolaBlok(CT){var L=prodKatDaftar(CT),A=(ST.master&&ST.master.prodKatAu)||{};
+  return '<div data-f="katKelola" style="border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:11px;background:var(--bg)">'+
+    '<div class="nlbl" style="margin-bottom:6px">⚙ Kelola kategori <span style="font-weight:400;text-transform:none;color:var(--muted)">— ketik untuk ganti nama; nama Rove AU kosong = sama dengan HQ; ✕ hapus → produknya pindah ke "Aksesori lain"</span></div>'+
+    '<div class="xscroll"><table class="rtable" style="min-width:560px"><thead><tr><th style="width:56px"></th><th>Nama Rove HQ</th><th>Nama Rove AU</th><th style="width:60px;text-align:right">Produk</th><th style="width:40px"></th></tr></thead><tbody>'+
+    L.map(function(k,j){var n=CT.filter(function(r){return prodKat(r)===k;}).length;
+      return '<tr><td style="white-space:nowrap"><button class="xrow" title="naik" onclick="katGeser('+jsArg(k)+',-1)"'+(j?'':' disabled')+'>▲</button><button class="xrow" title="turun" onclick="katGeser('+jsArg(k)+',1)"'+(j<L.length-1?'':' disabled')+'>▼</button></td>'+
+        '<td><input class="pin" value="'+esc(k)+'" onchange="katGanti('+jsArg(k)+',this.value)"></td>'+
+        '<td><input class="pin" value="'+esc(A[k]||'')+'" placeholder="'+esc(k)+'" onchange="katAuSet('+jsArg(k)+',this.value)"></td>'+
+        '<td style="text-align:right;font-size:11px">'+n+'</td><td><button class="xrow" title="hapus kategori" onclick="katHapus('+jsArg(k)+')">✕</button></td></tr>';}).join('')+
+    '</tbody></table></div><button class="btn ghost sm" style="margin-top:7px" onclick="katTambah()">＋ Kategori</button></div>';}
+/* ambil nama Rove AU sekali dari Cost Estimator (tombol sekali-pakai — hilang sesudah berhasil) */
+function auNamaImporPerlu(){var CT=(ST.master&&ST.master.catalog)||[];return ST.user==='Holding'&&!(ST.master&&ST.master.auNamaImpor)&&CT.length>0;}
+function auNamaImporBlok(){if(!auNamaImporPerlu())return '';
+  return '<div style="border:1px dashed var(--warn);border-radius:9px;padding:9px 11px;margin-bottom:11px;font-size:11px;line-height:1.55">'+
+    '<b style="color:var(--warn)">Nama Rove AU belum diisi</b> — di Cost Estimator tiap produk sudah punya nama AU. Ambil sekali (alamat &amp; token Cost Estimator diketik di sini, tak disimpan); sesudahnya kotak ini hilang. Atau isi manual di tiap produk.'+
+    '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px"><input class="pin" id="auNmUrl" placeholder="https://script.google.com/macros/s/…/exec" style="flex:1 1 260px">'+
+    '<input class="pin" id="auNmTok" type="password" placeholder="token baca Cost Estimator" style="flex:0 1 200px">'+
+    '<button class="btn sm" onclick="auNamaImpor()">⭳ Ambil nama Rove AU</button></div></div>';}
+function auNamaGabung(products){var CT=ST.master.catalog||[],n=0,tak=[];
+  (products||[]).forEach(function(p){var hq=String((p&&p.hq)||'').trim(),au=String((p&&p.au)||'').trim();if(!hq||!au)return;
+    var r=CT.find(function(x){return String(x.name||'').trim().toLowerCase()===hq.toLowerCase();});
+    if(!r){tak.push(hq);return;}if(!String(r.namaAu||'').trim()){r.namaAu=au;stampRow(r);n++;}});
+  return {n:n,tak:tak};}
+function auNamaImpor(){var eu=document.getElementById('auNmUrl'),et=document.getElementById('auNmTok');
+  var url=imporSekaliUrl(eu&&eu.value,et&&et.value);if(!url){alert('Isi alamat Cost Estimator (…/exec) dulu.');return;}
+  dzProgres('mengambil nama Rove AU…');
+  fetch(url).then(function(r){return r.text();}).then(function(txt){dzProgres('');var d;try{d=JSON.parse(txt);}catch(e){throw new Error('alamat itu tidak membalas data (cek alamat / token).');}
+    if(d&&d.ok===false)throw new Error(String(d.error||'ditolak')+' — cek token baca.');
+    var h=auNamaGabung(d&&d.products);ST.master.auNamaImpor={tgl:nowStr(),oleh:(ST.userName||ST.user||'-'),n:h.n};saveMaster();render();
+    alert('✓ Nama Rove AU terisi untuk '+h.n+' produk.'+(h.tak.length?('\n\n'+h.tak.length+' produk Cost Estimator tak ditemukan di HUB (nama HQ berbeda):\n• '+h.tak.slice(0,10).join('\n• ')):'')+'\n\nAlamat & token tidak disimpan.');
+  }).catch(function(e){dzProgres('');alert('Gagal: '+e.message);});}
 function prodKatAktif(){return ST._prodKat||'*';}
 function prodKatSet(k){ST._prodKat=k;render();}
 function prodBuka(i){ST._prodBuka=ST._prodBuka||{};ST._prodBuka[i]=!ST._prodBuka[i];render();}
@@ -24400,31 +24461,41 @@ function prodImgKecil(r){var st='width:38px;height:38px;object-fit:cover;border-
   return r.img?imgTag(r.img,st,'onclick="event.stopPropagation();openLB(this.src)"')
     :'<span style="display:inline-block;width:38px;height:38px;border-radius:7px;border:1px dashed var(--line)"></span>';}
 function prodDaftar(CT){
-  var kat=prodKatAktif(),cnt={};CT.forEach(function(r){var k=prodKat(r);cnt[k]=(cnt[k]||0)+1;});
-  var K=Object.keys(cnt).sort(function(a,b){if(a===PROD_KAT_PROYEK)return 1;if(b===PROD_KAT_PROYEK)return -1;return cnt[b]-cnt[a]||a.localeCompare(b);});
-  if(kat!=='*'&&!cnt[kat])kat='*';
+  var P=prodPasar(),CTp=CT.filter(function(r){return prodDijual(r,P);});
+  var kat=prodKatAktif(),cnt={};CTp.forEach(function(r){var k=prodKat(r);cnt[k]=(cnt[k]||0)+1;});
+  var K=prodKatDaftar(CT);
+  if(kat!=='*'&&K.indexOf(kat)<0)kat='*';
   var chip=function(k,lbl,n){return '<button class="btn '+(kat===k?'':'ghost')+' sm" onclick="prodKatSet('+jsArg(k)+')">'+esc(lbl)+' <span style="opacity:.7">('+n+')</span></button>';};
-  var h=warnaKatalogBlok()+'<div style="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:11px">'+chip('*','Semua',CT.length)+K.map(function(k){return chip(k,k,cnt[k]);}).join('')+'</div>';
+  var tabP=function(p,lbl){var n=CT.filter(function(r){return prodDijual(r,p);}).length;
+    return '<button class="btn '+(P===p?'':'ghost')+'" style="'+(P===p?'background:#1c2240;border-color:#1c2240;':'')+'font-size:12.5px" onclick="prodPasarSet('+jsArg(p)+')">'+lbl+' <span style="opacity:.75">('+n+')</span></button>';};
+  var h=warnaKatalogBlok()+
+    '<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px" data-f="prodPasar">'+tabP('hq','Rove HQ')+tabP('au','Rove AU')+
+      '<button class="btn ghost sm" style="margin-left:auto" onclick="ST._katKelola=!ST._katKelola;render()">⚙ Kelola kategori</button></div>'+
+    (P==='au'?('<div style="font-size:11px;margin:-2px 0 10px;line-height:1.6">Markup Rove AU <input class="pin n" style="width:58px;display:inline-block" value="'+auMarkup()+'" onchange="auMarkupSet(this.value)"> % '+
+      '<span style="color:var(--muted)">— harga di tab ini = <b>HPP Rove AU</b> (HPP HQ + '+auMarkup()+'%), dasar harga order AU. PO &amp; pembayaran ke Radja tetap HPP HQ.</span></div>'+auNamaImporBlok()):'')+
+    (ST._katKelola?katKelolaBlok(CT):'')+
+    '<div style="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:11px">'+chip('*','Semua',CTp.length)+K.map(function(k){return chip(k,katLabel(k,P),cnt[k]||0);}).join('')+'</div>';
   if(!CT.length)return h+'<div style="color:var(--muted);font-size:11px;padding:6px 0">Belum ada — tambahkan nilainya lewat tombol ＋.</div>';
   var terselip=CT.filter(function(r){return prodKat(r)===PROD_KAT_PROYEK&&(r.jenis||'Katalog')!=='Custom'&&!String(r.kategori||'').trim();}).length;
   if(kat===PROD_KAT_PROYEK&&terselip)h+='<div style="font-size:10.5px;color:var(--brand-dark);background:var(--warn-bg);border:1px solid var(--line);border-radius:8px;padding:7px 10px;margin-bottom:9px">'+
     terselip+' produk berjenis Katalog bernama “… for …” — dikelompokkan di sini otomatis. Ubah Jenis-nya ke Custom bila memang produk proyek.</div>';
-  var I=[];CT.forEach(function(r,i){if(kat==='*'||prodKat(r)===kat)I.push(i);});
+  var I=[];CT.forEach(function(r,i){if(prodDijual(r,P)&&(kat==='*'||prodKat(r)===kat))I.push(i);});
   h+='<div class="mprod">';
   I.forEach(function(i){var r=CT[i],buka=!!((ST._prodBuka||{})[i]),W=prodWarnaDaftar(r),H=prodHargaWarna(r);
     var uk=r.ukuranTeks||((r.pjg&&r.lbr)?(r.pjg+' x '+r.lbr+(r.tgi?(' x '+r.tgi):'')+' cm'):'');
     h+='<div class="mprod-r'+(r._del?' mprod-del':'')+'" data-f="prodBaris" data-i="'+i+'" onclick="prodBuka('+i+')">'+prodImgKecil(r)+
-      '<div class="mprod-nm"><b>'+esc(r.name||'(tanpa nama)')+'</b>'+((r.jenis||'Katalog')==='Custom'?' <span class="tlabel" style="background:#6a6f8a">Custom</span>':'')+
+      '<div class="mprod-nm"><b>'+esc(prodNamaPasar(r,P)||'(tanpa nama)')+'</b>'+((r.jenis||'Katalog')==='Custom'?' <span class="tlabel" style="background:#6a6f8a">Custom</span>':'')+
+        ((P==='au'&&!String(r.namaAu||'').trim())?' <span class="tlabel" style="background:var(--warn)">belum ada nama AU</span>':'')+((P==='au'&&String(r.namaAu||'').trim())?('<div class="mgrp-meta">HQ: '+esc(r.name||'')+'</div>'):'')+
         '<div class="mgrp-meta">'+esc(r.material||'—')+'</div></div>'+
       '<div class="mprod-w">'+(W.length?esc(W.slice(0,3).join(', ')+(W.length>3?(' +'+(W.length-3)):'')):'<span class="mgrp-meta">semua warna</span>')+
         (H.length?' <span class="tlabel" style="background:var(--warn)">'+H.length+' harga khusus</span>':'')+'</div>'+
-      '<div class="mprod-uk mgrp-meta">'+esc(uk)+'</div><div class="mprod-rng">'+prodRentang(r.t)+'</div><span class="mgrp-pan">'+(buka?'▾':'▸')+'</span></div>';
+      '<div class="mprod-uk mgrp-meta">'+esc(uk)+'</div><div class="mprod-rng">'+prodRentang(P==='au'?(r.t||[]).map(hppAu):r.t)+'</div><span class="mgrp-pan">'+(buka?'▾':'▸')+'</span></div>';
     if(buka)h+=prodEditor(CT,i);});
   return h+'</div>';}
 function prodEditor(CT,i){
   var r=CT[i],W=prodWarnaDaftar(r),H=prodHargaWarna(r),U=warnaKatalogNama();   // 14 Okt: warna katalog Rove
   var semuaW=W.concat(U.filter(function(x){return W.indexOf(x)<0;}));
-  var katL=[];CT.forEach(function(x){var k=prodKat(x);if(katL.indexOf(k)<0)katL.push(k);});
+  var katL=prodKatDaftar(CT);
   var inp=function(f,lbl,lebar,num){return '<label class="nlbl" style="flex:0 0 '+lebar+'px">'+lbl+'<input class="pin'+(num?' n':'')+'" '+(num?'type="number" step="0.1" ':'')+
     'style="margin-top:3px" value="'+esc(r[f]==null?'':r[f])+'" onchange="mEdit(\'catalog\','+i+',\''+f+'\','+(num?'(+this.value||0)':'this.value')+')"></label>';};
   var hapus=r._del
@@ -24435,10 +24506,13 @@ function prodEditor(CT,i){
   var tierHead='<tr><th>Harga</th>'+CATALOG_TIERS.map(function(t){return '<th style="text-align:right;font-size:9px">'+esc(t.label)+'</th>';}).join('')+'<th></th></tr>';
   return '<div class="mprod-ed" onclick="event.stopPropagation()" data-f="prodEditor" data-i="'+i+'">'+
     '<div style="display:flex;flex-wrap:wrap;gap:9px;align-items:flex-end">'+
-      inp('name','Produk',220)+
+      inp('name','Nama Rove HQ',220)+inp('namaAu','Nama Rove AU',220)+
+      '<label class="nlbl" style="flex:0 0 150px">Dijual di<div style="margin-top:6px;font-weight:400;text-transform:none;font-size:11px">'+
+        '<label><input type="checkbox" '+(prodDijual(r,'hq')?'checked':'')+' onchange="mEdit(\'catalog\','+i+',\'dijualHq\',this.checked);render()"> HQ</label> &nbsp;'+
+        '<label><input type="checkbox" '+(prodDijual(r,'au')?'checked':'')+' onchange="mEdit(\'catalog\','+i+',\'dijualAu\',this.checked);render()"> AU</label></div></label>'+
       '<label class="nlbl" style="flex:0 0 110px">Jenis<select class="pin" style="margin-top:3px" onchange="mEdit(\'catalog\','+i+',\'jenis\',this.value);render()">'+
         ['Katalog','Custom'].map(function(j){return '<option '+(((r.jenis||'Katalog')===j)?'selected':'')+'>'+j+'</option>';}).join('')+'</select></label>'+
-      '<label class="nlbl" style="flex:0 0 170px">Kelompok<input class="pin" list="prodKatDl" style="margin-top:3px" value="'+esc(r.kategori||'')+'" placeholder="'+esc(prodKat({name:r.name,jenis:r.jenis}))+'" onchange="mEdit(\'catalog\','+i+',\'kategori\',this.value);render()"></label>'+
+      '<label class="nlbl" style="flex:0 0 170px">Kategori<input class="pin" list="prodKatDl" style="margin-top:3px" value="'+esc(r.kategori||'')+'" placeholder="'+esc(prodKat({name:r.name,jenis:r.jenis}))+'" onchange="mEdit(\'catalog\','+i+',\'kategori\',this.value);render()"></label>'+
       inp('material','Material',170)+inp('pjg','P cm',62,1)+inp('lbr','L cm',62,1)+inp('tgi','T cm',62,1)+inp('berat','Berat g',72,1)+
       '<div style="margin-left:auto;display:flex;gap:6px;align-items:center;flex-wrap:wrap">'+
         '<button class="btn ghost sm" onclick="mImgUpload(\'catalog\','+i+')">📷 '+(r.img?'Ganti gambar':'Gambar')+'</button>'+
@@ -24446,6 +24520,8 @@ function prodEditor(CT,i){
     '<div class="xscroll" style="margin-top:9px"><table class="rtable"><thead>'+tierHead+'</thead><tbody>'+
       '<tr><td style="white-space:nowrap"><b>Harga produk</b> <span style="font-size:9px;color:var(--muted)">semua warna</span></td>'+
         (r.t||[0,0,0,0,0,0,0]).map(function(v,ti){return '<td><input class="pin n money" inputmode="numeric" style="min-width:72px" value="'+moneyInp(v)+'" onchange="mEditTier('+i+','+ti+',this.value)"></td>';}).join('')+'<td></td></tr>'+
+      '<tr style="background:#eef0f7"><td style="white-space:nowrap"><b>HPP Rove AU</b> <span style="font-size:9px;color:var(--muted)">+'+auMarkup()+'% · otomatis</span></td>'+
+        (r.t||[0,0,0,0,0,0,0]).map(function(v){return '<td style="text-align:right;font-size:11px;padding-right:8px">'+(+v>0?fmt0(hppAu(v)):'—')+'</td>';}).join('')+'<td></td></tr>'+
       H.map(function(x,j){return '<tr style="background:var(--warn-bg)"><td style="white-space:nowrap">Harga khusus <b>'+esc(x.warna||'')+'</b></td>'+
         CATALOG_TIERS.map(function(t,ti){return '<td><input class="pin n money" inputmode="numeric" style="min-width:72px" value="'+moneyInp((x.t||[])[ti])+'" onchange="prodHwEdit('+i+','+j+','+ti+',this.value)"></td>';}).join('')+
         '<td><button class="xrow" title="hapus harga khusus" onclick="prodHwDel('+i+','+j+')">✕</button></td></tr>';}).join('')+
