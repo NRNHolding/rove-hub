@@ -161,6 +161,19 @@
   .inq-f>span:first-child{color:var(--muted);font-weight:700}.inq-f>span:first-child b{color:#c0392b}
   .inq-chips{display:flex;flex-wrap:wrap;gap:5px;align-items:center}
   .inq-chip{border:1px solid var(--line);background:#fff;border-radius:20px;padding:3px 10px;font-size:10.5px;font-weight:700;color:var(--ink-soft);cursor:pointer;font-family:inherit}
+  /* patch236: foto kulit di tombol warna */
+  .wsw{width:18px;height:18px;border-radius:50%;border:1px solid rgba(0,0,0,.18);display:inline-block;flex:none;overflow:hidden;vertical-align:middle;margin:-2px 5px 0 -4px;background:#ddd}
+  .wsw img{width:100%;height:100%;object-fit:cover;display:block;border:0}
+  .inq-chip.wsw-ada,.kwc.wsw-ada{position:relative}
+  .wsw-big{display:none;position:absolute;left:0;top:calc(100% + 6px);width:150px;height:110px;border-radius:10px;overflow:hidden;box-shadow:0 8px 22px rgba(0,0,0,.28);border:3px solid #fff;z-index:40;background:#eee;pointer-events:none}
+  .wsw-big img{width:100%;height:100%;object-fit:cover;display:block}
+  .wsw-ada:hover .wsw-big,.wsw-ada:focus .wsw-big{display:block}
+  .kwc i.wsw{width:18px;height:18px;flex:0 0 18px;margin:-2px 0 0 0}.kwc i.wsw-big{width:150px;height:110px;flex:none;border-radius:10px;border:3px solid #fff;display:none}.kwc.wsw-ada:hover i.wsw-big,.kwc.wsw-ada:focus i.wsw-big{display:block}
+  .wk-tile{display:inline-flex;flex-direction:column;align-items:center;gap:4px;margin:0 10px 8px 0;font-size:11px;font-weight:700;vertical-align:top}
+  .wk-tile .wk-g{width:58px;height:58px;border-radius:10px;border:1px solid var(--line);overflow:hidden;display:block;cursor:pointer}
+  .wk-tile .wk-g img{width:100%;height:100%;object-fit:cover;display:block}
+  .wk-tile .wk-a{display:flex;gap:4px;align-items:center;font-size:10px}
+  .wk-tile .wk-a button{border:1px solid var(--line);background:#fff;border-radius:6px;padding:1px 6px;font-size:10px;cursor:pointer;color:var(--brand);font-weight:700;font-family:inherit}
   .inq-chip:hover{border-color:var(--gold)}.inq-chip.on{background:var(--brand);border-color:var(--brand);color:#fff}
   .inq-lain{width:118px!important;padding:3px 7px!important;font-size:10.5px!important}
   .inq-sel{max-width:280px}.inq-sel.kosong{background:var(--warn-bg)}
@@ -1116,7 +1129,7 @@ const KEY='rovehub_orders_v18';
 /* ================= VERSI YANG SEDANG BERJALAN =================
    Diisi otomatis oleh terbitkan.js waktu salinan ini diterbitkan; '-' berarti
    dibuka langsung dari berkas, bukan dari alamat terbitannya. */
-const VERSI='20261127-113700';
+const VERSI='20261127-133358';
 /* Berkas versi.txt di sebelah halaman ini berisi penanda yang sama. Ia
    ditanyakan tanpa cache, jadi ia jujur walau halamannya sendiri masih
    tersimpan di cache browser. */
@@ -24278,6 +24291,18 @@ const WARNA_ROVE_BAWAAN=[{nama:'Ink',hex:'#1c1c1e'},{nama:'Denim',hex:'#24314a'}
   {nama:'Buckskin',hex:'#9b8573'},{nama:'Praline',hex:'#3b2a26'},{nama:'Brulee',hex:'#7a4630'}];
 function warnaKatalog(){var W=(ST.master&&ST.master.warnaKatalog)||[];return (Array.isArray(W)&&W.length)?W:WARNA_ROVE_BAWAAN;}
 function warnaKatalogNama(){return warnaKatalog().map(function(w){return String(w.nama||'').trim();}).filter(Boolean);}
+function warnaFoto(n){var t=String(n||'').trim().toLowerCase();var w=warnaKatalog().find(function(x){return String(x.nama||'').trim().toLowerCase()===t;});return (w&&w.img)||'';}
+/* bulatan warna: foto kulit bila ada (arahkan mouse → foto besar), kalau tidak warna polos */
+function warnaBulat(n,cadangan){var f=warnaFoto(n),h=warnaHex(n)||cadangan||'';
+  if(f)return '<i class="wsw">'+imgTag(f,'','alt=""')+'</i><i class="wsw-big">'+imgTag(f,'','alt=""')+'</i>';
+  return h?('<i class="wsw" style="background:'+esc(h)+'"></i>'):'';}
+function wkFoto(k){var W=wkSalin(),w=W[k];if(!w)return;
+  var inp=document.createElement('input');inp.type='file';inp.accept='image/*';
+  inp.onchange=function(){var f=inp.files[0];if(!f)return;
+    imgKecilkan(f,function(uri){dzProgres('mengunggah foto kulit ke Drive…');
+      fotoKeDrive(uri,'Warna',w.nama||'warna').then(function(id){dzProgres('');w.img=id;saveMaster();render();},
+        function(e){dzProgres('');alert('Foto belum tersimpan — gagal mengunggah ke Drive: '+((e&&e.message)||e));});},{mx:1200});};
+  unggahMulai(inp);}
 function warnaHex(n){var t=String(n||'').trim().toLowerCase();var w=warnaKatalog().find(function(x){return String(x.nama||'').trim().toLowerCase()===t;});return w?(w.hex||''):'';}
 /* warna yang ditawarkan untuk sebuah produk: "warna tersedia" produknya, kosong = semua warna katalog Rove */
 function warnaProduk(p){var W=prodWarnaDaftar(p);return W.length?W:warnaKatalogNama();}
@@ -24294,8 +24319,15 @@ function wkHex(k,v){var W=wkSalin();if(!W[k])return;W[k].hex=String(v||'');saveM
 function warnaKatalogBlok(){var W=warnaKatalog();
   return '<div data-f="wkBlok" style="border:1px solid var(--line);border-radius:10px;padding:9px 12px;margin-bottom:12px;background:var(--bg)">'+
     '<div class="nlbl" style="margin-bottom:6px">Warna katalog Rove <span style="font-weight:400;text-transform:none;color:var(--muted)">— berlaku untuk semua produk katalog, tanpa stok (stok kulit dipegang Radja). Produk yang tak dibuat dalam warna tertentu: atur "Warna tersedia" di produknya.</span></div>'+
-    W.map(function(w,k){return '<span class="kwc on" style="cursor:default"><input type="color" value="'+esc(w.hex||'#cccccc')+'" title="ubah contoh warna" style="width:18px;height:18px;border:none;padding:0;background:none;cursor:pointer" onchange="wkHex('+k+',this.value)">'+esc(w.nama)+
-      ' <span style="cursor:pointer;color:var(--muted)" title="hapus" onclick="wkHapus('+k+')">✕</span></span>';}).join('')+
+    '<div style="font-size:10px;color:var(--muted);margin:-2px 0 8px">📷 = foto kulit asli (tarik / tempel juga bisa) — tampil di tombol warna Inquiry; disimpan di Shared Drive / Master Produk / Warna. Belum ada foto: bulatan memakai contoh warna 🎨.</div>'+
+    W.map(function(w,k){var ada=!!w.img;
+      return '<span class="wk-tile dz" data-dz="wkFoto('+k+')" data-dz-label="Foto kulit '+esc(w.nama||'')+'">'+
+        (ada?('<span class="wk-g" title="klik untuk perbesar">'+imgTag(w.img,'width:100%;height:100%;object-fit:cover','onclick="openLB(this.src)"')+'</span>')
+            :('<span class="wk-g" title="belum ada foto kulit" onclick="wkFoto('+k+')" style="background:repeating-linear-gradient(45deg,#eee,#eee 6px,#ddd 6px,#ddd 12px)"><i style="display:block;width:22px;height:22px;border-radius:50%;margin:17px auto;background:'+esc(w.hex||'#cccccc')+';border:1px solid rgba(0,0,0,.15)"></i></span>'))+
+        '<span>'+esc(w.nama)+'</span>'+
+        '<span class="wk-a"><button type="button" onclick="wkFoto('+k+')" title="unggah foto kulit">📷 '+(ada?'ganti':'unggah')+'</button>'+
+          '<input type="color" value="'+esc(w.hex||'#cccccc')+'" title="contoh warna (dipakai bila belum ada foto)" style="width:18px;height:18px;border:none;padding:0;background:none;cursor:pointer" onchange="wkHex('+k+',this.value)">'+
+          '<button type="button" onclick="wkHapus('+k+')" title="hapus warna" style="color:var(--muted)">✕</button></span></span>';}).join('')+
     '<button type="button" class="btn ghost sm" data-f="wkTambah" onclick="wkTambah()">＋ Warna</button></div>';}
 /* ===== SPESIFIKASI STANDAR PRODUK KATALOG (14 Okt) — diisi sekali di Master Product; order memakainya & menguncinya ===== */
 const STD_F=['lining','liningWarna','filler','stitch','benangWarna','finishing','finishWarna'];
@@ -24880,7 +24912,7 @@ function stdKartu(o,l,li){
       bit('Filler',g('filler'))+bit('Stitch',g('stitch'))+bit('Benang',g('benangWarna'))+bit('Finishing',g('finishing'))+bit('Accessories',aksTeks(l))+'</div>'+
     '<div class="nlbl" style="margin-bottom:4px">Warna <span style="font-weight:400;text-transform:none;color:var(--muted)">— klik warna katalog, atau tambah warna yang diminta client</span></div>'+
     '<div>'+semua.map(function(w){var on=D.indexOf(w)>=0,luar=L.indexOf(w)>=0;
-      return '<button type="button" class="kwc'+(on?' on':'')+'" data-f="stdWarna" onclick="stdWarnaTog('+id+','+li+','+jsArg(w)+')"><i style="background:'+esc(warnaHex(w)||(luar?'#7a2333':'#cccccc'))+'"></i>'+esc(w)+(luar?'<span class="kwc-l">di luar katalog</span>':'')+'</button>';}).join('')+
+      var fw=warnaFoto(w);return '<button type="button" class="kwc'+(on?' on':'')+(fw?' wsw-ada':'')+'" data-f="stdWarna" onclick="stdWarnaTog('+id+','+li+','+jsArg(w)+')">'+(fw?warnaBulat(w):('<i style="background:'+esc(warnaHex(w)||(luar?'#7a2333':'#cccccc'))+'"></i>'))+esc(w)+(luar?'<span class="kwc-l">di luar katalog</span>':'')+'</button>';}).join('')+
       '<button type="button" class="kwc" data-f="stdWarnaLain" onclick="stdWarnaLain('+id+','+li+')"><i style="background:repeating-linear-gradient(45deg,#e8d9c3,#e8d9c3 3px,#fff 3px,#fff 6px)"></i>＋ Warna di luar katalog</button></div>'+
     bagi+'</div>';}
 function stdWarnaTog(id,li,w){var o=ST.orders.find(function(x){return x.id===id;});if(!o)return;var l=(((o.pricing||{}).lines)||[])[li];if(!l)return;
@@ -27071,7 +27103,8 @@ function inqTanda(c){var L=[],T={};try{L=(c&&c.dl)?(c.dl()||[]):[];}catch(e){}L.
 function inqOpsi(c){var L=[];try{L=(c&&c.dl)?(c.dl()||[]):[];}catch(e){}
   return L.map(function(x){return (x&&typeof x==='object')?String(x.v||''):String(x==null?'':x);}).filter(function(x,i,a){return x&&a.indexOf(x)===i;});}
 function inqJasaLabel(v){v=String(v||'');if(!tplNyata(v))return 'Tanpa';return v.replace(/^Add-on\s+/i,'');}
-function inqChip(teks,on,klik,df){return '<button type="button" class="inq-chip'+(on?' on':'')+'"'+(df?(' data-f="'+df+'"'):'')+' onclick="'+klik+'">'+esc(teks)+'</button>';}
+function inqChip(teks,on,klik,df,warna){var b=warna?warnaBulat(teks):'';   // patch236: tombol warna membawa foto kulit
+  return '<button type="button" class="inq-chip'+(on?' on':'')+(b?' wsw-ada':'')+'"'+(df?(' data-f="'+df+'"'):'')+' onclick="'+klik+'">'+b+esc(teks)+'</button>';}
 function inqKolom(o,l,k){return tplKolom(o,l).filter(function(c){return c.k===k;})[0]||null;}
 function inqSet(id,li,k,ck,val){var T=tplCariO(id,li);if(!T)return;var c=inqKolom(T.o,T.l,ck);if(!c)return;k=+k||0;
   if(tplJasaKolom(ck))tplJasaAktifkan(T.o);tplTulis(T.o,T.l,k,c,val);tplNormal(T.o,T.l);
@@ -27101,10 +27134,10 @@ function inqKepala(o,li,no,nama,jenis,q,kos,buka,ekstra){var id=jsArg(o.id);
 /* patch217: deret chip dipendekkan — 5 pilihan pertama tampil, sisanya + ketik bebas di "lainnya ▾" */
 const INQ_CHIP_N=5;
 function inqSemua(key){ST._inqSemua=ST._inqSemua||{};ST._inqSemua[key]=!ST._inqSemua[key];render();}
-function inqDeret(key,ops,cur,klik,ubah,dlId,ph){cur=String(cur||'');ops=(ops||[]).filter(function(x){return tplNyata(x);});
+function inqDeret(key,ops,cur,klik,ubah,dlId,ph,warna){cur=String(cur||'');ops=(ops||[]).filter(function(x){return tplNyata(x);});
   var buka=!!((ST._inqSemua||{})[key]),L=buka?ops:ops.slice(0,INQ_CHIP_N),sisa=ops.length-L.length;
-  return L.map(function(x){return inqChip(x,x===cur,klik(x));}).join('')+
-    ((tplNyata(cur)&&L.indexOf(cur)<0)?inqChip(cur,true,klik(cur)):'')+
+  return L.map(function(x){return inqChip(x,x===cur,klik(x),'',warna);}).join('')+
+    ((tplNyata(cur)&&L.indexOf(cur)<0)?inqChip(cur,true,klik(cur),'',warna):'')+
     ((sisa>0||!buka)?('<button type="button" class="btn ghost sm" data-f="inqSemua" style="font-size:9.5px" onclick="inqSemua('+jsArg(key)+')">lainnya ▾'+(sisa>0?(' (+'+sisa+')'):'')+'</button>')
       :('<button type="button" class="btn ghost sm" style="font-size:9.5px" onclick="inqSemua('+jsArg(key)+')">▴ ringkas</button>'))+
     (buka||!ops.length?('<input class="pin inq-lain" list="'+dlId+'" placeholder="'+(ph||'ketik / pilih')+'" onchange="'+ubah+'">'+
@@ -27151,7 +27184,7 @@ function inqKartu(o,l,li,no){
         '<option value="">— pilih material —</option>'+((tplNyata(mv)&&opM.indexOf(mv)<0)?[mv].concat(opM):opM).map(function(x){return '<option value="'+esc(x)+'"'+(x===mv?' selected':'')+'>'+esc(x)+(tdM[x]?' — dari jawaban Radja':'')+'</option>';}).join('')+'</select>');
     var w=String(r.vals.warna||'');
     var warna='<div class="inq-chips"'+(k===0?(' data-f="mainMatWarna_'+li+'"'):'')+'>'+
-      inqDeret('inqW_'+o.id+'_'+li+'_'+k,(opW.length<=14?opW:(wList.length?wList:opW)),w,function(x){return a('warna',x);},'inqSet('+id+','+li+','+k+',\'warna\',this.value)','inqDlW_'+li+'_'+k,'ketik / pilih warna')+'</div>';
+      inqDeret('inqW_'+o.id+'_'+li+'_'+k,(opW.length<=14?opW:(wList.length?wList:opW)),w,function(x){return a('warna',x);},'inqSet('+id+','+li+','+k+',\'warna\',this.value)','inqDlW_'+li+'_'+k,'ketik / pilih warna',true)+'</div>';
     var jasa=function(ck,ops,cur){cur=String(cur||'');if(!ops.length)return '<span class="inq-kunci">—</span>';
       if(tplNyata(cur)&&ops.indexOf(cur)<0)ops=[cur].concat(ops);
       if(ops.length<=8)return '<div class="inq-chips">'+ops.map(function(x){return inqChip(inqJasaLabel(x),tplNyata(x)?(x===cur):!tplNyata(cur),a(ck,x));}).join('')+'</div>';
