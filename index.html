@@ -1129,7 +1129,7 @@ const KEY='rovehub_orders_v18';
 /* ================= VERSI YANG SEDANG BERJALAN =================
    Diisi otomatis oleh terbitkan.js waktu salinan ini diterbitkan; '-' berarti
    dibuka langsung dari berkas, bukan dari alamat terbitannya. */
-const VERSI='20261127-133358';
+const VERSI='20261127-141247';
 /* Berkas versi.txt di sebelah halaman ini berisi penanda yang sama. Ia
    ditanyakan tanpa cache, jadi ia jujur walau halamannya sendiri masih
    tersimpan di cache browser. */
@@ -9822,11 +9822,13 @@ function venAisDariBaris(b){var g=function(j){var x=String(b[j]==null?'':b[j]).t
   B.forEach(function(nm){if(!bank&&nm&&rek.toLowerCase().indexOf(String(nm).toLowerCase())===0){bank=nm;rek=rek.slice(nm.length).replace(/^[\s:.-]+/,'');}});
   var cg=String(b[24]==null?'':b[24]).trim();   // COGS None dibawa apa adanya (patch234)
   return {nama:g(18),jenisAis:g(19),alamat:g(20),hp:g(21),kontak:g(22),bank:bank,rek:rek,cogs:/^none$/i.test(cg)?'None':g(24)};}
-function venAisGabung(rows){var V=ST.master.vendors=ST.master.vendors||[],lap={baru:0,isi:0,lewat:0};
+function venAisGabung(rows){var V=ST.master.vendors=ST.master.vendors||[],lap={baru:0,isi:0,lewat:0,cocok:0};
   rows.forEach(function(b){var a=venAisDariBaris(b);if(!a.nama||/^vendor list$/i.test(a.nama)){lap.lewat++;return;}
     var v=V.find(function(x){return String(x.nama||'').trim().toLowerCase()===a.nama.toLowerCase();});
+    var asli=venAisBaris({nama:a.nama,jenisAis:a.jenisAis,alamat:a.alamat,hp:a.hp,kontak:a.kontak,bank:a.bank,rek:a.rek,cogs:a.cogs}).join('\t');   // patch237: isi AIS apa adanya
     if(!v){v={nama:a.nama,tipe:'',jenisAis:a.jenisAis,alamat:a.alamat,hp:a.hp,kontak:a.kontak,bank:a.bank,rek:a.rek,cogs:a.cogs,aktif:true,dari:'AIS'};
-      v._aisRow=venAisBaris(v).join('\t');V.push(stampRow(v));lap.baru++;return;}
+      v._aisRow=asli;V.push(stampRow(v));lap.baru++;return;}
+    if(v._aisRow!==asli){v._aisRow=asli;stampRow(v);}lap.cocok++;
     var ubah=false;['jenisAis','alamat','hp','kontak','bank','rek','cogs'].forEach(function(f){var cur=String(v[f]==null?'':v[f]).trim();if((!cur||cur==='-')&&a[f]){v[f]=a[f];ubah=true;}});
     if(ubah){stampRow(v);lap.isi++;}});
   return lap;}
@@ -9840,8 +9842,8 @@ function venAisImpor(){
       var mulai=m2.baris.findIndex(function(b){return /^vendor list$/i.test(String(b[18]||'').trim());});
       var rows=m2.baris.slice(mulai>=0?mulai+1:0).filter(function(b){return String(b[18]||'').trim();});
       if(!rows.length){alert('Daftar vendor (m2 kolom S) kosong.');return;}
-      var lap=venAisGabung(rows);saveMaster();render();
-      alert('✓ Impor vendor dari AIS selesai (berkas AIS tidak diubah).\n\n• '+lap.baru+' vendor baru ditambahkan\n• '+lap.isi+' vendor yang sudah ada dilengkapi kolom kosongnya\n• '+lap.lewat+' baris dilewati\n\nIsi yang sudah ada di HUB tidak ditimpa. Lengkapi kolom Tipe untuk vendor baru supaya muncul di pilihan order yang tepat.');
+      var lap=venAisGabung(rows);ST.master.venAisImpor={tgl:nowStr(),oleh:(ST.userName||ST.user||'-'),n:rows.length};saveMaster();render();
+      alert('✓ Impor vendor dari AIS selesai (berkas AIS tidak diubah).\n\n• '+lap.baru+' vendor baru ditambahkan\n• '+lap.cocok+' vendor yang sudah ada dicocokkan ('+lap.isi+' dilengkapi kolom kosongnya)\n• '+lap.lewat+' baris dilewati\n\nIsi yang sudah ada di HUB tidak ditimpa. Lengkapi kolom Tipe untuk vendor baru supaya muncul di pilihan order yang tepat.');
     },function(e){dzProgres('');alert('Berkas tak terbaca: '+e.message);});};
     fr.readAsArrayBuffer(f);};
   unggahMulai(inp);}
@@ -11405,7 +11407,7 @@ function renderMaster(){
        esc(k==='ALL'?'Semua':(k==='Tanpa tipe'?k:tipeLabel(k)))+' <span style="opacity:.7">('+n+')</span></button>';};
      return `<div class="rcard"><h3>Vendors (${V.length})</h3>
      <div style="font-size:10.5px;color:var(--muted);margin-bottom:10px"><b>HUB = daftar induk vendor</b>; AIS (sheet m2 kolom S–Y) ikut lewat 📋 Salin untuk AIS — kolom itu di AIS diisi manual, tak ada rumus yang tertimpa. Vendor ekspedisi / kurir → Tipe <b>Pengiriman</b> (otomatis jadi pilihan ekspedisi di Master → Pengiriman &amp; order); operasional → <b>Non-produk</b>; keduanya tak ditawarkan sebagai vendor produk. Hilangkan centang <b>Dipakai</b> untuk vendor yang sudah tak dipakai: tak ditawarkan lagi di order, tapi tetap ikut ke AIS (PO lama mencarinya). <b>COGS Type</b> mengikuti AIS — menentukan biaya masuk ke Main Product, Packaging, atau Service. Tim live service didaftarkan di sini juga (tipe <b>${esc(tipeLabel('Live Service'))}</b>, COGS <b>Service</b>). Pilihan <b>Tipe</b> &amp; <b>Bank</b> bisa ditambah atau diganti namanya di <b>Opsi form</b> — HUB mengikuti nama yang ada di master.</div>
-     <div style="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:10px"><button class="btn sm" onclick="venAisSalin(false)"${nAis?'':' disabled'}>📋 Salin untuk AIS — ${nAis} baru / berubah</button><button class="btn ghost sm" onclick="venAisSalin(true)">📋 Salin semua (${V.length})</button><button class="btn ghost sm" onclick="venAisImpor()">⭳ Impor vendor dari AIS</button></div>
+     <div style="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:10px"><button class="btn sm" onclick="venAisSalin(false)"${nAis?'':' disabled'}>📋 Salin untuk AIS — ${nAis} baru / berubah</button><button class="btn ghost sm" onclick="venAisSalin(true)">📋 Salin semua (${V.length})</button>${(ST.master&&ST.master.venAisImpor)?'':'<button class="btn ghost sm" onclick="venAisImpor()" title="sekali jalan — mencocokkan daftar vendor HUB dengan AIS m2; sesudahnya tombol ini hilang">⭳ Impor & cocokkan vendor dari AIS (sekali)</button>'}</div>
      <div style="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:8px;align-items:center">${sc('aktif','Dipakai',nAkt)}${sc('tidak','Tidak dipakai',V.length-nAkt)}${sc('semua','Semua',V.length)}<label style="margin-left:auto;font-size:10.5px;color:var(--muted)">Urutkan <select class="pin" style="width:auto;font-size:11px;padding:3px 6px" onchange="ST._venUrut=this.value;render()">${[['master','urutan master'],['nama','nama A–Z'],['baru','terakhir dipakai'],['sering','paling sering dipakai']].map(function(o){return '<option value="'+o[0]+'"'+(urut===o[0]?' selected':'')+'>'+o[1]+'</option>';}).join('')}</select></label></div>
      <div style="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:12px">${chip('ALL',V.length)}${kat.map(function(k){
        return chip(k,V.filter(function(v){return jenis(v)===k;}).length);}).join('')}</div>
@@ -11995,12 +11997,12 @@ ${muatDcSitusUji()?'':`     <div class="rcard" style="max-width:none;box-shadow:
      </div>
 `}
 ${adaUsulan?'':adminInboxAman()}
-     <div class="rcard" style="max-width:none;box-shadow:none;margin:0 0 10px"><h3>Muat dari Discord</h3>
+${muatDcSitusUji()?'':`     <div class="rcard" style="max-width:none;box-shadow:none;margin:0 0 10px"><h3>Muat dari Discord</h3>
        <div style="font-size:11.5px;color:var(--muted);margin-bottom:9px;line-height:1.6">Kartu order dibuat dari berkas <b>muat-discord.json</b> — hasil pembacaan ekspor channel Discord (chat, invoice, cash receipt, lembar inquiry) oleh skrip di folder Dropbox <i>HUB - Sistem &amp; integrasi / Ekspor Discord</i>. Berkas yang sama membawa pelengkap dari server Radja dan pembaruan dari konfirmasi PM. Kartu yang sudah pernah dimuat dilewati; yang mirip kartu yang ada ditandai. ${muatDcSitusUji()?'Pilih berkasnya dari folder Dropbox itu di komputer ini; hasilnya langsung tersinkron ke semua yang membuka HUB. Lampiran (foto, PDF) tetap tersimpan di Dropbox, jadi tautannya hanya terbuka di komputer yang punya folder itu. Selama masa transisi Discord → HUB, lihat laporan <b>Kemungkinan kartu dobel</b> (Laporan → Kontrol).':'Dengan mode live menyala, kartunya tersinkron ke situs yang dipakai tim.'}</div>
        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><input type="file" id="muatdcfile" accept=".json,application/json" onchange="muatDcPilihBerkas(this)" style="font-size:11px;max-width:300px">${muatDcSitusUji()?'':' <button class="btn ghost sm" onclick="muatDcContohTampil()">Lihat contoh (data karangan)</button>'}</div>
        <div id="muatdcpanel">${muatDcPanelHTML()}</div>
      </div>
-     <div class="rcard" style="max-width:none;box-shadow:none;margin:0 0 10px"><h3>Integrasi backend (Discord / Trello)</h3>
+`}     <div class="rcard" style="max-width:none;box-shadow:none;margin:0 0 10px"><h3>Integrasi backend (Discord / Trello)</h3>
        <div style="font-size:11.5px;color:var(--muted);margin-bottom:11px;line-height:1.6">Tempel URL Apps Script Web App (yang meneruskan ke relay Discord/Trello). Saat <b>mode live</b> aktif, aksi <b>Generate PO</b> &amp; <b>trigger fase</b> dikirim ke backend. Kosong = tetap simulasi lokal.</div>
        <label class="nlbl">Apps Script Web App URL</label>
        <input class="pin" id="cfgurl" value="${esc(ST.cfg&&ST.cfg.url)}" placeholder="https://script.google.com/macros/s/.../exec" style="margin:4px 0 11px">
@@ -15297,7 +15299,7 @@ function contohBawaanHapus(){
   try{render();}catch(e){}
   return true;}
 function contohBawaanPanelHTML(){
-  var D=contohBawaanDaftar(),n=contohBawaanJumlah(D);
+  var D=contohBawaanDaftar(),n=contohBawaanJumlah(D);if(!n)return '';   // patch237: sudah bersih → tak perlu tampil
   return '<div style="margin-top:16px;border-top:1px solid var(--line);padding-top:13px">'+
     '<div style="font-weight:800;font-size:11.5px;margin-bottom:4px">Data contoh bawaan</div>'+
     '<div style="font-size:10.5px;color:var(--muted);margin-bottom:9px;line-height:1.6">Kartu order, prospek, dan keuangan contoh sudah disingkirkan otomatis di salinan ini. '+
@@ -24628,8 +24630,8 @@ function fotoBarisMaster(){var M=ST.master||{},out=[];
   Object.keys(M).forEach(function(k){if(!Array.isArray(M[k])||k==='fotoDrive'||k==='users')return;
     M[k].forEach(function(r,i){if(r&&typeof r==='object'&&typeof r.img==='string'&&r.img&&r.img.slice(0,7)!=='contoh:')out.push({sec:k,i:i,r:r});});});
   return out;}
-function fotoStatus(){var D=fotoDriveSet(),n={drive:0,perangkat:0,lama:0};
-  fotoBarisMaster().forEach(function(x){var v=x.r.img;if(v.slice(0,5)==='data:')n.perangkat++;else if(D.indexOf(v)>=0)n.drive++;else n.lama++;});
+function fotoStatus(){var D=fotoDriveSet(),G=(ST.master&&ST.master.fotoGagal)||[],n={drive:0,perangkat:0,lama:0,hilang:0};
+  fotoBarisMaster().forEach(function(x){var v=x.r.img;if(v.slice(0,5)==='data:')n.perangkat++;else if(D.indexOf(v)>=0)n.drive++;else if(G.indexOf(v)>=0)n.hilang++;else n.lama++;});
   return n;}
 function fotoSumberBlok(){var n=fotoStatus(),tot=n.drive+n.perangkat+n.lama,pct=tot?Math.round(n.drive*100/tot):100;
   return '<div style="border:1px solid var(--line);border-radius:10px;padding:11px 13px;margin:4px 0 8px;background:var(--bg)">'+
@@ -24637,7 +24639,8 @@ function fotoSumberBlok(){var n=fotoStatus(),tot=n.drive+n.perangkat+n.lama,pct=
     '<div style="font-size:11px;margin-top:3px">Produk, harga &amp; opsi: <b>Master HUB</b> (tersimpan di Drive) · Cost Estimator: <b>tidak tersambung</b></div>'+
     '<div style="font-size:11px;margin-top:8px"><b>Foto master</b> — <span style="color:var(--ok);font-weight:800">'+n.drive+' di Shared Drive</span> · '+
       '<span style="color:'+(n.lama?'var(--warn)':'var(--muted)')+';font-weight:800">'+n.lama+' masih link lama (Cost Estimator)</span> · '+
-      '<span style="color:'+(n.perangkat?'var(--warn)':'var(--muted)')+';font-weight:800">'+n.perangkat+' tersimpan di perangkat</span></div>'+
+      '<span style="color:'+(n.perangkat?'var(--warn)':'var(--muted)')+';font-weight:800">'+n.perangkat+' tersimpan di perangkat</span>'+
+      (n.hilang?(' · <span style="color:var(--muted)" title="berkas lamanya sudah tak ada — unggah ulang lewat 📷 di Master Product bila perlu">'+n.hilang+' foto lama tak ditemukan (dilewati)</span>'):'')+'</div>'+
     '<div style="height:8px;border-radius:5px;background:var(--line);overflow:hidden;margin:6px 0"><i style="display:block;height:100%;width:'+pct+'%;background:var(--ok)"></i></div>'+
     ((n.lama||n.perangkat)?'<button class="btn sm" onclick="fotoPindahkan()">📁 Pindahkan foto master ke Drive</button> ':'')+
     '<button class="btn ghost sm" onclick="fotoBukaFolder()">↗ Buka folder Master Produk</button>'+
@@ -24730,7 +24733,7 @@ function imporSekali(){
 function fotoBukaFolder(){backendTanya('foto.folder').then(function(j){if(j&&j.ok&&j.link)window.open(j.link,'_blank');else alert('Folder belum bisa dibuka: '+((j&&j.error)||'backend belum Code.gs 2.6'));},function(e){alert('Tak bisa menghubungi backend: '+e.message);});}
 async function fotoPindahkan(){
   if(ST.user!=='Holding'){alert('Hanya Holding.');return;}
-  var D=fotoDriveSet(),B=fotoBarisMaster().filter(function(x){return D.indexOf(x.r.img)<0;});
+  var D=fotoDriveSet(),G=(ST.master&&ST.master.fotoGagal)||[],B=fotoBarisMaster().filter(function(x){return D.indexOf(x.r.img)<0&&G.indexOf(x.r.img)<0;});
   if(!B.length){alert('Semua foto master sudah di Shared Drive.');return;}
   if(!confirm(B.length+' foto master akan disalin ke Shared Drive (ROVE HUB / Master Produk). Link lama tak diubah. Lanjut?'))return;
   var peta={},gagal=[],selesai=0,salin=[];
@@ -24739,7 +24742,8 @@ async function fotoPindahkan(){
     dzProgres('menyalin foto ke Drive… '+Math.min(a+10,salin.length)+' / '+salin.length);
     try{var j=await backendTanya('foto.salin',{items:salin.slice(a,a+10)});
       if(!(j&&j.ok))throw new Error((j&&j.error)||'backend belum Code.gs 2.6');
-      (j.hasil||[]).forEach(function(h){if(h.baru){peta[h.lama]=h.baru;fotoDriveTandai(h.baru);}else gagal.push(h.lama+': '+h.error);});}
+      (j.hasil||[]).forEach(function(h){if(h.baru){peta[h.lama]=h.baru;fotoDriveTandai(h.baru);}else{gagal.push(h.lama+': '+h.error);
+        if(/tidak dapat ditemukan|not found|tak ditemukan|no item/i.test(String(h.error||''))){var G=ST.master.fotoGagal=ST.master.fotoGagal||[];if(G.indexOf(h.lama)<0)G.push(h.lama);}}});}
     catch(e){gagal.push('salin: '+e.message);break;}}
   var dev=B.filter(function(x){return x.r.img.slice(0,5)==='data:';});
   for(var k=0;k<dev.length;k++){dzProgres('mengunggah foto dari perangkat… '+(k+1)+' / '+dev.length);
