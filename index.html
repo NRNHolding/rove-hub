@@ -816,6 +816,10 @@ body.seret .dz.dzOver{outline-style:solid;background:var(--warn-bg);position:rel
 .dz.dzAktif:not(.dzOver)::after{background:var(--gold,#b08b4f)}
 .dzTip{font-size:9.5px;color:var(--muted)}
 /* kotak unggah bergaya "Tarik foto ke sini, atau klik untuk memilih" (kecil) */
+.ven-ringkas{table-layout:fixed;width:100%;min-width:980px!important}.ven-ringkas td{vertical-align:middle}.ven-ringkas .pin{width:100%;min-width:0}
+.ven-ringkas .vr-sub{font-size:10px;color:var(--muted);margin-top:3px;line-height:1.35;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ven-ringkas .vr-sub a{color:var(--brand);font-weight:700;text-decoration:none;cursor:pointer}
+.ven-ringkas .vr-aksi{white-space:nowrap;text-align:right}.ven-ringkas .vr-aksi .btn{padding:3px 9px;font-size:10.5px}
 .ven-tbl>table{min-width:1900px}.ven-tbl>table th:nth-child(2){width:190px}.ven-tbl>table th:nth-child(3){width:64px}.ven-tbl>table th:nth-child(4){width:96px}.ven-tbl>table th:nth-child(5){width:70px}
 .dzKotak{display:flex;align-items:center;gap:10px;flex:1;min-width:min(230px,100%);border:1.5px dashed var(--brand);border-radius:9px;padding:7px 12px;background:rgba(154,106,47,.05);cursor:pointer;line-height:1.3;text-align:left}
 .dzKotak:hover{background:rgba(154,106,47,.11)}
@@ -1112,7 +1116,7 @@ const KEY='rovehub_orders_v18';
 /* ================= VERSI YANG SEDANG BERJALAN =================
    Diisi otomatis oleh terbitkan.js waktu salinan ini diterbitkan; '-' berarti
    dibuka langsung dari berkas, bukan dari alamat terbitannya. */
-const VERSI='20261127-111825';
+const VERSI='20261127-113700';
 /* Berkas versi.txt di sebelah halaman ini berisi penanda yang sama. Ia
    ditanyakan tanpa cache, jadi ia jujur walau halamannya sendiri masih
    tersimpan di cache browser. */
@@ -9745,6 +9749,38 @@ function vendorPakaiPeta(){var P={};
     Object.keys(o.vpo||{}).forEach(function(n){ada[String(n).trim().toLowerCase()]=1;});
     Object.keys(ada).forEach(function(k){var p=P[k]||(P[k]={n:0,last:''});p.n++;if(tgl>p.last)p.last=tgl;});});
   return P;}
+function venRingkasTabel(idx,V,actCell){
+  var P=vendorPakaiPeta(),TO=tipeOpts(),CG=listArr('cogs');
+  var sel=function(i,f,opts,cur){var L=opts.slice();if(cur&&!L.some(function(o){return (Array.isArray(o)?o[0]:o)===cur;}))L.unshift(cur);
+    return '<select class="pin" onchange="mEdit(\'vendors\','+i+',\''+f+'\',this.value)">'+(cur?'':'<option value="" selected>—</option>')+
+      L.map(function(o){var v=Array.isArray(o)?o[0]:o,l=Array.isArray(o)?o[1]:o;return '<option value="'+esc(v)+'"'+(cur===v?' selected':'')+'>'+esc(l)+'</option>';}).join('')+'</select>';};
+  var baris=idx.map(function(i){var r=V[i],p=P[String(r.nama||'').trim().toLowerCase()];
+    var kon=[r.kontak,r.hp,[r.bank,r.rek].filter(function(x){return x&&x!=='-';}).join(' ')].map(function(x){return String(x||'').trim();}).filter(function(x){return x&&x!=='-';});
+    var T=vterminMaster(r.nama),S={po:'PO',jadi:'jadi',terima:'terima',acara:'sesudah acara'};
+    var termin=T.map(function(x){return x.pct+'% '+(S[x.dasar]||x.dasar);}).join(' · ');
+    return '<tr'+(r._del?' style="opacity:.55;background:var(--warn-bg)"':'')+'>'+
+      '<td><input class="pin" value="'+esc(r.nama||'')+'" placeholder="Nama vendor" onchange="mEdit(\'vendors\','+i+',\'nama\',this.value)">'+
+        '<div class="vr-sub" title="'+esc(kon.join(' · '))+'">'+(kon.length?esc(kon.join(' · ')):'— kontak belum diisi')+
+        ' · <a onclick="vterminEdit('+i+')" title="atur termin bayar">termin '+esc(termin||'-')+'</a></div></td>'+
+      '<td style="text-align:center"><input type="checkbox" '+(vendorAktif(r)?'checked':'')+' title="hilangkan centang bila vendor ini sudah tak dipakai" onchange="mEdit(\'vendors\','+i+',\'aktif\',this.checked)" style="accent-color:var(--brand)"></td>'+
+      '<td style="font-size:10px;color:var(--muted)">'+(p?((p.last?tglID(p.last):'—')+'<div>'+p.n+' order</div>'):'belum pernah')+'</td>'+
+      '<td>'+sel(i,'tipe',TO,r.tipe||'')+'</td>'+
+      '<td><input class="pin" value="'+esc(r.jenisAis||'')+'" placeholder="Jenis di AIS" onchange="mEdit(\'vendors\','+i+',\'jenisAis\',this.value)"></td>'+
+      '<td>'+sel(i,'cogs',CG,r.cogs||'')+'</td>'+
+      venAisCell(r)+
+      '<td class="vr-aksi"><button class="btn ghost sm" onclick="venDetail('+i+')">✎ detail</button></td>'+
+      actCell('vendors',i,r)+'</tr>';}).join('');
+  return '<div class="xscroll"><table class="rtable ven-ringkas"><colgroup><col><col style="width:58px"><col style="width:96px"><col style="width:124px"><col style="width:124px"><col style="width:118px"><col style="width:60px"><col style="width:84px"><col style="width:72px"></colgroup>'+
+    '<thead><tr><th>Nama</th><th style="text-align:center">Dipakai</th><th>Terakhir dipakai</th><th>Tipe</th><th>Jenis di AIS</th><th>COGS Type</th><th>AIS</th><th></th><th></th></tr></thead><tbody>'+baris+'</tbody></table></div>';}
+function venDetail(i){var r=(ST.master.vendors||[])[i];if(!r)return;
+  var B=listArr('bank');if(r.bank&&B.indexOf(r.bank)<0)B=[r.bank].concat(B);
+  askForm({judul:'Detail vendor — '+(r.nama||''),sub:'Termin bayar diatur lewat tautan "termin" di bawah nama vendor.',fields:[
+      {k:'kontak',label:'Contact person',type:'text',val:r.kontak||''},{k:'hp',label:'No. HP',type:'text',val:r.hp||''},
+      {k:'kota',label:'Kota',type:'text',val:r.kota||''},{k:'disc',label:'Channel Discord (kosongkan kalau lewat WhatsApp)',type:'text',val:r.disc||''},
+      {k:'bank',label:'Bank',type:'select',opts:['—'].concat(B),val:r.bank||'—'},{k:'rek',label:'No. rekening',type:'text',val:r.rek||''},
+      {k:'alamat',label:'Alamat',type:'textarea',val:r.alamat||''}],
+    ok:function(v){['kontak','hp','kota','disc','rek','alamat'].forEach(function(f){r[f]=String(v[f]==null?'':v[f]).trim();});
+      r.bank=(v.bank==='—')?'':v.bank;stampRow(r);saveMaster();render();}});}
 function venPakaiCell(r){var p=vendorPakaiPeta()[String(r.nama||'').trim().toLowerCase()];
   return '<td style="font-size:10px;color:var(--muted);white-space:nowrap">'+(p?((p.last?tglID(p.last):'—')+'<div>'+p.n+' order</div>'):'belum pernah')+'</td>';}
 function venAisBersih(x){x=String(x==null?'':x).replace(/[\t\r\n]+/g,' ').trim();return x||'-';}
@@ -10229,7 +10265,7 @@ function delReject(sec,i){if(ST.user!=='Holding')return;var r=ST.master[sec][i];
 function accEdit(role,f,v){if(role==='Holding'&&f==='master'&&!v){alert('Akses Master data untuk Holding tidak bisa dimatikan (biar tidak terkunci).');v=true;}if(!ST.master.access[role])ST.master.access[role]={};ST.master.access[role][f]=v;saveMaster();render();}
 function defShipping(){return [{layanan:'Regular',lama:'2-3 Days',ekspedisi:'JNE',kota:'Jakarta',tarif:9000},{layanan:'Regular',lama:'2-3 Days',ekspedisi:'JNE',kota:'Surabaya',tarif:11000},{layanan:'Regular',lama:'2-3 Days',ekspedisi:'JNE',kota:'Bandung',tarif:12000},{layanan:'Regular',lama:'2-3 Days',ekspedisi:'JNE',kota:'Denpasar',tarif:18000},{layanan:'Regular',lama:'2-3 Days',ekspedisi:'Paxel',kota:'Jakarta',tarif:12000},{layanan:'Regular',lama:'2-3 Days',ekspedisi:'Paxel',kota:'Surabaya',tarif:10000},{layanan:'Regular',lama:'2-3 Days',ekspedisi:'Travel',kota:'Denpasar',tarif:20000}];}
 function defJenis(){return [{label:'Wedding',code:'w'},{label:'Corporate',code:'c'},{label:'Others',code:'o'}];}
-function listArr(k){return (ST.master[k]||[]).map(function(x){return x.v;}).filter(Boolean);}
+function listArr(k){var L=(ST.master[k]||[]).map(function(x){return x.v;}).filter(Boolean);if(k==='cogs'&&L.indexOf('None')<0)L.push('None');return L;}
 /* Daftar ekspedisi tidak disimpan terpisah — dibaca dari tabel Pengiriman,
    supaya tak ada dua tempat yang harus diisi dan bisa berbeda isinya.
    Urut dari yang paling banyak zonanya. */
@@ -11360,8 +11396,10 @@ function renderMaster(){
      <div style="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:8px;align-items:center">${sc('aktif','Dipakai',nAkt)}${sc('tidak','Tidak dipakai',V.length-nAkt)}${sc('semua','Semua',V.length)}<label style="margin-left:auto;font-size:10.5px;color:var(--muted)">Urutkan <select class="pin" style="width:auto;font-size:11px;padding:3px 6px" onchange="ST._venUrut=this.value;render()">${[['master','urutan master'],['nama','nama A–Z'],['baru','terakhir dipakai'],['sering','paling sering dipakai']].map(function(o){return '<option value="'+o[0]+'"'+(urut===o[0]?' selected':'')+'>'+o[1]+'</option>';}).join('')}</select></label></div>
      <div style="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:12px">${chip('ALL',V.length)}${kat.map(function(k){
        return chip(k,V.filter(function(v){return jenis(v)===k;}).length);}).join('')}</div>
-     ${idx.length?`<div class="xscroll ven-tbl">${tbl('vendors',[['nama','Nama'],['aktif','Dipakai','venaktif'],['_pakai','Terakhir dipakai','venpakai'],['_ais','AIS','venais'],['tipe','Tipe',tipeOpts()],['jenisAis','Jenis di AIS'],['cogs','COGS Type',listArr('cogs')],['termin','Termin bayar','terminpilih'],['kontak','Contact person'],['hp','No. HP'],['kota','Kota'],['disc','Channel Discord (kosongkan kalau lewat WhatsApp)'],['bank','Bank',listArr('bank')],['rek','No. rekening'],['alamat','Alamat']],idx.map(function(i){return V[i];}),idx)}</div>`
-       :'<div style="color:var(--muted);font-size:11px;padding:6px 0">Belum ada vendor pada kategori ini.</div>'}
+     <div style="display:flex;gap:6px;margin-bottom:8px"><button class="btn ${(ST._venKolom||'ringkas')==='ringkas'?'':'ghost'} sm" onclick="ST._venKolom='ringkas';render()">Ringkas</button><button class="btn ${ST._venKolom==='semua'?'':'ghost'} sm" onclick="ST._venKolom='semua';render()">Semua kolom</button></div>
+     ${(idx.length&&(ST._venKolom||'ringkas')==='ringkas')?venRingkasTabel(idx,V,actCell):''}
+     ${(idx.length&&ST._venKolom==='semua')?`<div class="xscroll ven-tbl">${tbl('vendors',[['nama','Nama'],['aktif','Dipakai','venaktif'],['_pakai','Terakhir dipakai','venpakai'],['_ais','AIS','venais'],['tipe','Tipe',tipeOpts()],['jenisAis','Jenis di AIS'],['cogs','COGS Type',listArr('cogs')],['termin','Termin bayar','terminpilih'],['kontak','Contact person'],['hp','No. HP'],['kota','Kota'],['disc','Channel Discord (kosongkan kalau lewat WhatsApp)'],['bank','Bank',listArr('bank')],['rek','No. rekening'],['alamat','Alamat']],idx.map(function(i){return V[i];}),idx)}</div>`:''}
+     ${idx.length?'':'<div style="color:var(--muted);font-size:11px;padding:6px 0">Belum ada vendor pada kategori ini.</div>'}
      <button class="btn ghost sm" style="margin-top:9px" onclick="mAdd('vendors')">＋ Tambah vendor${(f!=='ALL'&&f!=='Tanpa tipe')?(' '+esc(tipeLabel(f))):''}</button>
      ${f!=='ALL'?'<span style="font-size:9.5px;color:var(--muted);margin-left:8px">Vendor baru langsung masuk kategori ini.</span>':''}</div>`;})(),
    produk:(function(){var sub=(ST._prodTab==='kulit'?'produk':ST._prodTab)||'produk',CT=M.catalog||[];   // tab Kulit lama → Produk
@@ -23617,7 +23655,9 @@ function notifyChannel(nama,text){
   var c=ST.cfg||{};if(!c.live||!c.url||!nama)return false;
   pushBackend('notify',{name:nama,content:text});return true;}
 /* Tipe vendor: vendor.tipe menyimpan KODE (Kulit / Box / …); nama yang tampil ikut master Opsi form → Tipe vendor. */
-function tipeVendorList(){return (ST.master&&ST.master.vtipe)||[];}
+function tipeVendorList(){var L=((ST.master&&ST.master.vtipe)||[]).slice();
+  ['Pengiriman','Non-produk'].forEach(function(t){if(!L.some(function(x){return (x.kode||x.v)===t;}))L.push({v:t,kode:t});});   // patch235: selalu ada, tanpa menyimpan
+  return L;}
 function tipeLabel(kode){if(!kode)return '';var t=tipeVendorList().find(function(x){return (x.kode||x.v)===kode;});return t?(t.v||kode):kode;}
 function tipeOpts(){return tipeVendorList().filter(function(t){return (t.kode||t.v);}).map(function(t){return [t.kode||t.v,t.v||t.kode];});}
 function vendorTipe(name){var v=((ST.master&&ST.master.vendors)||[]).find(function(x){return x.nama===name;});return v?v.tipe:'';}
