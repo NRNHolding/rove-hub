@@ -1129,7 +1129,7 @@ const KEY='rovehub_orders_v18';
 /* ================= VERSI YANG SEDANG BERJALAN =================
    Diisi otomatis oleh terbitkan.js waktu salinan ini diterbitkan; '-' berarti
    dibuka langsung dari berkas, bukan dari alamat terbitannya. */
-const VERSI='20261127-141247';
+const VERSI='20261127-150554';
 /* Berkas versi.txt di sebelah halaman ini berisi penanda yang sama. Ia
    ditanyakan tanpa cache, jadi ia jujur walau halamannya sendiri masih
    tersimpan di cache browser. */
@@ -9581,6 +9581,11 @@ var MS_BULAN={jan:0,feb:1,mar:2,apr:3,mei:4,may:4,jun:5,jul:6,agu:7,agt:7,aug:7,
 function msWaktu(r){if(!msObj(r))return 0;if(+r._m>0)return +r._m;
   var m=/(\d{1,2})\s+([A-Za-z]{3})[a-z]*\.?\s+(\d{4}),?\s+(\d{1,2})[.:](\d{2})/.exec(String(r._u||''));
   if(!m)return 0;var b=MS_BULAN[m[2].toLowerCase()];if(b==null)return 0;return new Date(+m[3],b,+m[1],+m[4],+m[5]).getTime();}
+/* patch238 (27 Nov): daftar master penting tak boleh menyusut lebih dari separuh dalam satu penggabungan — perangkat yang
+   memegang master lama (katalog kosong) dulu bisa "menghapus" seluruh katalog & kombinasi harga di cloud. Hapus satu-satu tetap jalan. */
+var MS_JAGA_RE=/^(catalog|komb(\..+)?|vendors|customers|coll|jasa|itemLain|warnaKatalog|operator)$/;
+function msJumlahBaris(v){if(Array.isArray(v))return v.length;var n=0;if(msObj(v))Object.keys(v).forEach(function(k){if(Array.isArray(v[k]))n+=v[k].length;});return n;}
+function msJagaMassal(jalur,hasil,C){if(!MS_JAGA_RE.test(String(jalur||'')))return false;var nc=msJumlahBaris(C);return nc>=5&&(Array.isArray(C)===Array.isArray(hasil))&&msJumlahBaris(hasil)<=nc*0.5;}   // daftar, atau objek berisi daftar (komb)
 function msGabungBaris(jalur,L,C,D){   // D: hash baris dasar per hash-id (null = tanpa dasar → gabungan)
   var kembar={};[L,C].forEach(function(A){var c={};A.forEach(function(r){var id=msIdBaris(jalur,r);c[id]=(c[id]||0)+1;if(c[id]>1)kembar[id]=1;});});   // kembar di salah satu sisi
   var idL=msIdDaftar(jalur,L,kembar),idC=msIdDaftar(jalur,C,kembar),mC={},mL={},out=[],ada=!!D;D=D||{};
@@ -9598,6 +9603,8 @@ function msGabungBaris(jalur,L,C,D){   // D: hash baris dasar per hash-id (null 
   C.forEach(function(c,i){var id=idC[i];if(msPunya(mL,id))return;
     if(ada){var hb=dasar(id);if(hb!==undefined&&msHash(c)===hb)return;}   // dihapus di sini, di cloud tak berubah → jangan hidup lagi
     out.push(c);});                                         // baru / diubah di cloud → ambil
+  if(msJagaMassal(jalur,out,C)){var idsC={};idC.forEach(function(x){idsC[x]=1;});ST._jagaMassal=jalur;   // susut massal → pegang versi cloud + baris baru perangkat ini
+    return C.concat(L.filter(function(x,i){return !idsC[idL[i]];}));}
   return out;}
 function msGabungNilai(jalur,L,C,S){   // S: sidik dasar {k,r} atau null
   var hb=S?S.k[jalur]:undefined;
@@ -9605,7 +9612,8 @@ function msGabungNilai(jalur,L,C,S){   // S: sidik dasar {k,r} atau null
   if(C===undefined)return (hb!==undefined&&msHash(L)===hb)?undefined:L;
   var hl=msHash(L),hc=msHash(C);if(hl===hc)return L;
   if(hb!==undefined&&hl===hb)return C;
-  if(hb!==undefined&&hc===hb)return L;
+  if(hb!==undefined&&hc===hb){if(!msJagaMassal(jalur,L,C))return L;   // patch238: daftar perangkat yang menyusut massal tak menang utuh —
+    return (Array.isArray(L)&&msDaftarBaris(L)&&msDaftarBaris(C))?msGabungBaris(jalur,L,C,(S&&S.r[jalur])||null):C;}   // per baris (baris baru di sini tetap ikut), selain itu versi cloud
   if(Array.isArray(L)&&Array.isArray(C)){
     if(jalur==='kitHapus'){var u=L.slice();C.forEach(function(x){if(u.indexOf(x)<0)u.push(x);});return u;}   // tombstone: himpunan
     if(msDaftarBaris(L)&&msDaftarBaris(C))return msGabungBaris(jalur,L,C,(S&&S.r[jalur])||null);
@@ -24635,7 +24643,7 @@ function fotoStatus(){var D=fotoDriveSet(),G=(ST.master&&ST.master.fotoGagal)||[
   return n;}
 function fotoSumberBlok(){var n=fotoStatus(),tot=n.drive+n.perangkat+n.lama,pct=tot?Math.round(n.drive*100/tot):100;
   return '<div style="border:1px solid var(--line);border-radius:10px;padding:11px 13px;margin:4px 0 8px;background:var(--bg)">'+
-    '<b style="font-size:12.5px">Sumber master data</b>'+imporSekaliBlok()+
+    '<b style="font-size:12.5px">Sumber master data</b>'+katalogPulihBlok()+imporSekaliBlok()+
     '<div style="font-size:11px;margin-top:3px">Produk, harga &amp; opsi: <b>Master HUB</b> (tersimpan di Drive) · Cost Estimator: <b>tidak tersambung</b></div>'+
     '<div style="font-size:11px;margin-top:8px"><b>Foto master</b> — <span style="color:var(--ok);font-weight:800">'+n.drive+' di Shared Drive</span> · '+
       '<span style="color:'+(n.lama?'var(--warn)':'var(--muted)')+';font-weight:800">'+n.lama+' masih link lama (Cost Estimator)</span> · '+
@@ -24697,7 +24705,38 @@ function gambarLatar(){try{if(gambarDriveSiap())gambarOrderKeDrive(6,true).then(
    Katalog produk & kombinasi harga dulu hanya hidup di cache browser (ditarik tiap HUB dibuka).
    Sekali impor penuh ke Master HUB, lalu alamat & token lama dihapus dari browser — sesudah itu
    tak ada lagi jalan ke Cost Estimator. Tombolnya hilang begitu Master HUB sudah punya hasil impor. */
-function imporSekaliPerlu(){return !(ST.master&&ST.master.imporEst);}
+function katalogKosong(){return !((ST.master&&ST.master.catalog)||[]).length;}
+function imporSekaliPerlu(){return !(ST.master&&ST.master.imporEst)||katalogKosong();}   // patch238: katalog kosong lagi → jalur cadangan terakhir
+function katalogPulihBlok(){
+  if(ST.user!=='Holding'||!katalogKosong())return '';
+  return '<div style="border:1.5px solid var(--warn);border-radius:9px;padding:9px 11px;margin:8px 0 2px;font-size:11px;line-height:1.55;background:var(--warn-bg)">'+
+    '<b style="color:var(--warn)">⚠ Katalog produk kosong</b> — produk &amp; kombinasi harga di Master Product hilang. Pulihkan dari cadangan harian (Shared Drive / Cadangan); '+
+    'hanya katalog &amp; kombinasi harga yang diambil, data lain tak tersentuh.'+
+    '<div><button class="btn sm" style="margin-top:6px" onclick="katalogPulihkan()">↺ Pulihkan katalog dari cadangan</button></div></div>';}
+function katalogPulihkan(){
+  if(ST.user!=='Holding'){alert('Hanya Holding.');return;}
+  if(parseFloat(ST._rilis||'0')<3){alert('Perlu Code.gs 3.0 — pasang dulu (Deploy → Manage deployments → New version), lalu muat ulang HUB.');return;}
+  dzProgres('membaca daftar cadangan…');
+  backendTanya('cadangan.katalog').then(function(j){dzProgres('');
+    if(!(j&&j.ok))throw new Error((j&&j.error)||'ditolak server');
+    var L=(j.daftar||[]).filter(function(c){return (+c.catalog||0)>0;});
+    if(!L.length){alert('Tak ada cadangan yang berisi katalog. Pakai ⭳ Impor terakhir dari Cost Estimator di kotak yang sama.');return;}
+    var lbl=function(c){return new Date(+c.tgl).toLocaleString('id-ID',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})+' — '+c.catalog+' produk · '+c.komb+' kombinasi harga ('+c.nama+')';};
+    askForm({judul:'↺ Pulihkan katalog dari cadangan',sub:'Pilih cadangan — yang paling atas = terbaru yang masih berisi katalog. Hanya katalog produk & kombinasi harga yang diambil.',
+      fields:[{k:'id',label:'Cadangan',type:'select',opts:L.map(function(c){return {v:c.id,l:lbl(c)};}),val:L[0].id}],
+      ok:function(v){dzProgres('mengambil katalog dari cadangan…');
+        backendTanya('cadangan.ambilKatalog',{id:v.id}).then(function(d){dzProgres('');
+          if(!(d&&d.ok))throw new Error((d&&d.error)||'ditolak server');
+          var M=ST.master,nk=0;
+          if(!(M.catalog||[]).length){M.catalog=d.catalog||[];}
+          if(!Object.keys(M.komb||{}).some(function(k){return (M.komb[k]||[]).length;})){M.komb=d.komb||{};}
+          Object.keys(M.komb||{}).forEach(function(k){nk+=(M.komb[k]||[]).length;});
+          if(!M.imporEst&&d.imporEst)M.imporEst=d.imporEst;if(!M.estCfg&&d.estCfg)M.estCfg=d.estCfg;
+          (d.fotoDrive||[]).forEach(function(id){fotoDriveTandai(id);});
+          saveMaster();try{buildCollatData();}catch(e){}render();
+          alert('✓ Katalog dipulihkan dari '+d.nama+': '+(M.catalog||[]).length+' produk, '+nk+' kombinasi harga.\n\nSudah tersimpan & dikirim ke cloud.');
+        }).catch(function(e){dzProgres('');alert('Pemulihan gagal: '+e.message);});}});
+  }).catch(function(e){dzProgres('');alert('Daftar cadangan tak terbaca: '+e.message);});}
 function imporSekaliBlok(){
   if(ST.user!=='Holding'||!imporSekaliPerlu())return '';
   var c=ST.cfg||{},ada=!!String(c.catalogUrl||'').trim();
