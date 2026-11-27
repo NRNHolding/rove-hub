@@ -1129,7 +1129,7 @@ const KEY='rovehub_orders_v18';
 /* ================= VERSI YANG SEDANG BERJALAN =================
    Diisi otomatis oleh terbitkan.js waktu salinan ini diterbitkan; '-' berarti
    dibuka langsung dari berkas, bukan dari alamat terbitannya. */
-const VERSI='20261127-161628';
+const VERSI='20261127-165733';
 /* Berkas versi.txt di sebelah halaman ini berisi penanda yang sama. Ia
    ditanyakan tanpa cache, jadi ia jujur walau halamannya sendiri masih
    tersimpan di cache browser. */
@@ -24312,8 +24312,7 @@ function prodKat(r){var k=String((r&&r.kategori)||'').trim();if(k)return k;
   for(var i=0;i<PROD_KAT_KATA.length;i++)if(n.indexOf(PROD_KAT_KATA[i][0])>=0)return PROD_KAT_KATA[i][1];
   return 'Aksesori lain';}
 /* ===== ROVE HQ & ROVE AU (27 Nov, patch239): produk sama, beda nama tampil & daftar yang dijual; HPP AU = HPP HQ + markup ===== */
-function prodPasar(){return ST._prodPasar==='au'?'au':'hq';}
-function prodPasarSet(p){ST._prodPasar=p;render();}
+function prodPasar(){return 'hq';}   // patch241: tak ada tab Rove HQ / Rove AU lagi — beda HQ & AU diisi per produk
 function prodDijual(r,p){return p==='au'?(r&&r.dijualAu!==false):(r&&r.dijualHq!==false);}
 function prodNamaPasar(r,p){return (p==='au'&&String((r&&r.namaAu)||'').trim())?String(r.namaAu).trim():String((r&&r.name)||'');}
 function auMarkup(){var v=+((ST.master&&ST.master.auMarkup));return (v>=0&&ST.master&&ST.master.auMarkup!=null&&ST.master.auMarkup!=='')?v:10;}
@@ -24562,40 +24561,37 @@ function prodBaru(){
       if(!v.dijualHq)r.dijualHq=false;if(!v.dijualAu)r.dijualAu=false;
       CT.push(stampRow(r));var idx=CT.length-1;
       ST._prodBuka=ST._prodBuka||{};ST._prodBuka[idx]=true;ST._prodKat='*';
-      if(!prodDijual(r,prodPasar()))ST._prodPasar=v.dijualHq?'hq':'au';
       saveMaster();render();
       setTimeout(function(){try{var e=document.querySelector('[data-f="prodEditor"][data-i="'+idx+'"]');if(e)e.scrollIntoView({block:'center'});}catch(x){}},80);}});}
 function prodDaftar(CT){
-  var P=prodPasar(),CTp=CT.filter(function(r){return prodDijual(r,P);});
+  var P='hq',CTp=CT;
   var kat=prodKatAktif(),cnt={};CTp.forEach(function(r){var k=prodKat(r);cnt[k]=(cnt[k]||0)+1;});
   var K=prodKatDaftar(CT);
   if(kat!=='*'&&K.indexOf(kat)<0)kat='*';
   var chip=function(k,lbl,n){return '<button class="btn '+(kat===k?'':'ghost')+' sm" onclick="prodKatSet('+jsArg(k)+')">'+esc(lbl)+' <span style="opacity:.7">('+n+')</span></button>';};
-  var tabP=function(p,lbl){var n=CT.filter(function(r){return prodDijual(r,p);}).length;
-    return '<button class="btn '+(P===p?'':'ghost')+'" style="'+(P===p?'background:#1c2240;border-color:#1c2240;':'')+'font-size:12.5px" onclick="prodPasarSet('+jsArg(p)+')">'+lbl+' <span style="opacity:.75">('+n+')</span></button>';};
   var h=warnaKatalogBlok()+
-    '<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px" data-f="prodPasar">'+tabP('hq','Rove HQ')+tabP('au','Rove AU')+
+    '<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px" data-f="prodPasar">'+
       '<button class="btn sm" data-f="prodBaruAtas" onclick="prodBaru()">＋ Produk baru</button>'+
+      '<span style="font-size:11px;color:var(--muted)" title="HPP Rove AU = HPP HQ + markup; PO &amp; pembayaran ke Radja tetap HPP HQ">Markup HPP Rove AU <input class="pin n" data-f="auMarkup" style="width:52px;display:inline-block" value="'+auMarkup()+'" onchange="auMarkupSet(this.value)"> %</span>'+
       '<button class="btn ghost sm" style="margin-left:auto" onclick="ST._katKelola=!ST._katKelola;render()">⚙ Kelola kategori</button></div>'+
-    (P==='au'?('<div style="font-size:11px;margin:-2px 0 10px;line-height:1.6">Markup Rove AU <input class="pin n" style="width:58px;display:inline-block" value="'+auMarkup()+'" onchange="auMarkupSet(this.value)"> % '+
-      '<span style="color:var(--muted)">— harga di tab ini = <b>HPP Rove AU</b> (HPP HQ + '+auMarkup()+'%), dasar harga order AU. PO &amp; pembayaran ke Radja tetap HPP HQ.</span></div>'):'')+
     (ST._katKelola?katKelolaBlok(CT):'')+
     '<div style="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:11px">'+chip('*','Semua',CTp.length)+K.map(function(k){return chip(k,katLabel(k,P),cnt[k]||0);}).join('')+'</div>';
   if(!CT.length)return h+'<div style="color:var(--muted);font-size:11px;padding:6px 0">Belum ada — tambahkan nilainya lewat tombol ＋.</div>';
   var terselip=CT.filter(function(r){return prodKat(r)===PROD_KAT_PROYEK&&(r.jenis||'Katalog')!=='Custom'&&!String(r.kategori||'').trim();}).length;
   if(kat===PROD_KAT_PROYEK&&terselip)h+='<div style="font-size:10.5px;color:var(--brand-dark);background:var(--warn-bg);border:1px solid var(--line);border-radius:8px;padding:7px 10px;margin-bottom:9px">'+
     terselip+' produk berjenis Katalog bernama “… for …” — dikelompokkan di sini otomatis. Ubah Jenis-nya ke Custom bila memang produk proyek.</div>';
-  var I=[];CT.forEach(function(r,i){if(prodDijual(r,P)&&(kat==='*'||prodKat(r)===kat))I.push(i);});
+  var I=[];CT.forEach(function(r,i){if(kat==='*'||prodKat(r)===kat)I.push(i);});
   h+='<div class="mprod">';
   I.forEach(function(i){var r=CT[i],buka=!!((ST._prodBuka||{})[i]),W=prodWarnaDaftar(r),H=prodHargaWarna(r);
     var uk=r.ukuranTeks||((r.pjg&&r.lbr)?(r.pjg+' x '+r.lbr+(r.tgi?(' x '+r.tgi):'')+' cm'):'');
-    h+='<div class="mprod-r'+(r._del?' mprod-del':'')+'" data-f="prodBaris" data-i="'+i+'" onclick="prodBuka('+i+')">'+prodImgKecil((P==='au'&&r.imgAu)?{img:r.imgAu}:r)+
-      '<div class="mprod-nm"><b>'+esc(prodNamaPasar(r,P)||'(tanpa nama)')+'</b>'+((r.jenis||'Katalog')==='Custom'?' <span class="tlabel" style="background:#6a6f8a">Custom</span>':'')+
-        ((P==='au'&&!String(r.namaAu||'').trim())?' <span class="tlabel" style="background:var(--warn)">belum ada nama AU</span>':'')+((P==='au'&&String(r.namaAu||'').trim())?('<div class="mgrp-meta">HQ: '+esc(r.name||'')+'</div>'):'')+
+    h+='<div class="mprod-r'+(r._del?' mprod-del':'')+'" data-f="prodBaris" data-i="'+i+'" onclick="prodBuka('+i+')">'+prodImgKecil(r)+
+      '<div class="mprod-nm"><b>'+esc(r.name||'(tanpa nama)')+'</b>'+((r.jenis||'Katalog')==='Custom'?' <span class="tlabel" style="background:#6a6f8a">Custom</span>':'')+
+        (!prodDijual(r,'au')?' <span class="tlabel" style="background:#6a6f8a">hanya HQ</span>':(!prodDijual(r,'hq')?' <span class="tlabel" style="background:#1c2240">hanya AU</span>':''))+
+        ((prodDijual(r,'au')&&String(r.namaAu||'').trim())?('<div class="mgrp-meta">AU: '+esc(r.namaAu)+'</div>'):'')+
         '<div class="mgrp-meta">'+esc(r.material||'—')+'</div></div>'+
       '<div class="mprod-w">'+(W.length?esc(W.slice(0,3).join(', ')+(W.length>3?(' +'+(W.length-3)):'')):'<span class="mgrp-meta">semua warna</span>')+
         (H.length?' <span class="tlabel" style="background:var(--warn)">'+H.length+' harga khusus</span>':'')+'</div>'+
-      '<div class="mprod-uk mgrp-meta">'+esc(uk)+'</div><div class="mprod-rng">'+prodRentang(P==='au'?(r.t||[]).map(hppAu):r.t)+'</div><span class="mgrp-pan">'+(buka?'▾':'▸')+'</span></div>';
+      '<div class="mprod-uk mgrp-meta">'+esc(uk)+'</div><div class="mprod-rng">'+prodRentang(r.t)+'</div><span class="mgrp-pan">'+(buka?'▾':'▸')+'</span></div>';
     if(buka)h+=prodEditor(CT,i);});
   return h+'</div>';}
 function prodEditor(CT,i){
